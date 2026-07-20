@@ -1,0 +1,12 @@
+model,paper_original_mape_approx,paper_modified_mape_approx,source
+ARIAM,0.28,,"digitized from Zhang Fig.9(b,c)"
+ELM,0.165,0.17,"digitized from Zhang Fig.9(b,c)"
+TDNN,0.11,,"digitized from Zhang Fig.9(b,c)"
+ESN,0.1,0.15,"digitized from Zhang Fig.9(b,c)"
+LSTM-online,0.103,,"digitized from Zhang Fig.9(b,c)"
+LSTM-1000,0.102,0.15,"digitized from Zhang Fig.9(b,c)"
+LSTM-3000,0.09,0.14,"digitized from Zhang Fig.9(b,c)"
+LSTM-6000,0.085,0.13,"digitized from Zhang Fig.9(b,c)"
+HTM,0.08,0.115,"digitized from Zhang Fig.9(b,c)"
+Ours (paper),0.1,0.1,"digitized from Zhang Fig.9(b,c)"
+Ours (local reproduction),0.13124650921369435,0.08782936653809506,local original/post-change CSV

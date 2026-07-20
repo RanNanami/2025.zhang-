@@ -1,0 +1,4 @@
+task,trials,mean_final_moving_accuracy,std_final_moving_accuracy,recovered_trials,mean_recovery_elements,std_recovery_elements
+single,10,0.938,0.11391224692718514,7,3143.285714285714,1691.8429270461008
+multiple-2,10,0.9550000000000001,0.056258332716140814,0,-1.0,-1.0
+multiple-4,10,0.9650000000000001,0.02156385865284782,0,-1.0,-1.0

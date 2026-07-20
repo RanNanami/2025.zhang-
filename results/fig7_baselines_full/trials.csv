@@ -1,0 +1,6 @@
+trial,model,backend,evaluated,cumulative_accuracy,final_moving_accuracy,note
+1,SNN,paper-aligned SequentialMemory,3000,0.8663333333333333,1.0,
+1,HTM,htm.core TemporalMemory,3000,0.9226666666666666,1.0,
+1,TDNN,pytorch-tdnn,3000,0.9216666666666666,0.98,All symbols enter context; supervised update occurs on sequence transitions.
+1,LSTM,pytorch-lstm,3000,0.7036666666666667,1.0,All symbols enter context; supervised update occurs on sequence transitions.
+1,ELM,numpy-online-elm,3000,0.9583333333333334,1.0,All symbols enter context; supervised update occurs on sequence transitions.

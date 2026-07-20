@@ -1,0 +1,1407 @@
+IEEE TRANSACTIONS ON NEURAL NETWORKS AND LEARNING SYSTEMS, VOL. 36, NO. 6, JUNE 2025 10143
+Toward Building Human-Like Sequential Memory
+Using Brain-Inspired Spiking Neural Models
+Malu Zhang
+ , Member, IEEE, Xiaoling Luo
+ , Jibin Wu
+ , Member, IEEE, Ammar Belatreche
+ , Member, IEEE,
+Siqi Cai
+ , Senior Member, IEEE, Yang Yang
+ , Senior Member, IEEE, and Haizhou Li
+ , Fellow, IEEE
+Abstract— The brain is able to acquire and store memories of
+everyday experiences in real-time. It can also selectively forget
+information to facilitate memory updating. However, our under-
+standing of the underlying mechanisms and coordination of these
+processes within the brain remains limited. However, no exist-
+ing artificial intelligence models have yet matched human-level
+capabilities in terms of memory storage and retrieval. This
+study introduces a brain-inspired spiking neural model that
+integrates the learning and forgetting processes of sequential
+memory. The proposed model closely mimics the distributed and
+sparse temporal coding observed in the biological neural system.
+It employs one-shot online learning for memory formation
+and uses biologically plausible mechanisms of neural oscillation
+and phase precession to retrieve memorized sequences reliably.
+In addition, an active forgetting mechanism is integrated into
+the spiking neural model, enabling memory removal, flexibility,
+and updating. The proposed memory model not only enhances
+our understanding of human memory processes but also pro-
+vides a robust framework for addressing temporal modeling
+tasks.
+Index Terms— Dendritic spiking neuron, neural mini-column,
+sequential memory, spiking neural networks.
+Received 8 June 2024; revised 10 December 2024; accepted 15 February
+2025. Date of publication 14 March 2025; date of current version 4 June
+2025. This work was supported in part by the National Natural Science
+Foundation of China under Grant U20B2063, Grant 62220106008, and Grant
+62106038; in part by Sichuan Science and Technology Program under Grant
+2024NSFTD0034 and Grant 2023YFG0259; in part by Shenzhen Science
+and Technology Program under Grant ZDSYS20230626091302006; in part
+by Shenzhen Science and Technology Research Fund (Fundamental Research
+Key Project) under Grant JCYJ20220818103001002; in part by the Research
+Grants Council of Hong Kong, SAR, under Grant PolyU25216423 and Grant
+PolyU15217424; and in part by the Open Research Fund of the State Key
+Laboratory of Brain-Machine Intelligence, Zhejiang University, under Grant
+BMI2400020. (Corresponding authors: Jibin Wu; Siqi Cai.)
+Malu Zhang and Yang Yang are with the School of Computer Science
+and Engineering, University of Electronic Science and Technology of China,
+Chengdu 610054, China.
+Xiaoling Luo is with the Key Laboratory of Higher Education of Sichuan
+Province for Enterprise Informationalization and Internet of Things, Sichuan
+University of Science and Engineering, Yibin 644000, China.
+Jibin Wu is with the Department of Data Science and Artificial Intelligence
+and the Department of Computing, The Hong Kong Polytechnic University,
+Hong Kong (e-mail: jibin.wu@polyu.edu.hk).
+Ammar Belatreche is with the Department of Computer and Information
+Sciences, Faculty of Engineering and Environment, Northumbria University,
+NE1 8ST Newcastle upon Tyne, U.K.
+Siqi Cai is with the Department of Electrical and Computer Engi-
+neering, National University of Singapore, Singapore 119077 (e-mail:
+elesiqi@nus.edu.sg).
+Haizhou Li is with Shenzhen Research Institute of Big Data, School of Data
+Science, The Chinese University of Hong Kong (CUHK), Shenzhen 518172,
+China.
+Digital Object Identifier 10.1109/TNNLS.2025.3543673
+I. I NTRODUCTION
+M
+EMOR
+Y is the ability to retain information about past
+experiences and events and to use this information
+to guide future behavior [1], [2]. It is an essential part of
+human cognition and intelligence, and it plays a critical role
+in our ability to learn, remember, and make decisions [3], [4].
+The human brain consistently translates lived experiences into
+durable memory traces in real-time even following a single
+presentation of sensory input. In addition, the brain can store
+vast amounts of information and can access this information
+rapidly and efficiently while preserving previously stored
+memories as long and as faithfully as possible [5]. Moreover,
+the brain also can forget information, which is essential for
+preventing our memories from becoming overloaded [6], [7].
+The concurrent necessity to rapidly encode and store new
+information, while also maintaining a large memory capacity,
+requires judicious management of the learning and forgetting
+processes [7]. However, the precise mechanisms by which
+these processes are implemented and coordinated in the brain
+remain an open area of research [5], [8].
+In recent decades, researchers have dedicated their efforts
+to the exploration of the intricate mechanisms that under-
+pin human memory. These findings from neuroscience have
+inspired the development of various computational models of
+memory [4], [9], [10], [11], [12]. However, none of these
+models have yet achieved human-level performance in terms
+of memory storage and retrieval. The reason for this dis-
+crepancy could be attributed to either a specific characteristic
+or a confluence of multiple features inherent to biological
+networks that were not taken into consideration within these
+models [13]. First, most existing memory models utilize sig-
+nificantly simplified dendriteless “point neurons” that do not
+accurately reflect real neurons’ complex structure and function.
+The biological memory system encompasses diverse neurons
+exhibiting distinct functional specialization and cooperative
+interactions [14], [15]. Second, the neural plasticity is the
+ability of neurons to change their structure and function in
+response to experience and memory formation involves various
+forms of neural plasticity, including but not limited to synaptic
+strength plasticity [16], [17], [18], [19], synaptic delay plas-
+ticity [20], [21], and structural plasticity [22]. However, many
+existing memory models do not consider the combination of
+different forms of neural plasticity. Third, the memory learning
+and retrieval involve a number of neural mechanisms, such
+2162-237X © 2025 IEEE. All rights reserved, including rights for text and data mining, and training of artificial intelligence
+and similar technologies. Personal use is permitted, but republication/redistribution requires IEEE permission.
+See https://www.ieee.org/publications/rights/index.html for more information.
+Authorized licensed use limited to: BEIJING INSTITUTE OF TECHNOLOGY. Downloaded on May 12,2026 at 13:56:58 UTC from IEEE Xplore.  Restrictions apply. 
+
+10144 IEEE TRANSACTIONS ON NEURAL NETWORKS AND LEARNING SYSTEMS, VOL. 36, NO. 6, JUNE 2025
+Fig. 1. Overview of the proposed SNN-based sequential memory model. This model can effectively memorize new patterns in a continuous, one-shot, and
+online-learning manner while incorporating a forgetting mechanism that helps increase online memory capacity. (a) Schematic illustrating the functionality of the
+proposed memory model and its hierarchical structure. (b) DS-neuron model accounts for both the dendritic tree structure and the spike-based communication
+mechanism observed in biological neurons. (c) Running process of the proposed memory model. The stages of encoding, learning, forgetting, prediction, and
+retrieval correspond to periodic neural oscillations.
+as neural oscillations [23], [24], [25], phase precession [26],
+[27], and synchronized neural activity [28], [29]. However,
+many existing memory models do not adequately account
+for these mechanisms, which contribute to a more intricate
+comprehension of this cognitive process. Finally, in contrast to
+the extensive examination of memory formation and retrieval,
+a limited number of models have incorporated the forgetting
+process within the memory system, which is noteworthy given
+the pivotal role of forgetting in facilitating memory removal,
+flexibility, and updating [30], [31], [32].
+This article introduces a novel memory model inspired by
+neural structures and mechanisms discovered in neuroscience
+research. The key features of the model include the following.
+1) The model employs a dendritic spiking neuron that
+considers both the neuronal dendritic tree structure and
+the spike-based communication mechanism. The model
+takes full advantage of the spatiotemporal coding of
+spiking neurons through the introduction of a spike
+timing-based encoding method. This approach allows
+the proposed memory model to perform distributed
+event-driven computation and facilitates the model’s
+implementation on ultralow-power neuromorphic hard-
+ware. It also significantly increases the capacity of the
+memory model.
+2) Inspired by the principles of neural plasticity, the model
+orchestrates various forms of plasticity, including adjust-
+ments of synaptic strength, synaptic delay, and structural
+plasticity. This allows the model to perform one-shot
+learning and innately support online learning. That is,
+additional training involving new stimuli does not dis-
+rupt previous learning.
+3) The proposed model investigates the functional roles
+of various neural mechanisms pivotal to memory stor-
+age and retrieval. These mechanisms include neural
+oscillation and phase precession. By carefully orchestrat-
+ing these mechanisms, the model can effectively store
+streaming information and reliably retrieve memorized
+sequences. Therefore, the proposed biological memory
+model contributes to a better understanding of various
+neuroscience findings related to memory.
+4) The proposed model incorporates a forgetting function
+that allows the model to simulate the human memory
+system by selectively discarding outdated and incon-
+sequential memories. The proposed active forgetting
+strategy enhances the adaptability, online storage capac-
+ity, and lifelong learning capacity of the model.
+5) Our modeling results suggest that the brain’s diverse
+neurons and neural mechanisms work synergistically
+to achieve memory and cognitive tasks. The proposed
+memory model not only offers some insights into human
+memory but also provides an effective framework for
+temporal sequence modeling.
+II. M ETHOD
+In this section, we first provide an overview of the model’s
+structure and running procedures. We then introduce the neu-
+ronal model, encoding, learning, and forgetting mechanisms,
+as well as the prediction and retrieval processes in detail.
+A. SNN-Based Sequential Memory Model
+The proposed memory model is inspired by the structure
+and computational properties of the human neocortex [33]. It is
+organized in a hierarchy with each layer consisting of multiple
+mini-columns [Fig. 1(a)]. Each mini-column in the proposed
+memory model contains a multitude of dendritic-spiking
+neurons (DS-neurons). DS-neurons draw inspiration from
+pyramidal neurons, which exhibit a dendritic tree structure and
+employ spike-based communication. As shown in Fig. 1(b),
+Authorized licensed use limited to: BEIJING INSTITUTE OF TECHNOLOGY. Downloaded on May 12,2026 at 13:56:58 UTC from IEEE Xplore.  Restrictions apply. 
+
+ZHANG et al.: TOW ARD BUILDING HUMAN-LIKE SEQUENTIAL MEMORY 10145
+the DS-neuron has three different input zones: proximal zone,
+distal zone, and apical zone, each populated with multiple
+dendrites. The proximal and apical zones receive feedforward
+inputs from lower layers and feedback inputs from higher
+layers, respectively. The spikes originating from these zones
+directly influence the neuronal membrane potential. While the
+distal zone contains many dendritic segments each of which
+contains a set of intralayer lateral connections. The spikes
+delivered by these lateral connections do not directly affect
+the neuronal membrane potential but instead accumulate to
+trigger a dendritic spike on this segment, which in turn acts
+on the neuronal membrane voltage.
+As we progress through this hierarchy, information flow
+from lower layers to higher layers (through the proximal zone)
+in a feedforward manner. That is, multiple components from
+lower layers converge onto a single element in a higher layer,
+forming an aggregation of concepts. An illustrative example
+of this phenomenon can be observed in language processing
+where the transition from individual letters to words and
+then subsequently to sentences showcases this progression.
+On the contrary, the feedback connections on the apical zone
+of DS-neurons allow information to flow from higher layers
+to lower layers, resulting in the splitting of the aggregated
+concept.
+In addition, each layer has its own corresponding intrinsic
+subthreshold neural oscillation V l
+osc, which works as a pace-
+maker. The frequency of this oscillation f l
+osc is designed to
+decrease gradually as we move from lower layers to higher
+layers. This cross-frequency coupling mechanism enables a
+proper timescale for binding lower level units into coherent
+higher level concepts.
+Prior to the learning process, memory items (exter-
+nal input) are encoded using the sparse spatiotemporal
+distributed (SSTD) encoding method, resulting in spatiotem-
+poral spike patterns sparsely distributed across mini-columns
+(Section II-C). During the first half cycle of oscillation,
+the encoded spikes are presented to their respective mini-
+columns (referred to as active mini-columns) via proximal
+zones while inhibiting other mini-columns through activation
+of the inhibitory mechanism. Meanwhile, as a result of inputs
+transmitted by the intralayer connections on distal dendrites,
+certain neurons within some mini-columns enter a depolarized
+state known as predictive neurons. That is, when the membrane
+potential of a dendritic segment V d (t) reaches the firing
+threshold ϑd, it triggers the generation of a localized dendritic
+spike as depicted in Fig. 2(c). Subsequently, this local dendritic
+spike induces the soma to enter a depolarized state, also known
+as the predictive state [34], where the membrane potential of
+the neuron undergoes a rapid upward shift from its resting
+potential, as illustrated in Fig. 2(d) (Section II-E).
+The predictive neuron within each active mini-column gen-
+erates a spike before its counterparts in the same mini-column,
+effectively becoming the winner and suppressing the firing of
+other neurons in that mini-column. If no predictive neurons
+are present in an active mini-column, all neurons within that
+mini-column will fire simultaneously. Subsequently, the gen-
+erated spikes propagate through connected synapses and may
+cause other neurons to fire local dendritic spikes, thus entering
+Fig. 2. Prediction process of the DS-neuron. (a) Original intrinsic neuronal
+oscillation. (b) Further simplification of DS-neuron, showing only the distal
+dendrites of the neuron. Each synapse on a distal dendrite has a different
+synaptic delay initialization at the time of generation, which causes these
+synapses to shift the input spikes so that the distal dendrite is more likely to
+generate dendrite spikes. (c) Dendritic spike is triggered when the potential
+of a distal dendrite exceeds the threshold ϑd in response to multiple input
+spikes. The dashed and solid arrows indicate the original and the delayed input
+spikes, respectively. (d) and (e) Dendritic spike causes neuron depolarization
+and phase precession (the neuronal oscillation is shifted to the trough) and
+lasts for half a cycle. (f) Neuronal firing is caused by neural oscillation (after
+phase precession) and depolarization in the absence of any other input.
+a predictive state during the second half of the oscillation
+cycle (Section II-E). Furthermore, the local dendritic spike
+also facilitates phase precession, as shown in Fig. 2(e). In the
+absence of external input in the following cycle, the shifted
+neuronal oscillation works together with the depolarized state
+to make the neuron fire ordered spikes without the need for
+external inputs, thereby enabling the neuron to engage in
+continuous predictions as depicted in Fig. 2(f), i.e., memory
+retrieval (Section II-F).
+The learning and forgetting processes occur simultaneously
+in the first half of the oscillation, before the prediction. They
+primarily rely on predictive neurons and active mini-columns,
+which can be categorized into two scenarios: first, the pres-
+ence of depolarized neurons within active mini-columns that
+accurately predict incoming inputs, and second, the presence
+of neurons in the remaining mini-columns that make incorrect
+predictions. The details are described in Section II-D.
+B. DS-Neuron
+Overall, the proposed DS-neuron incorporates the tree struc-
+ture and spike-based communication of biological neurons.
+Next, we will provide a comprehensive explanation of the
+operational procedures of a DS-neuron.
+1) Dendritic Spike on Distal Dendrites: Consider an input
+spike train to the dth dendritic segment of the ith cell in the
+jth mini-column, sk(t) =∑
+f δ(t − t f
+k − dk), where t f
+k is the
+time of the f th spike of the kth synapse connected to the seg-
+ment, dk is the transmission delay of the synapse [Fig. 2(b)].
+δ(·) is the Dirac function, which is often used to represent
+spikes in SNN. The incoming spikes will affect the membrane
+potential of the postsynaptic dendrite. ak(t) = (κ ∗ sk)(t)
+is used to define this affection by convolving sk(t) with a
+Authorized licensed use limited to: BEIJING INSTITUTE OF TECHNOLOGY. Downloaded on May 12,2026 at 13:56:58 UTC from IEEE Xplore.  Restrictions apply. 
+
+10146 IEEE TRANSACTIONS ON NEURAL NETWORKS AND LEARNING SYSTEMS, VOL. 36, NO. 6, JUNE 2025
+spike response kernel κ(t ) = V0[exp(−t/τ l
+m) − exp(−t/τ l
+s )],
+where the layer-related parameters τ l
+m and τ l
+s jointly govern the
+shape of the kernel. The dynamics of the dendritic membrane
+potential can be defined as follows:
+V d
+i j(t) =
+∑
+k
+ωk(κ ∗ sk)(t) + vrest =
+(
+W d
+i j
+)⊤
+ad
+i j(t) + vrest (1)
+where V d
+i j(t) is the membrane potential of the dth segment
+of the ith neuron in the jth mini-column, ωk is the synaptic
+weights of the kth synapse connected to the dendrite, and
+W d
+i j is the set of these weights. When the membrane potential
+of a dendrite reaches its firing threshold ϑd (i.e., V d
+i j(t) ≥ ϑd),
+a local dendritic spike will be generated. After generating the
+dendritic spike, the membrane potential of the dendrite reset
+to the resting potential vrest = 0, as shown in Fig. 2(c).
+2) Soma Depolarization Triggered by Dendritic Spikes:
+Dendritic spike prompts the cell to enter a depolarized state
+(i.e., predictive state) that the membrane potential increase
+rapidly to vdep (i.e., distal input V dis
+i j = vdep), and the status
+will be maintained for a period of τdep (in this work, it equals
+half a cycle) [35], [36], [37], as shown in Fig. 2(d). Although
+the depolarized state is not enough to trigger a soma spike,
+it is very important for information selection and continuous
+prediction. For example, when receiving the same feedforward
+inputs, the depolarized neuron fires earlier and activates the
+inhibition mechanism to prevent the firing of other neurons
+within the same mini-column. On the other hand, in the
+absence of feedforward input, by joining with subthreshold
+membrane potential oscillations, the depolarized neurons can
+produce spikes, and transmit them to other neurons to make
+continuous predictions [34].
+3) Proximal Feedforward Input and Apical Feedback Input:
+The proximal zone corresponds to feedforward inputs from
+lower layers (the feedforward inputs of the bottom layer are
+those external stimuli encoded as spike trains), and the apical
+zone receives feedback spikes from higher layers. V pro,l
+i j and
+V api,l
+i j denote the summed inputs from the l −1 and l +1 layer,
+respectively. They are defined as V pro,l
+i j (t) = ( ˆW l
+i j)⊤ ˆa
+l
+i j(t) and
+V api,l
+i j (t) = ( ˇW l
+i j)⊤ ˇa
+l
+i j(t), respectively. ˆW l
+i j and ˇW l
+i j represent
+the weights of the synaptic connections on the proximal and
+apical zones, and ˆal
+i j and ˇal
+i j represent the convolutional
+values of the received spikes on the corresponding zones,
+respectively. Unlike synapses on distal dendrites, both the
+proximal synapses and apical synapses directly connect to the
+soma without dendrites, so feedforward and feedback input
+spikes directly affect the membrane potential. Note that the
+memory model receives and processes the proximal inputs in
+the first half of an oscillation cycle.
+4) Neural Oscillation and Phase Precession: Neural oscil-
+lation activity, especially theta and gamma oscillations, has
+been widely observed at different levels of organization in
+the brain and is thought to play a critical role in the pace-
+making [38], information processing, memory, and other
+cognitive tasks. In this work, the neuronal subthreshold mem-
+brane potential oscillation is defined as a sine wave, as shown
+in Figs. 2(a)–5(a)
+V l
+osc(t) = − Aoscsin
+(
+2π f l
+osc + φ0
+)
+(2)
+where Aosc is the amplitude, φ0 is the initial phase, and f l
+osc is
+the oscillation frequency in the lth layer. With different values
+of f l
+osc, the neuronal oscillations provide multiple timescale
+pacemakers for different layers. From down to top in the
+hierarchical model, the corresponding memory units become
+longer (such as letter-word-sentence). Therefore, frequency
+f l
+osc gradually decreases with the increase of layers, effectively
+aligning the cycle duration with the information content of
+the memory unit. This cross-frequency coupling mechanism
+enables proper timescale for information processing and bind-
+ing lower level units into coherent high-level concepts.
+The phase precession is a neurophysiological process related
+to the action potential of neurons and the periodic rhythm
+field potential, involving some neural representations of brain
+regions, and supporting different aspects of cognition, learn-
+ing, and memory [39], [40], [41], [42]. In the absence of the
+feedforward inputs, the oscillation through phase precession
+[Fig. 2(e)] works together with a neuron’s predictive state
+to make a prediction by firing a spike [Fig. 2(f)]. Then,
+the generated spike transmits to other neurons for further
+prediction. Also, the oscillation goes back to the original
+phase φ0.
+5) Neuron Firing: In addition to the inputs received from its
+three zones, i.e., proximal zone, distal zone, and apical zone,
+the membrane potential of a DS-neuron is also affected by
+neural oscillation, inhibitory feedback, and refractory periods.
+To distinguish the neuron’s membrane potential in different
+layers, V l
+i j(t) is used to denote the membrane potential of the
+ith neuron in the jth mini-column of layer l, and it is specified
+by
+V l
+i j(t) = V pro,l
+i j (t) + V api,l
+i j (t) + V dis,l
+i j
++ V l
+inh(t) + V l
+osc(t) + η
+(
+t − tl
+i j
+)
+(3)
+where V l
+inh(t) is the inhibitory feedback from other mini-
+columns. When the membrane potential of a neuron at time t
+is the largest among all neurons within the same mini-column
+and exceeds the given threshold ϑ, it triggers a spike and
+produces intracolumn inhibition to these other neurons, until
+the end of the cycle. In the experiments, we simply set it to
+a constant large enough to ensure that the suppressed neurons
+cannot fire. Also, the fired neurons will no longer fire in this
+cycle under the influence of the refractory period, which is
+modeled by the kernel η(t − tl
+i j), where tl
+i j denotes the firing
+time of this neuron in this cycle. η(t − tl
+i j) = −ϑ if t > tl
+i j
+(t belongs to the current oscillation cycle), otherwise η(t ) = 0.
+C. Encoding
+Various neuroscience findings support that the spike tem-
+poral coding and sparse distribution coding are involved in
+memory formation [43], [44], [45]. Inspired by these, we pro-
+pose an SSTD method to encode different types of memory
+items into spatiotemporal patterns of several mini-columns.
+Although the exact SSTD encoding differs for each type
+of external input, they all consist of three separate sparse
+representations from different aspects.
+1) Column Aspect: Only a few mini-columns are chosen to
+encode a memory item. These selected mini-columns
+Authorized licensed use limited to: BEIJING INSTITUTE OF TECHNOLOGY. Downloaded on May 12,2026 at 13:56:58 UTC from IEEE Xplore.  Restrictions apply. 
+
+ZHANG et al.: TOW ARD BUILDING HUMAN-LIKE SEQUENTIAL MEMORY 10147
+Fig. 3. SSTD coding strategy. (a) Encoding of real-value data. The data
+x is represented as the ordered spike time of mini-columns C5, C6, C4, C7,
+and C3 (K = 5), and the data in the gray shaded area corresponds to the
+same representation. (b) Encoding of periodic data. For example, for 24 h of
+the day, the coding of 23 o’clock, 0 o’clock, and 1 o’clock should overlap,
+so the distribution of mini-columns in (a) is changed to a circular form.
+(c) Encoding of discrete symbols. A symbol is encoded as the ordered spike
+time of several random mini-columns (two mini-columns in this figure). For
+example, triggering C3 before C4 represents B, and vice versa represents D.
+Also, in the mini-column C3, the neuron C32 (dashed edge) and C34 (solid
+edge) represent different context information (CB and AB) because C32 is
+connected to C, while C34 is connected to A.
+prevent other mini-columns from being fired by an
+intercolumn inhibition mechanism, which maintains the
+sparsity of the encoding.
+2) Neuron Aspect: All neurons within a mini-column
+represent the same memory item, yet assume dis-
+tinct representations of this item in varying contexts.
+As a result, typically only one neuron in an active
+mini-column is selected for any given context.
+3) Temporal Aspect: Different firing orders of the same
+mini-columns represent different information, in other
+words, the temporal information participates in both
+feedforward inputs and sequence context representation.
+This spike timing-based encoding significantly increases
+memory capacity.
+Specifically, an input item is encoded as the proximal
+input spike times of K mini-columns (approximately 2%–10%
+of the total mini-columns in the layer), one for each mini-
+column. But in fact, we are more concerned with the order of
+these input spikes, rather than their precise timing. Different
+items can be represented by different input orders of the
+same K mini-columns, which can greatly expand the coding
+capacity.
+1) Encoding of Real-Value Data: For real-valued data, such
+as the number of taxi passengers, the encoded representation
+should maintain the correlation between the data, i.e., close
+numbers correspond to similar representations. Thus, the idea
+of Gaussian population coding [46], [47] is referenced: Each
+mini-column has its receptive field (simulated by a Gaussian
+function) and only responds to data that falls within its
+receptive field. The receptive fields of these mini-columns
+are distributed with an interval of l, and together cover the
+data range to be encoded. Enter the data into the function
+group, and the mini-columns whose output values rank in the
+top K constitute the representation of the data. Therefore, the
+encoding resolution is l/2, as shown in Fig. 3(a), the data in
+the gray shaded area correspond to the same representation.
+After the coded mini-columns and the corresponding order are
+determined, the exact input time can be evenly distributed in
+the first half of the oscillation.
+2) Encoding of Periodic Data: The starting point and
+ending point of periodic data (such as the time of day, day of
+the week,and month) are adjacent to each other, so their coding
+results should reflect this closeness. In order to achieve this,
+it is only necessary to arrange Gaussian functions in real-value
+encoding in a ring, covering the data range, as shown in
+Fig. 3(b). This simple operation ensures that the minimum
+and maximum values of the data are encoded similarly.
+3) Encoding of Discrete Symbols: Since there is no relation-
+ship between different symbols (the semantics of symbols are
+not considered in this work), the encoding of discrete symbols
+only needs to ensure that a symbol has its fixed representation.
+Therefore, K mini-columns (in order) are randomly selected
+to represent a symbol, and their proximal input spike times are
+evenly distributed over the first half of the oscillation. Note
+that for the same several mini-columns, different fire orders
+also represent different symbols. Different neurons firing at
+the same time in the same mini-column represent different
+context information, as shown in Fig. 3(c).
+Overall, SSTD is a coding method that targets mini-columns
+rather than neurons, offering a substantial coding capacity. It is
+not tailored for specific input types; rather, it can be easily
+adapted to various input types with minimal adjustments,
+including real values, text, and time.
+D. Learning and Forgetting
+Learning (memory) and forgetting are commonly attributed
+to the modification of synaptic strength through the Hebbian
+rule or its temporally asymmetric form spike timing-dependent
+plasticity (STDP) [17], [48], [49]. However, recent evidence
+challenges this synaptic strength-based theory and suggests
+important roles of the synaptic delay [50], [51], [52] and
+structural plasticity [53], [54], [55], [56], [57]. Inspired by
+these neuroscience findings, a hybrid learning rule, considers
+the plasticity of synaptic connection strength, synaptic delay,
+and network structure, is employed in the memory formulation
+process. On the other hand, the active forgetting function
+is an indispensable part of the memory system and plays a
+crucial role in memory updating and flexibility [30], [31], [32].
+To leverage the advantage of forgetting, a forgetting mecha-
+nism is equipped in our memory model to forget unimportant
+and old knowledge to promote online memory performance.
+In the proposed model, we initialize with an empty network,
+and the connections and properties of synapses are formed
+and modified through learning. Each synapse in the model
+is characterized by weight ω, delay d, and age α. The
+weight denotes the efficacy of a connection and the delay
+represents its transmission time (once determined, it will
+not change unless the synapse disappears), while the age
+tracks the number of learning events that have occurred in
+a neuron since the synapse last participated in learning. The
+importance of a memory item is determined by its familiarity
+and age, i.e., synaptic weights (strengths) ω and synaptic
+ages α, respectively. The model exhibits two distinct forms of
+plasticity: Intralayer plasticity and interlayer plasticity, which,
+respectively, pertain to the synapses within the same layer
+and those that span across layers. Then according to the
+Authorized licensed use limited to: BEIJING INSTITUTE OF TECHNOLOGY. Downloaded on May 12,2026 at 13:56:58 UTC from IEEE Xplore.  Restrictions apply. 
+
+10148 IEEE TRANSACTIONS ON NEURAL NETWORKS AND LEARNING SYSTEMS, VOL. 36, NO. 6, JUNE 2025
+designed synaptic plasticity, the active memory fade involves
+the depression of synaptic weights and the aging of synapses.
+1) Intralayer Plasticity: The goal of intralayer plasticity
+is to formulate the sequential memory by updating synap-
+tic weights, synaptic delays, and network structure. Here,
+we simply denote the pair of neurons that establish intralayer
+connections by i (presynaptic) and j (postsynaptic). ωi j, di j,
+and αi j, respectively, represent the connection weight, delay
+and age. Also, ti and t j represent their corresponding firing
+time. The intralayer plasticity, specifically, can be divided into
+the following three scenarios:
+1) If a neuron is in a predictive state (depolarized) and
+subsequently generates a soma spike due to the proximal
+input, a “learning event” is triggered in the neuron.
+All contributed synapses in the dendritic segment that
+caused the predictive state are both strengthened (ω i j ←
+ωi j + δω) and rejuvenated (α i j ← 0). On the other hand,
+all the other synapses in the active dendritic segment and
+other nonactive dendritic segments are both weakened
+(ωi j ← ωi j − δω) and aging (α i j ← αi j + 1).
+2) If there is no predictive neuron in a mini-column that
+presented proximal input, we first try to find the best
+matching segment that the active synapse (those whose
+transmitted spikes arrive at the same time) is above a
+critical number Lmatch. Then, the selected segment is
+reinforced by updating these active synapses: ωi j ←
+ωi j + δω and αi j ← 0, and growing new synapses with
+winners in the previous cycle. When there are no best-
+matching segments, the neuron with the fewest segments
+is selected to add a new segment and grow new synapses
+with winners in the previous cycle. All new synapses are
+initialized with synaptic weight ωi j = ω0, delay di j =
+t j − ti − π and age αi j = 0.
+3) If the predictive neuron fails to activate due to the
+absence of input spikes, it indicates an incorrect pre-
+diction. Consequently, the synapses contributing to this
+prediction should be depressed by reducing the synaptic
+weights (ωi j ← ωi j−δ′
+ω) and the age should be increased
+(αi j ← αi j + 1).
+2) Interlayer Plasticity: The higher level concepts are also
+encoded by the SSTD method and several mini-columns are
+activated in a specified order. The feedforward and feedback
+synapses between the lower level neurons and the higher level
+mini-columns are established to form the “aggregation” of the
+lower level items; that is, one higher level item corresponds
+to multiple lower level items. We simply use tpre and tpost to
+represent the firing time of the lower neuron i and the upper
+mini-column j that establish the interlayer synapse. During the
+memory process, both the feedforward and feedback synapses
+are updated simultaneously. Specifically, for layer l and layer
+l +1, the interlayer plasticity can be divided into the following
+three scenarios:
+1) If the input from a mini-column in layer l fails to
+contribute to the firing of the corresponding mini-column
+in layer l +1, a feedforward synapse is generated on the
+proximal zone of the higher level mini-column and ini-
+tialized: ˇωi j = ω0, ˇdi j = tpost −tpre, and ˇαi j = 0. At the
+same time, a new feedback synapse is generated on the
+Fig. 4. Schematic of a multilayer model. (a) Three-layer network that stores
+a sentence S : DO IT. For ease of viewing, intralayer connections are not
+presented. (b) Proximal synaptic delays of the upper layer mini-columns.
+(c) Apical synaptic delays of the lower layer neurons. (d) Spikes fired by
+the corresponding mini-columns in the three-layer network during memory.
+(e) Spikes fired by the corresponding mini-columns in the three-layer network
+during goal-based retrieval.
+apical zone of the lower level neuron and initialized:
+ˆωi j = ω0, ˆdi j = tl+1
+max −tl
+min +tpre −tpost, ˆαi j = 0. Where
+tl+1
+max represents the maximum firing time among several
+mini-columns of layer l +1 corresponding to the current
+input item, and tl
+min represents the minimum firing time
+among all lower level mini-columns corresponding to
+this upper level item, as shown in Fig. 4(b).
+2) If the input from a lower level neuron successfully
+causes the corresponding higher level mini-column to
+fire at the coded time, the contributed feedforward
+synapses and corresponding feedback connections are
+strengthened and juvenated: ˆωi j ← ˆ ωi j + δω and
+ˆα ← 0; and ˇωi j ← ˇωi j + δω and ˇα ← 0.
+3) If the lower input spikes make the wrong higher mini-
+columns fire, the contributed feedforward synapses and
+corresponding feedback connections are weakened and
+aged: ˆωi j ← ˆωi j − δ′
+ω and ˆα ← ˆα + 1; and ˇωi j ←
+ˇωi j − δ′
+ω and ˇα ← ˇα + 1.
+3) Forgetting: To measure the possibility of being for-
+gotten, we define a forgetting function for each synapse as
+f = L ω(1 − ω) + Laα, where L ω and La are the two
+parameters to determine the importance of familiarity and age.
+When the value of f reaches the forgetting threshold ϑ f , the
+corresponding synapse is deleted to perform forgetting. This
+“strength-age depression” strategy is employed in our model
+to substantially increase online storage capacity and flexibility.
+In summary, the integration of multiple plasticity and for-
+getting mechanisms allows the model to retain frequently
+occurring memories while discarding irrelevant ones. Con-
+sequently, these components collectively contribute to the
+model’s unified and robust functionality. Each component is
+crucial for the model’s optimal performance.
+E. Prediction
+The proximal and apical zones of the DS-neuron are
+dedicated to receiving feedforward inputs from lower layers
+(or external inputs) and feedback inputs from higher layers,
+Authorized licensed use limited to: BEIJING INSTITUTE OF TECHNOLOGY. Downloaded on May 12,2026 at 13:56:58 UTC from IEEE Xplore.  Restrictions apply. 
+
+ZHANG et al.: TOW ARD BUILDING HUMAN-LIKE SEQUENTIAL MEMORY 10149
+respectively. The spikes detected in proximal and apical zones
+have a direct contribution to the neuronal membrane poten-
+tial, which are denoted by V pro(t) and V api(t), respectively,
+as in (3). The distal zone, on the other hand, is dedicated to
+observing the neuronal activities in the same layer. As shown
+in Fig. 2(b), there are many dendritic segments in the distal
+zone, and each segment contains a set of lateral connections
+characterized by synaptic weights and synaptic delays. When
+the membrane potential V d
+k (t) of a dendritic segment k reaches
+the firing threshold ϑd, a local dendritic spike will be generated
+[Fig. 2(c)] and causes the cell body to enter a depolarized
+state. That is, the distal membrane voltage V dis(t) suddenly
+increases by a positive potential vdep, as shown in Fig. 2(d),
+and the neuron becomes a predictive neuron.
+The membrane potential dynamics of a DS-neuron is also
+governed by the layer-dependent intrinsic neuronal subthresh-
+old oscillation V l
+osc(t) [Fig. 2(a)]. When a neuron enters the
+depolarized state, the phase precession immediately happens
+to make the neuronal oscillation shift to the valley [Fig. 2(e)].
+Then, the shifted neuronal oscillation can work together with
+the depolarized state to make the predictive neuron fire a
+spike, even without input spikes, for further prediction and
+computation [Fig. 2(f)].
+F . Retrieval
+The proposed model can perform contextual retrieval and
+goal-based retrieval corresponding to intralayer plasticity
+on lateral synapses and interlayer plasticity on cross-layer
+synapses, respectively.
+1) Contextual Retrieval: To illustrate the process of con-
+textual retrieval, consider a simple sequence A → B → C,
+as shown in Fig. 5(b). In the memory process, each memory
+item of this sequence is encoded as spike times of sparse mini-
+columns, and then presented to the memory model in the first
+half of each cycle one by one. According to the intraplasticity,
+some neurons in these coding mini-columns are selected as
+winners (deep red) to make connections with winners in the
+last cycle.
+In this contextual retrieval task, the item A is presented
+to the memory model, and then, the model is expected to
+progressively retrieve the elements B and C. The input of
+A makes the corresponding mini-columns fire spikes (pink
+arrows) in encoded order. In the second half cycle, these
+spikes are transmitted to some neurons corresponding to B,
+making them predictive neurons (green), accompanied by
+phase precession, as shown in Fig. 5(c). Fig. 5(d) uses a
+predictive neuron of B as an example to illustrate how the
+depolarized state works together with the shifted neuronal
+oscillation to retrieve the item B. Then, the fired spikes of
+B further make the neurons corresponding to C fire spikes to
+complete the contextual retrieval, and Fig. 5(e) illustrates the
+membrane potential dynamics of a predictive neuron of C.
+2) Goal-Based Retrieval: To illustrate the process of goal-
+based retrieval, consider a two-word sentence S : DO IT,
+where S stands for the concept of the sentence DO IT as
+a whole. As shown in Fig. 4(a), a three-layer memory model
+corresponding to “letter-word-sentence” is established. During
+Fig. 5. Contextual retrieval. (a) Neural oscillation. (b) Learning process of
+sequence A → B → C. Elements are input into the model successively to
+activate corresponding encoding mini-columns (red). Also, a neuron with the
+fewest distal dendrites (dark red) in each of these mini-columns is selected as
+winner to establish connections with winners in the last cycle. (c) Retrieval
+process. Enter A, the neurons connected with the winners of A first enter
+the depolarization state (green), and then are activated in the first half of
+the next cycle (dark red), B is retrieved. C is then retrieved in the same
+way. (d) and (e) During retrieval, the membrane voltage trajectories of one
+of the predicted cells correspond to B and C. The states of the mini-columns
+(nine mini-columns in total) in the model are shown correspondingly with the
+oscillation period.
+learning, intra-layer connections are established between mini-
+columns (corresponding to different letters) in the bottom
+layer, and between mini-columns (corresponding to different
+words) in the middle layer. The interlayer connections are
+built between the lower layer neurons and the upper layer
+mini-columns [the setting of synaptic delays is shown in
+Fig. 4(b) and (c)]. For example, the neurons in the bot-
+tom mini-columns representing the letters D (orange) and O
+(green) are connected to the middle mini-columns represent-
+ing the word DO (cyan), while the neurons in the middle
+mini-columns representing the words DO and IT (red) are
+connected to the top neuron representing the sentence S (blue).
+The activation sequence of mini-columns in the three layers
+is shown in Fig. 4(d).
+When the concept of sentence S is presented to the memory
+model, the corresponding mini-column in the sentence level
+will generate a spike. Due to the learned interlayer synapses,
+neurons in the word level will receive the spike directly from
+the top layer and produce spikes in order. Fig. 4(e) shows
+an example of the process of goal-based retrieval. During the
+goal-based retrieval, the learned interlayer synapses play a
+dominant role due to their strong and direct contribution, and
+the contribution of intralayer synapses can be neglected.
+III. E XPERIMENTS
+A. Parameter Setting
+Unless specifically stated, the default values for certain
+parameters are displayed in Table I. The initial phase dif-
+ference of neural oscillation between two adjacent layers is
+π. The forgetting threshold ϑ f serves as a crucial parameter
+that balances the retention of recent input with historical
+Authorized licensed use limited to: BEIJING INSTITUTE OF TECHNOLOGY. Downloaded on May 12,2026 at 13:56:58 UTC from IEEE Xplore.  Restrictions apply. 
+
+10150 IEEE TRANSACTIONS ON NEURAL NETWORKS AND LEARNING SYSTEMS, VOL. 36, NO. 6, JUNE 2025
+TABLE I
+PARAMETER SETTING
+Fig. 6. Data for the sequence prediction task. (a) Sequence stream formed
+by concatenating sequences, separated by random noise symbols. Bounded by
+the orange bar, the endings of these sequences that make up the stream are
+swapped, as in (b). (b) Sequences with only one possible ending. (c) Sequences
+with multiple possible endings (two possible endings are shown here).
+information. Its optimal value varies across different exper-
+iments. In the sequence recall task with the highest real-time
+requirements, the forgetting thresholds for single and multiple
+predictions are set to 25 and 50, respectively. For the taxi pas-
+senger prediction experiment, the threshold is adjusted to 65.
+Conversely, in the sentence memory task, which emphasizes
+preserving extensive historical memory, the threshold is raised
+to 500. Lmatch is a crucial parameter in intralayer plasticity that
+determines a dendrite’s eligibility to participate in learning.
+Besides being set to 4 in the taxi task, it is configured to 3 in
+all other experiments.
+B. Rapid Online Learning and Robust Recall
+In this section, we conduct experiments to verify the online
+learning capability and adaptability of the proposed model by
+learning streaming data. As depicted in Fig. 6(a), the streaming
+data is constructed by a mixture of letter sequences and noise
+symbols [58]. The letter sequences are randomly drawn from
+a predefined sequence set. As shown in Fig. 6(b) and (c),
+each sequence consists of three parts: the start part, shared
+subsequence, and end part. The noise elements are randomly
+chosen from a set of 50 000 elements (excluding those used in
+the predefined sequence set). In this task, the memory model
+consists of a one-layer network comprising 200 mini-columns,
+each containing ten neurons.
+In the first task, the sequences in the streaming data are
+selected from the set as shown in Fig. 6(b), and each sequence
+has only one possible ending. For example, the sequences
+“G I H E C D A” and “B I H E C D F” share the subsequence
+“I H E C D,” whereas sequences beginning with G end
+with A, and sequences beginning with B end with F. The
+model is trained to predict the final element of each sequence,
+requiring it to retain contextual information from the initial
+element to achieve accurate predictions and demonstrate its
+ability to capture long-term dependencies. Each element in
+the sequence is encoded by a random ten mini-columns out of
+these 200 mini-columns (sparse symbol encoding), and these
+coded spikes are sequentially fed into the memory model.
+The memory model learns in an online manner without an
+explicit switch between learning and testing. As the elements
+are presented to the memory model sequentially, we track the
+accuracy of predicting the last element of each sequence over
+time and report the ratio of correct predictions. We compare
+the performance of different sequential learning methods on
+this task and the experimental results are presented in Fig. 7.
+While the final prediction accuracy among different methods
+is comparable, the proposed memory model achieves the best
+prediction accuracy much faster than other methods, such
+as HTM [58], TDNN [59], and LSTM [60]. The proposed
+model can achieve perfect prediction after observing only
+around 1000 elements, outperforming TDNN and HTM which
+require around 3000 and 5000 elements, respectively. The
+highest accuracy achieved by ELM [61], online LSTM, and
+LSTM-1000 remains below 1. Furthermore, unlike LSTM,
+the proposed model inherently supports online learning and
+does not require segmenting the streaming data into predefined
+chunks and presenting repeatedly.
+After presenting 10 000 elements [orange line in Fig. 7(a)],
+all the methods achieve stable performance. Given the inher-
+ently dynamic nature of streaming data characterized by rapid
+temporal variations, we investigate the adaptability of the
+proposed memory model to such dynamic changes. To assess
+this adaptability, we alter the streaming data by swapping
+the last elements of each pair of sequences within the set,
+as illustrated in Fig. 6(b), and subsequently presenting the
+altered data to the model. This task requires the memory
+model to effectively manage both forgetting and learning
+processes, namely actively forgetting old sequences while
+rapidly learning new ones. As illustrated in Fig. 7(c), the
+proposed model demonstrates rapid adaptation to the altered
+sequences, achieving perfect prediction accuracy after expo-
+sure to 2500 elements. This notable performance can be
+attributed to the active forgetting mechanism and the one-shot
+rapid learning employed by the model.
+In the context of the multiple prediction task, sequences
+within the streaming data are selected from the set as illus-
+trated in Fig. 6(c), which have multiple possible endings. For
+example, the sequences “G I H E C D A,” “G I H E C
+D F,” “B I H E C D K,” and “B I H E C D J” share the
+subsequence “I H E C D.” Sequences beginning with G have
+two possible endings: A and F, and sequences beginning with
+B have two possible endings: K and J. Specifically, we evaluate
+sequences with two and four endings, respectively. In the
+case where a sequence presents two (four) distinct endings,
+a correct prediction is defined by results of no more than
+two (four) and including the correct ending. The evaluation
+Authorized licensed use limited to: BEIJING INSTITUTE OF TECHNOLOGY. Downloaded on May 12,2026 at 13:56:58 UTC from IEEE Xplore.  Restrictions apply. 
+
+ZHANG et al.: TOW ARD BUILDING HUMAN-LIKE SEQUENTIAL MEMORY 10151
+Fig. 7. Experimental results for the sequence prediction tasks. (a) Online prediction accuracy is calculated over a stream of sequences formed by concatenating
+artificially constructed sequences, each with a single possible ending. This represents the moving average of the last 100 sequences. These sequences contain
+four sequences of the sixth-order and four sequences of the seventh order. The sequence configurations change after the models process 10 000 elements,
+indicated by the orange vertical line. (b) and (c) Final prediction accuracy achieved by various models along with the corresponding number of elements
+required both before and after data modification. The horizontal bars denote standard deviations in the number of required elements while the vertical bars
+denote the standard deviations in accuracy. (d) and (e) Online prediction accuracies for sequence streams composed of artificially constructed sequences,
+each having two or four potential endings. The dataset comprises four groups of sixth-order sequences and four groups of seventh-order sequences. The gray
+shadow represents the standard deviation of the proposed model across ten trials. The standard deviations of other models are not shown for clarity. The
+results of other baseline models in the current figure as well as Figs. 8(b) and (c) and 9 come from [58].
+of prediction accuracy is illustrated in Fig. 7(d) and (e)
+which shows that the proposed model can rapidly achieve an
+accuracy equal to 1 when compared with other methods. For
+the case involving two predictions, our model stabilizes at an
+accuracy of 1 after processing only around 3600 elements,
+whereas HTM requires over 4300 elements. In the case of four
+predictions, where the task becomes more challenging, HTM
+requires 10 000 elements to approach a perfect prediction,
+whereas our model achieves a similar level of accuracy with
+only about 4400 elements.
+C. Superior Memory Capacity
+This section explores the memory capacity assessment of
+the proposed memory model. The initial evaluation involves
+testing the efficacy of the single-layer structure in storing and
+recalling sentences from the Children’s Book Test (CBT) [62].
+The model comprises 100 mini-columns, each containing ten
+neurons. Sentences used for assessment are at least ten words
+long, with each word encoded by ten mini-columns using the
+discrete symbol encoding method. The first ten words of the
+selected sentence are sequentially presented to the single-layer
+model for the learning process. Subsequently, the first six
+words are input, and the retrieval task involves recalling the
+remaining four words. The Levenshtein distance [63] is used
+as the metric for measuring the similarity between the retrieved
+content and the desired response (an English word or a Chinese
+character is treated as a character for Levenshtein distance
+calculation). A lower Levenshtein distance value indicates
+a higher similarity between the retrieved sentence and the
+original one. In order to measure memory capacity, the number
+of sentences used for evaluation is systematically increased
+from 100 to 1000.
+The experimental results show that as the number of
+symbols increases, the Levenshtein distance for all meth-
+ods also increases in a consistent pattern. However, the
+impact of the number of symbols on the performance of
+LUMAKG, HTM, and our proposed method remains negli-
+gible, as depicted in Fig. 8(a). Notably, when the number of
+symbols reaches 10 000, the mean Levenshtein distances for
+LUMAKG [64], HTM, and our proposed method are 0.75, 0.5,
+and 0.2, respectively. In contrast, under identical conditions,
+the mean Levenshtein distances for ANAKG [65] and LSTM
+are approximately 3.5 and 3.2, respectively. The achievement
+of a minimal Levenshtein distance by the proposed method
+signifies its superior memory capacity compared with existing
+models.
+Considering the comparable memory capacities of our
+model and HTM, we evaluate their ability to memorize
+1000 sentences under resource constraints involving reductions
+in the number of mini-columns and neurons per mini-column.
+As illustrated in Fig. 8(b), the memory performance of both
+HTM and our proposed method shows a significant correlation
+with the number of neurons in each mini-column. Typically,
+a higher number of neurons per mini-column corresponds to
+better memory performance. This is due to the fact that the
+number of neurons in a mini-column is related to the number
+Authorized licensed use limited to: BEIJING INSTITUTE OF TECHNOLOGY. Downloaded on May 12,2026 at 13:56:58 UTC from IEEE Xplore.  Restrictions apply. 
+
+10152 IEEE TRANSACTIONS ON NEURAL NETWORKS AND LEARNING SYSTEMS, VOL. 36, NO. 6, JUNE 2025
+Fig. 8. Results of the sentence memory task. (a) Memory capacity of different models for sentences. Each sentence consists of ten words. After training, the
+first six words are used as input, and the remaining four words must be retrieved. Memory performance is evaluated using the average Levenshtein distance
+between the retrieved sentence and the original sentence. A larger distance indicates poorer memory recall, reflecting a smaller memory capacity. Results from
+other comparison methods are taken from [64]. (b) Effect of network size on memory performance. M represents the number of neurons in each mini-column.
+The mean and standard deviation across ten trials are shown in the figure. (c) Memory performance of the multilayer network. The task involves memorizing
+five-character quatrains of ancient Chinese poems using a three-layer network. “-S” denotes a single-layer network. Context-based retrieval provides the first
+line of the poem, requiring the network to retrieve the remaining three lines. Goal-based retrieval only provides the title of the poem, requiring the network
+to retrieve the entire poem.
+of contexts it can remember. With fewer neurons in a mini-
+column, the model can only retain limited context, especially
+for high-frequency words in the dataset, such as “a” and “the”.
+On the other hand, the number of mini-columns also affects the
+memory capacity. A decrease in mini-columns leads to a rapid
+increase in the average Levenshtein distance for HTM, indicat-
+ing that the data has exceeded its memory capacity. However,
+the reduction of mini-columns has a minimal effect on our
+model. This is because of the SSTD encoding strategy which
+enhances representation on a temporal scale. Consequently,
+even with only 50 mini-columns, the model can encode a
+substantial number of elements. These results validate our
+analysis, highlighting the significant improvement in memory
+capacity facilitated by the employed SSTD encoding method.
+D. Practical Application in Time-Series Prediction
+In this section, the proposed memory model is compared
+with other memory models to predict time-series data in a real-
+world scenario. The data comes from the publicly available
+taxi passenger data from the New York City Transportation
+Authority [66], which is aggregated every half hour, resulting
+in 17 520 records from a year’s data. Each record contains
+three values: day of the week, time of day, and number of
+passengers. For the values of “day of the week” and “time
+of day,” a periodic data encoding method is used, and for the
+“number of passengers,” a real-value data encoding method
+is used (Section (II-C)). The three values are encoded by ten
+mini-columns, respectively. The total number of mini-columns
+used to memorize these three types of data is 30, 58, and 482
+(570 mini-columns in total), and each mini-column contains
+32 neurons. The task is to predict the number of passengers
+after 2.5 h (five steps in advance) based on the historical data.
+As shown in Fig. 9(a), the data items show rich temporal
+dynamics, which requires the model to have sufficient memory
+ability and excellent real-time processing ability. The mean
+absolute percentage error (MAPE) [58] is used to evaluate the
+performance by calculating the deviations between the most
+likely prediction results and the actual data.
+Fig. 9. Task of forecasting the number of taxi passengers. (a) Chart of
+changes in the number of taxi passengers in a week at 30-min intervals.
+(b) MAPE of the passenger number predictions of different models on the
+original data. (c) MAPE of the passenger number predictions of different
+models on modified data. (d) Changes in MAPE of several models after
+data modification (starting from the yellow vertical line). LSTM models are
+repeatedly trained on every week’s data (separated by gray vertical lines).
+Experimental results show that the prediction ability of
+the proposed model is better than that of several time-series
+prediction models, such as ARIAM [67], ELM, TDNN, and
+ESN [68], and the error is only slightly higher than HTM
+and partial LSTM models [Fig. 9(b)]. Then, we reduced the
+number of passengers on weekday mornings (7–11 A.M.)
+by 20% and increased the number on weekday evenings
+(9–11 P.M.) by 20% after April 1, 2015. It can be seen
+from Fig. 9(c) that the MAPE of all models increases, but
+the proposed model has the lowest increase, thus achieving
+lower MAPE than LSTM 3000, LSTM 6000, and HTM. The
+LSTM models require repeated training on buffered datasets
+containing the past 3000 and 6000 records. The improvement
+of LSTM prediction ability depends on the size of the buffered
+dataset but at the cost of damaging the adaptability to new
+Authorized licensed use limited to: BEIJING INSTITUTE OF TECHNOLOGY. Downloaded on May 12,2026 at 13:56:58 UTC from IEEE Xplore.  Restrictions apply. 
+
+ZHANG et al.: TOW ARD BUILDING HUMAN-LIKE SEQUENTIAL MEMORY 10153
+data. Therefore, as shown in Fig. 9(d), the MAPE of the two
+LSTM models rose rapidly after data changes, and then slowly
+decreased after a long time. While the proposed model and
+HTM only require a glance at each sample in the continuous
+input stream. Compared with HTM, the original prediction
+results of the proposed model are slightly worse, possibly
+due to the forgetting mechanism leading to less retention of
+historical information. However, the mechanism also allows it
+to adapt more quickly to data changes.
+IV. C ONCLUSION
+The ability to store and retrieve experiences through mem-
+ory is an essential component of human intelligence and
+identity. The process of memory formation involves the
+streaming of experience into durable memory traces, which
+can be preserved for long periods and used in service of
+present or future events. However, the mechanisms responsible
+for learning and forgetting in the memory system remain
+unresolved. Over the years, numerous memory models have
+been developed based on biological networks, but none have
+achieved human-level performance in storage and retrieval pro-
+cesses due to oversimplification and a lack of consideration of
+key factors such as dendritic specialization, diverse plasticity
+mechanisms, and diverse neural mechanisms.
+In this article, we present a brain-inspired memory model
+that integrates various neuroscience findings and addresses
+some of these limitations. The proposed model employs
+dendritic spiking neurons and spike timing-based encod-
+ing to support distributed event-driven computation. It also
+incorporates various forms of plasticity mechanisms, includ-
+ing synaptic strength, synaptic delay, and model structure,
+to enable one-shot and online learning without disrupting prior
+learning. The model further investigates the functional roles of
+neural mechanisms underlying memory storage and retrieval,
+including neural oscillation and phase precession. In addi-
+tion, the model incorporates an active forgetting function to
+enhance adaptability, memory capacity, and facilitate lifelong
+learning. Overall, the proposed memory model provides an
+unprecedented framework for understanding the complexity
+of human memory and cognitive tasks while also providing
+an effective solution for temporal sequence problems. Our
+future work will extend the proposed method to more practical
+applications [69], [70], [71].
+REFERENCES
+[1] D. L. Schacter, “Constructive memory: Past and future,” Dialogues Clin.
+Neurosci., vol. 14, no. 1, pp. 7–18, Mar. 2012.
+[2] L. Sherwood, Human Physiology: From Cells to Systems . Boston, MA,
+USA: Cengage Learning, 2015.
+[3] S. A. Josselyn and S. Tonegawa, “Memory engrams: Recalling the
+past and imagining the future,” Science, vol. 367, no. 6473, 2020,
+Art. no. eaaw4325.
+[4] J. Hu, H. Tang, K. C. Tan, and H. Li, “How the brain formulates
+memory: A spatio-temporal model research frontier,” IEEE Comput.
+Intell. Mag., vol. 11, no. 2, pp. 56–68, May 2016.
+[5] X. Wu, G. C. Mel, D. J. Strouse, and B. W. Mel, “How dendrites
+affect online recognition memory,” PLOS Comput. Biol., vol. 15, no. 5,
+May 2019, Art. no. e1006892.
+[6] Z. Zhu, M. C. Anderson, and Y . Wang, “Inducing forgetting of unwanted
+memories through subliminal reactivation,” Nature Commun., vol. 13,
+no. 1, p. 6496, Oct. 2022.
+[7] A. Guskjolen and M. S. Cembrowski, “Engram neurons: Encoding,
+consolidation, retrieval, and forgetting of memory,” Mol. Psychiatry,
+vol. 28, no. 8, pp. 3207–3219, Aug. 2023.
+[8] J. M. Sabandal, J. A. Berry, and R. L. Davis, “Dopamine-based mecha-
+nism for transient forgetting,” Nature, vol. 591, no. 7850, pp. 426–430,
+Mar. 2021.
+[9] C. H. Tan, H. Tang, E. Y . Cheu, and J. Hu, “A computationally efficient
+associative memory model of hippocampus CA3 by spiking neurons,”
+in Proc. Int. Joint Conf. Neural Netw. (IJCNN), Aug. 2013, pp. 1–8.
+[10] J. Hu, H. Tang, K. C. Tan, and S. B. Gee, “A spiking neural network
+model for associative memory using temporal codes,” in Proc. 18th Asia
+Pacific Symp. Intell. Evol. Syst., vol. 1. Cham, Switzerland: Springer,
+2015, pp. 561–572.
+[11] D. Zipser, B. Kehoe, G. Littlewort, and J. Fuster, “A spiking network
+model of short-term active memory,” J. Neurosci., vol. 13, no. 8,
+pp. 3406–3420, Aug. 1993.
+[12] F. Fiebig and A. Lansner, “A spiking working memory model based on
+Hebbian short-term potentiation,” J. Neurosci., vol. 37, no. 1, pp. 83–96,
+Jan. 2017.
+[13] F. Zenke, E. J. Agnes, and W. Gerstner, “Diverse synaptic plasticity
+mechanisms orchestrated to form and retrieve memories in spiking
+neural networks,” Nat. Commun., vol. 6, no. 1, pp. 1–13, 2015.
+[14] J. Raymondi Silva et al., “Skin-resident dendritic cells mediate postop-
+erative pain via CCR4 on sensory neurons,” Proc. Nat. Acad. Sci. USA,
+vol. 119, no. 4, Jan. 2022, Art. no. e2118238119.
+[15] V . H. Cornejo, N. Ofer, and R. Yuste, “V oltage compartmentalization
+in dendritic spines in vivo,” Science, vol. 375, no. 6576, pp. 82–86,
+Jan. 2022.
+[16] H. Markram, J. Lübke, M. Frotscher, and B. Sakmann, “Regulation
+of synaptic efficacy by coincidence of postsynaptic APs and EPSPs,”
+Science, vol. 275, no. 5297, pp. 213–215, Jan. 1997.
+[17] G.-Q. Bi and M.-M. Poo, “Synaptic modifications in cultured hip-
+pocampal neurons: Dependence on spike timing, synaptic strength, and
+postsynaptic cell type,” J. Neurosci., vol. 18, no. 24, pp. 10464–10472,
+Dec. 1998.
+[18] M. Xu et al., “Adaptive synaptic scaling in spiking networks for
+continual learning and enhanced robustness,” IEEE Trans. Neural Netw.
+Learn. Syst., vol. 36, no. 3, pp. 5151–5165, Mar. 2025.
+[19] Y . Hu, L. Deng, Y . Wu, M. Yao, and G. Li, “Advancing spiking neural
+networks toward deep residual learning,” IEEE Trans. Neural Netw.
+Learn. Syst., vol. 36, no. 2, pp. 2353–2367, Feb. 2025.
+[20] M. Zhang et al., “Supervised learning in spiking neural networks
+with synaptic delay-weight plasticity,” Neurocomputing, vol. 409,
+pp. 103–118, Oct. 2020.
+[21] P. Sun, J. Wu, M. Zhang, P. Devos, and D. Botteldooren, “Delay learning
+based on temporal coding in spiking neural networks,” Neural Netw.,
+vol. 180, Dec. 2024, Art. no. 106678.
+[22] R. Lamprecht and J. LeDoux, “Structural plasticity and memory,” Nature
+Rev. Neurosci., vol. 5, no. 1, pp. 45–54, Jan. 2004.
+[23] N. A. Herweg, E. A. Solomon, and M. J. Kahana, “Theta oscillations
+in human memory,” Trends Cogn. Sci., vol. 24, no. 3, pp. 208–227,
+Mar. 2020.
+[24] I. E. J. de Vries, H. A. Slagter, and C. N. L. Olivers, “Oscillatory
+control over representational states in working memory,” Trends Cogn.
+Sci., vol. 24, no. 2, pp. 150–162, Feb. 2020.
+[25] E. K. Miller, M. Lundqvist, and A. M. Bastos, “Working memory 2.0,”
+Neuron, vol. 100, no. 2, pp. 463–475, Oct. 2018.
+[26] J. Jaramillo and R. Kempter, “Phase precession: A neural code
+underlying episodic memory?” Current Opinion Neurobiol., vol. 43,
+pp. 130–138, Apr. 2017.
+[27] S. J. C. Venditto, B. Le, and E. L. Newman, “Place cell assemblies
+remain intact, despite reduced phase precession, after cholinergic dis-
+ruption,” Hippocampus, vol. 29, no. 11, pp. 1075–1090, Nov. 2019.
+[28] N. Axmacher, F. Mormann, G. Fernández, C. E. Elger, and J. Fell,
+“Memory formation by neuronal synchronization,” Brain Res. Rev.,
+vol. 52, no. 1, pp. 170–182, 2006.
+[29] J. Fell and N. Axmacher, “The role of phase synchronization in
+memory processes,” Nature Rev. Neurosci., vol. 12, no. 2, pp. 105–118,
+Feb. 2011.
+[30] R. L. Davis and Y . Zhong, “The biology of forgetting—A perspective,”
+Neuron, vol. 95, no. 3, pp. 490–503, 2017.
+[31] T. Kitazono, S. Hara-Kuge, O. Matsuda, A. Inoue, M. Fujiwara, and
+T. Ishihara, “Multiple signaling pathways coordinately regulate forget-
+ting of olfactory adaptation through control of sensory responses in
+Caenorhabditis elegans,” J. Neurosci., vol. 37, no. 42, pp. 10240–10251,
+2017.
+Authorized licensed use limited to: BEIJING INSTITUTE OF TECHNOLOGY. Downloaded on May 12,2026 at 13:56:58 UTC from IEEE Xplore.  Restrictions apply. 
+
+10154 IEEE TRANSACTIONS ON NEURAL NETWORKS AND LEARNING SYSTEMS, VOL. 36, NO. 6, JUNE 2025
+[32] U. Patel et al., “Transcriptional changes before and after forgetting of
+a long-term sensitization memory in aplysia californica,” Neurobiol.
+Learn. Memory, vol. 155, pp. 474–485, Nov. 2018.
+[33] J. Hawkins, S. Ahmad, and D. Dubinsky, “Cortical learning algorithm
+and hierarchical temporal memory,” Numenta, Redwood City, CA, USA,
+White paper, 2011, pp. 1–68.
+[34] I. Lampl and Y . Yarom, “Subthreshold oscillations of the membrane
+potential: A functional synchronizing and timing device,” J. Neurophys-
+iol., vol. 70, no. 5, pp. 2181–2186, Nov. 1993.
+[35] S. D. Antic, W. Zhou, A. R. Moore, S. M. Short, and K. D. Ikonomu,
+“The decade of the dendritic NMDA spike,” J. Neurosci. Res., vol. 88,
+no. 14, pp. 2991–3001, Nov. 2010.
+[36] G. Major, M. E. Larkum, and J. Schiller, “Active properties of neocor-
+tical pyramidal neuron dendrites,” Annu. Rev. Neurosci., vol. 36, no. 1,
+pp. 1–24, Jul. 2013.
+[37] P. Poirazi and A. Papoutsi, “Illuminating dendritic function with com-
+putational models,” Nature Rev. Neurosci., vol. 21, no. 6, pp. 303–321,
+Jun. 2020.
+[38] N. Koshiya and J. C. Smith, “Neuronal pacemaker for breathing visu-
+alized in vitro,” Nature, vol. 400, no. 6742, pp. 360–363, Jul. 1999.
+[39] T. Hafting, M. Fyhn, S. Molden, M.-B. Moser, and E. I. Moser,
+“Microstructure of a spatial map in the entorhinal cortex,” Nature,
+vol. 436, no. 7052, pp. 801–806, Aug. 2005.
+[40] E. T. Reifenstein, R. Kempter, S. Schreiber, M. B. Stemmler, and
+A. V . M. Herz, “Grid cells in rat entorhinal cortex encode physical
+space with independent firing fields and phase precession at the single-
+trial level,” Proc. Nat. Acad. Sci. USA, vol. 109, no. 16, pp. 6301–6306,
+Apr. 2012.
+[41] N. T. Robinson et al., “Medial entorhinal cortex selectively supports
+temporal coding by hippocampal neurons,” Neuron, vol. 94, no. 3,
+pp. 677–688, 2017.
+[42] T. David, A. S. Alexander, L. K. Quinn, A. A. Chiba, and N. Douglas,
+“Multiplexed oscillations and phase rate coding in the basal forebrain,”
+Sci. Adv., vol. 4, no. 8, 2018, Art. no. eaar3230.
+[43] B. Pesaran, J. S. Pezaris, M. Sahani, P. P. Mitra, and R. A. Andersen,
+“Temporal structure in neuronal activity during working memory in
+macaque parietal cortex,” Nature Neurosci., vol. 5, no. 8, pp. 805–811,
+Aug. 2002.
+[44] J. Huxter, N. Burgess, and J. O’Keefe, “Independent rate and temporal
+coding in hippocampal pyramidal cells,” Nature, vol. 425, no. 6960,
+pp. 828–832, Oct. 2003.
+[45] B. Olshausen and D. Field, “Sparse coding of sensory inputs,” Current
+Opinion Neurobiol., vol. 14, no. 4, pp. 481–487, Aug. 2004.
+[46] H. P. Snippe, “Parameter extraction from population codes: A critical
+assessment,” Neural Comput., vol. 8, no. 4, pp. 511–529, Apr. 1996.
+[47] M. de Kamps and F. van der Velde, “From artificial neural networks
+to spiking neuron populations and back again,” Neural Netw., vol. 14,
+nos. 6–7, pp. 941–953, Jul. 2001.
+[48] D. O. Hebb, The Organization of Behavior: A Neuropsychological
+Theory. New York, NY , USA: Psychology Press, 2005.
+[49] S. Song, K. D. Miller, and L. F. Abbott, “Competitive Hebbian learning
+through spike-timing-dependent synaptic plasticity,” Nature Neurosci.,
+vol. 3, no. 9, pp. 919–926, Sep. 2000.
+[50] J.-W. Lin and D. S. Faber, “Modulation of synaptic delay during synaptic
+plasticity,” Trends Neurosci., vol. 25, no. 9, pp. 449–455, Sep. 2002.
+[51] S. Boudkkazi, L. Fronzaroli-Molinieres, and D. Debanne, “Presynaptic
+action potential waveform determines cortical synaptic latency,” J. Phys-
+iol., vol. 589, no. 5, pp. 1117–1131, 2011.
+[52] B. Xu, Y . Gong, and B. Wang, “Delay-induced firing behavior and
+transitions in adaptive neuronal networks with two types of synapses,”
+Sci. China Chem., vol. 56, no. 2, pp. 222–229, Feb. 2013.
+[53] M. Butz, F. Wörgötter, and A. van Ooyen, “Activity-dependent structural
+plasticity,” Brain Res. Rev., vol. 60, no. 2, pp. 287–305, 2009.
+[54] A. Holtmaat and K. Svoboda, “Experience-dependent structural synaptic
+plasticity in the mammalian brain,” Nature Rev. Neurosci., vol. 10, no. 9,
+pp. 647–658, Sep. 2009.
+[55] T. Xu et al., “Rapid formation and selective stabilization of synapses
+for enduring motor memories,” Nature, vol. 462, no. 7275, pp. 915–919,
+Dec. 2009.
+[56] M. Fu and Y . Zuo, “Experience-dependent structural plasticity in the
+cortex,” Trends Neurosci., vol. 34, no. 4, pp. 177–187, Apr. 2011.
+[57] B. Scholl, C. I. Thomas, M. A. Ryan, N. Kamasawa, and D. Fitzpatrick,
+“Cortical response selectivity derives from strength in numbers of
+synapses,” Nature, vol. 590, no. 7844, pp. 111–114, Feb. 2021.
+[58] Y . Cui, S. Ahmad, and J. Hawkins, “Continuous online sequence learning
+with an unsupervised neural network model,” Neural Comput., vol. 28,
+no. 11, pp. 2474–2504, 2016.
+[59] A. Waibel, T. Hanazawa, G. Hinton, K. Shikano, and K. J. Lang,
+“Phoneme recognition using time-delay neural networks,” IEEE Trans.
+Acoust., Speech, Signal Process., vol. 37, no. 3, pp. 328–339, Mar. 1989.
+[60] A. Graves, “Supervised sequence labelling with recurrent neural net-
+works,” in Studies in Computational Intelligence. Berlin, Germany:
+Springer, 2012.
+[61] N.-Y . Liang, G.-B. Huang, P. Saratchandran, and N. Sundararajan,
+“A fast and accurate online sequential learning algorithm for feedforward
+networks,” IEEE Trans. Neural Netw., vol. 17, no. 6, pp. 1411–1423,
+Nov. 2006.
+[62] F. Hill, A. Bordes, S. Chopra, and J. Weston, “The Goldilocks principle:
+Reading children’s books with explicit memory representations,” in
+Proc. 4th Int. Conf. Learn. Represent. (ICLR), San Juan, Puerto Rico,
+May 2016, pp. 1–13. [Online]. Available: http://OpenReview.net
+[63] V . I. Levenshtein, “Binary codes capable of correcting deletions, inser-
+tions, and reversals,” Sov. Phys. Doklady, vol. 10, no. 8, pp. 707–710,
+1966.
+[64] J. A. Starzyk and A. Horzyk, “Episodic memory in minicolumn associa-
+tive knowledge graphs,” IEEE Trans. Neural Netw. Learn. Syst., vol. 30,
+no. 11, pp. 3505–3516, Nov. 2019.
+[65] A. Horzyk, J. A. Starzyk, and J. Graham, “Integration of semantic and
+episodic memories,” IEEE Trans. Neural Netw. Learn. Syst., vol. 28,
+no. 12, pp. 3084–3095, Dec. 2017.
+[66] NYC Taxi & Limousine Commission. New York City Taxi Rides.
+Accessed: Feb. 15, 2024. [Online]. Available: https://www.nyc.gov/site/
+tlc/about/tlc-trip-record-data.page
+[67] R. J. Hyndman and G. Athanasopoulos, Forecasting: Principles and
+Practice, 2nd ed., Canberra, QLD, Australia: OTexts, 2018.
+[68] H. Jaeger and H. Haas, “Harnessing nonlinearity: Predicting chaotic sys-
+tems and saving energy in wireless communication,” Science, vol. 304,
+no. 5667, pp. 78–80, Apr. 2004.
+[69] G. Ma, R. Jiang, R. Yan, and H. Tang, “Temporal conditioning spiking
+latent variable models of the neural response to natural visual scenes,”
+in Proc. Adv. Neural Inf. Process. Syst., vol. 36, 2023, pp. 3819–3840.
+[70] R.-J. Zhu, M. Zhang, Q. Zhao, H. Deng, Y . Duan, and L.-J. Deng,
+“TCJA-SNN: Temporal-channel joint attention for spiking neural net-
+works,” IEEE Trans. Neural Netw. Learn. Syst., vol. 36, no. 3,
+pp. 5112–5125, Mar. 2025.
+[71] H. Tang et al., “Neuromorphic auditory perception by neural spiketrum,”
+IEEE Trans. Emerg. Topics Comput. Intell., vol. 9, no. 1, pp. 292–303,
+Feb. 2025.
+Malu Zhang (Member, IEEE) received the Ph.D.
+degree in computer science from the University
+of Electronic Science and Technology of China,
+Chengdu, China, in 2019.
+From 2019 to 2022, he was a Research Fellow
+with the HLT Laboratory, Department of Electrical
+and Computer Engineering, National University of
+Singapore, Singapore. He is currently a Profes-
+sor with the Computational Intelligence Laboratory,
+School of Computer Science and Engineering, Uni-
+versity of Electronic Science and Technology of
+China. His research interests include spiking neural networks, neural spike
+encoding, and neuromorphic applications.
+Dr. Zhang is currently an Associate Editor of IEEE T RANSACTIONS ON
+EMERGING TOPICS IN COMPUTATIONAL INTELLIGENCE .
+Xiaoling Luo received the Ph.D. degree in computer
+science from the University of Electronic Science
+and Technology of China, Chengdu, China, in 2023.
+She is currently a Lecturer with the School of
+Computer Science and Engineering, Sichuan Univer-
+sity of Science and Engineering, Yibin, China. Her
+current research interests include machine learning
+and spiking neural networks.
+Authorized licensed use limited to: BEIJING INSTITUTE OF TECHNOLOGY. Downloaded on May 12,2026 at 13:56:58 UTC from IEEE Xplore.  Restrictions apply. 
+
+ZHANG et al.: TOW ARD BUILDING HUMAN-LIKE SEQUENTIAL MEMORY 10155
+Jibin Wu (Member, IEEE) received the B.E. and
+Ph.D. degrees in electrical engineering from the
+National University of Singapore, Singapore, in
+2016 and 2020, respectively.
+He is currently an Assistant Professor with the
+Department of Data Science and Artificial Intel-
+ligence, The Hong Kong Polytechnic University,
+Hong Kong. He has published more than 40 papers
+in prestigious conferences and journals in artifi-
+cial intelligence and speech processing, including
+NeurIPS, ICLR, AAAI, IEEE T RANSACTIONS ON
+PATTERN ANALYSIS AND MACHINE INTELLIGENCE , IEEE T RANSACTIONS
+ON NEURAL NETWORKS AND LEARNING SYSTEMS , IEEE/ACM T RANS -
+ACTIONS ON AUDIO , S PEECH AND LANGUAGE PROCESSING , and IEEE
+JOURNAL OF SELECTED TOPICS IN SIGNAL PROCESSING . His research
+interests broadly include brain-inspired artificial intelligence, neuromorphic
+computing, computational audition, speech processing, and machine learning.
+Dr. Wu is currently serving as an Associate Editor for IEEE T RANS -
+ACTIONS ON NEURAL NETWORKS AND LEARNING SYSTEMS and IEEE
+TRANSACTIONS ON COGNITIVE AND DEVELOPMENTAL SYSTEMS .
+Ammar Belatreche (Member, IEEE) received the
+Ph.D. degree in computer science from Ulster Uni-
+versity, Derry, U.K., in 2006.
+He joined Northumbria University, Newcastle
+upon Tyne, U.K., in May 2016. He worked as
+a Research Associate with the Intelligent Systems
+Research Centre (ISRC), Ulster University, and
+then, as a Lecturer in computer science with the
+School of Computing and Intelligent Systems, Ulster
+University. He is currently a Senior Lecturer in
+computer science and the Program Leader of the
+M.Sc. advanced computer science with the Department of Computer and
+Information Sciences. He is also a member of the Computational Intelligence
+and Visual Computing (CIVC) Research Group. His research interests include
+bioinspired intelligent systems, machine learning, face detection and recogni-
+tion, structured and unstructured data analytics, capital markets engineering,
+image processing, and understanding.
+Dr. Belatreche is a fellow of the Higher Education Academy, an Associate
+Editor of Neurocomputing, and has served as a Program Committee Member
+and a reviewer for several international conferences and journals.
+Siqi Cai (Senior Member, IEEE) received the
+Ph.D. degree from the Shien-Ming Wu School of
+Intelligent Engineering, South China University of
+Technology, Guangzhou, China, in 2020.
+She is currently a Research Fellow with the
+Department of Electrical and Computer Engineering,
+National University of Singapore, Singapore. Her
+research interests include brain–computer interface
+and biosignal processing.
+Dr. Cai has been a Council Member of Chinese and
+Oriental Languages Information Processing Society
+since 2022. She has served as the Workshop Chair for the 47th IEEE Inter-
+national Conference on Acoustics, Speech, and Signal Processing (ICASSP)
+2022, and the Entrepreneurship Forum Chair for ICASSP 2024. She has served
+as an Associate Editor for the International Journal of Social Robotics.
+Yang Yang (Senior Member, IEEE) received the
+bachelor’s degree from Jilin University, Changchun,
+China, in 2006, the master’s degree from Peking
+University, Beijing, China, in 2009, and the
+Ph.D. degree from The University of Queensland,
+Brisbane, QLD, Australia, in 2012, under the super-
+vision of Prof. H. T. Shen and Prof. X. Zhou.
+From 2012 to 2014, he was a Research Fellow with
+the National University of Singapore, Singapore,
+under the supervision of Prof. T.-S. Chua. He is cur-
+rently with the University of Electronic Science and
+Technology of China, Chengdu, China. He specializes in multimedia, machine
+learning, AI, big data, computer vision, and social media. He has published
+more than 100 articles in top-tier venues (including ACM multimedia, IJCAI,
+SIGMOD, and CVPR).
+Dr. Yang has also served as an Editor, a Program Committee Member, and
+a reviewer for leading journals/conferences.
+Haizhou Li (Fellow, IEEE) received the B.Sc.,
+M.Sc., and Ph.D. degrees in electrical and electronic
+engineering from the South China University of
+Technology, Guangzhou, China, in 1984, 1987, and
+1990, respectively.
+He is currently a Presidential Chair Professor with
+the School of Data Science, The Chinese University
+of Hong Kong, Shenzhen, China. He is also an
+Adjunct Professor with the Department of Electrical
+and Computer Engineering, National University of
+Singapore (NUS), Singapore. His research interests
+include automatic speech recognition, speaker and language recognition, and
+natural language processing.
+Dr. Li has been a member of the Editorial Board of Computer Speech
+and Language since 2012 and an Elected Member of the IEEE Speech
+and Language Processing Technical Committee from 2013 to 2015. He is
+a fellow of ISCA and Academy of Engineering Singapore. He was
+the Editor-in-Chief of IEEE/ACM T RANSACTIONS ON AUDIO , S PEECH
+AND LANGUAGE PROCESSING from 2015 to 2018, the President of the
+International Speech Communication Association from 2015 to 2017, the
+President of Asia–Pacific Signal and Information Processing Association
+from 2015 to 2016, and the President of Asian Federation of Natural Language
+Processing from 2017 to 2018. He was the General Chair of ACL 2012,
+INTERSPEECH 2014, ASRU 2019, and ICASSP 2022.
+Authorized licensed use limited to: BEIJING INSTITUTE OF TECHNOLOGY. Downloaded on May 12,2026 at 13:56:58 UTC from IEEE Xplore.  Restrictions apply. 

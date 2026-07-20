@@ -1,0 +1,38 @@
+# Local Python environments and downloaded/build dependencies
+.venv/
+.deps/
+.cc-connect/
+
+# Python caches and test state
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+
+# Editors and operating-system metadata
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Temporary PDF inspection and other scratch files
+tmp/
+
+# Redundant archives and very large CBT task derivatives. The reproduction
+# only needs data/CBTest/data/cbt_train.txt from the official CBT extraction.
+data/cbt.tar.gz
+data/weather.zip
+data/CBTest/data/cbtest_*.txt
+data/CBTest/data/cbt_test.txt
+data/CBTest/data/cbt_valid.txt
+data/CBTest/stats/
+
+# Local build/debug logs and disposable smoke outputs
+results/*.log
+results/*.pstats
+results/*.txt
+results/*smoke*
+results/run_*/
+results/latest/
+results/*partial*
+results/**/*partial*

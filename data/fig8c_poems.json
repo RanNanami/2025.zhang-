@@ -1,0 +1,2421 @@
+{
+  "description": "Deterministic nonauthor sample for the Fig. 8(c) approximation.",
+  "selection": "First unique-title/text poems with four five-character clauses.",
+  "source_repository": "https://github.com/chinese-poetry/chinese-poetry",
+  "source_files": [
+    {
+      "name": "poet.tang.0.json",
+      "sha256": "4f88f429938082523cdc72a1612bd7a7c3e3f7a33f8192c61ae51340efc3c92d"
+    },
+    {
+      "name": "poet.tang.1000.json",
+      "sha256": "6e703b8d8dcedbd6110f6d48d043665ca2131db2035a5bfcef5e59a19aeb6d75"
+    },
+    {
+      "name": "poet.tang.2000.json",
+      "sha256": "ec28efa7e2ae9cdbbba09f0ed186e32ccae47a325ad1e5816b7ad56071c1665a"
+    }
+  ],
+  "poems": [
+    {
+      "title": "於太原召侍臣賜宴守歲",
+      "author": "太宗皇帝",
+      "lines": [
+        "四時運灰琯",
+        "一夕變冬春",
+        "送寒餘雪盡",
+        "迎歲早梅新"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "7822c305-f1b3-4ed3-8011-f69dca0e965a"
+    },
+    {
+      "title": "詠燭二首 一",
+      "author": "太宗皇帝",
+      "lines": [
+        "燄聽風來動",
+        "花開不待春",
+        "鎮下千行淚",
+        "非是爲思人"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "e4ea593e-ab38-4278-9d9b-ea23e30b3421"
+    },
+    {
+      "title": "詠燭二首 二",
+      "author": "太宗皇帝",
+      "lines": [
+        "九龍蟠燄動",
+        "四照逐花生",
+        "即此流高殿",
+        "堪持待月明"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "c3fd8880-154d-479b-a852-c5f31ad5463e"
+    },
+    {
+      "title": "詠弓",
+      "author": "太宗皇帝",
+      "lines": [
+        "上弦明月半",
+        "激箭流星遠",
+        "落雁帶書驚",
+        "啼猿映枝轉"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "3f79db59-87f2-4b64-9605-be330724d4de"
+    },
+    {
+      "title": "賦得早雁出雲鳴",
+      "author": "太宗皇帝",
+      "lines": [
+        "初秋玉露清",
+        "早雁出空鳴",
+        "隔雲時亂影",
+        "因風乍含聲"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "c353940d-4bbc-4420-83bf-07cb4606d35f"
+    },
+    {
+      "title": "賦得臨池柳",
+      "author": "太宗皇帝",
+      "lines": [
+        "岸曲絲陰聚",
+        "波移帶影疎",
+        "還將眉裏翠",
+        "來就鏡中舒"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "02e00858-8361-4f48-9e95-d0353a54ab49"
+    },
+    {
+      "title": "賦得臨池竹",
+      "author": "太宗皇帝",
+      "lines": [
+        "貞條障曲砌",
+        "翠葉貫寒霜",
+        "拂牖分龍影",
+        "臨池待鳳翔"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "d340ad23-8f26-4ee8-9873-8b044a6f158b"
+    },
+    {
+      "title": "賦得弱柳鳴秋蟬",
+      "author": "太宗皇帝",
+      "lines": [
+        "散影玉階柳",
+        "含翠隱鳴蟬",
+        "微形藏葉裏",
+        "亂響出風前"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "487805d3-fe67-46d9-912d-29587a2cb1c5"
+    },
+    {
+      "title": "探得李",
+      "author": "太宗皇帝",
+      "lines": [
+        "盤根直盈渚",
+        "交幹橫倚天",
+        "舒華光四海",
+        "卷葉蔭三川"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "edabeb38-248a-4bc6-a4f3-5dcdf340729c"
+    },
+    {
+      "title": "詠小山",
+      "author": "太宗皇帝",
+      "lines": [
+        "近谷交縈橤",
+        "遙峰對出蓮",
+        "徑細無全磴",
+        "松小未含煙"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "cbeb0337-1af4-4987-87a7-34bb9e79d812"
+    },
+    {
+      "title": "賜蕭瑀",
+      "author": "太宗皇帝",
+      "lines": [
+        "疾風知勁草",
+        "板蕩識誠臣",
+        "勇夫安識義",
+        "智者必懷仁"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "5737750c-bf61-45a3-b38e-44bd6038b425"
+    },
+    {
+      "title": "賜房玄齡",
+      "author": "太宗皇帝",
+      "lines": [
+        "太液仙舟迥",
+        "西園隱上才",
+        "未曉征車度",
+        "雞鳴關早開"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "291dd1f7-f61e-42b0-bb46-a8b28f9a8ffd"
+    },
+    {
+      "title": "遼東山夜臨秋",
+      "author": "太宗皇帝",
+      "lines": [
+        "煙生遙岸隱",
+        "月落半崖陰",
+        "連山驚鳥亂",
+        "隔岫斷猿吟"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "297cc055-e94c-41a9-bdfb-2cbfef8cae83"
+    },
+    {
+      "title": "賜魏徵詩",
+      "author": "太宗皇帝",
+      "lines": [
+        "醽醁勝蘭生",
+        "翠濤過玉䪥",
+        "千日醉不醒",
+        "十年味不敗"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "8fcbec86-3e3e-4250-ae58-47b567af7e8e"
+    },
+    {
+      "title": "潼關口號",
+      "author": "明皇帝",
+      "lines": [
+        "河曲回千里",
+        "關門限二京",
+        "所嗟非恃德",
+        "設險到天平"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "cabdbd9c-d957-4881-aff2-479d08c3c583"
+    },
+    {
+      "title": "千秋節賜羣臣鏡",
+      "author": "明皇帝",
+      "lines": [
+        "瑞露垂花綬",
+        "寒冰澈寶輸",
+        "對茲臺上月",
+        "聊以慶佳辰"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "275ae461-9263-47e1-8a47-d477e519c3a9"
+    },
+    {
+      "title": "續薛令之題壁",
+      "author": "明皇帝",
+      "lines": [
+        "啄木觜距長",
+        "鳳皇羽毛短",
+        "苦嫌松桂寒",
+        "任逐桑榆煖"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "c4567287-ed9d-4ae9-b24a-69740afc9222"
+    },
+    {
+      "title": "送胡真師還西山",
+      "author": "明皇帝",
+      "lines": [
+        "仙客厭人間",
+        "孤雲比性閒",
+        "話離情未已",
+        "煙水萬重山"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "adfebde8-4ae5-47f8-9cd6-536c584fb6f6"
+    },
+    {
+      "title": "宮中題",
+      "author": "文宗皇帝",
+      "lines": [
+        "輦路生春草",
+        "上林花發時",
+        "憑高何限意",
+        "無復侍臣知"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "534288d0-412e-44e5-aff6-b38879e01cd8"
+    },
+    {
+      "title": "上巳日賜裴度",
+      "author": "文宗皇帝",
+      "lines": [
+        "注想待元老",
+        "識君恨不早",
+        "我家柱石衰",
+        "憂來學丘禱"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "9b99f129-4039-41f1-b8db-b12d21035fc2"
+    },
+    {
+      "title": "夏日聯句",
+      "author": "文宗皇帝",
+      "lines": [
+        "人皆苦炎熱",
+        "我愛夏日長",
+        "熏風自南來",
+        "殿閣生微涼"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "078cc610-552e-4224-8413-3dda0ac3c0f5"
+    },
+    {
+      "title": "重陽錫宴羣臣",
+      "author": "宣宗皇帝",
+      "lines": [
+        "款塞旋征騎",
+        "和戎委廟賢",
+        "傾心方倚注",
+        "叶力共安邊"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "afecb511-1ff4-415f-ba1b-4a6136513d17"
+    },
+    {
+      "title": "臘日宣詔幸上苑",
+      "author": "則天皇后",
+      "lines": [
+        "明朝遊上苑",
+        "火急報春知",
+        "花須連夜發",
+        "莫待曉風吹"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "e2b0e927-1ed7-4df6-9747-2c0d1f559cf0"
+    },
+    {
+      "title": "進太宗",
+      "author": "徐賢妃",
+      "lines": [
+        "朝來臨鏡臺",
+        "粧罷暫裴回",
+        "千金始一笑",
+        "一召詎能來"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "8410fa94-bfb9-4217-8bbd-f20a35b357fe"
+    },
+    {
+      "title": "遊長寧公主流杯池二十五首 十四",
+      "author": "上官昭容",
+      "lines": [
+        "攀藤招逸客",
+        "偃桂協幽情",
+        "水中看樹影",
+        "風裏聽松聲"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "75cab210-6be6-4de7-905e-4ca56e574ac5"
+    },
+    {
+      "title": "遊長寧公主流杯池二十五首 十五",
+      "author": "上官昭容",
+      "lines": [
+        "攜琴侍叔夜",
+        "負局訪安期",
+        "不應題石壁",
+        "爲記賞山時"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "d54a5d9e-3996-4c1a-b83f-921c73221c4b"
+    },
+    {
+      "title": "遊長寧公主流杯池二十五首 十六",
+      "author": "上官昭容",
+      "lines": [
+        "泉石多仙趣",
+        "巖壑寫奇形",
+        "欲知堪悅耳",
+        "唯聽水泠泠"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "f44c2a8c-9a5a-4056-a0f0-a6b06e943b1e"
+    },
+    {
+      "title": "遊長寧公主流杯池二十五首 十七",
+      "author": "上官昭容",
+      "lines": [
+        "巖壑恣登臨",
+        "瑩目復怡心",
+        "風篁類長笛",
+        "流水當鳴琴"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "42f7d5fe-12aa-4b61-bc09-5a53316f474f"
+    },
+    {
+      "title": "遊長寧公主流杯池二十五首 十八",
+      "author": "上官昭容",
+      "lines": [
+        "嬾步天台路",
+        "惟登地肺山",
+        "幽巖仙桂滿",
+        "今日恣情攀"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "55c1a855-991d-44ed-8671-73733b0697fa"
+    },
+    {
+      "title": "遊長寧公主流杯池二十五首 十九",
+      "author": "上官昭容",
+      "lines": [
+        "暫遊仁智所",
+        "蕭然松桂情",
+        "寄言棲遯客",
+        "勿復訪蓬瀛"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "dd4c3198-29e8-4d2a-bdb1-184ba15f7d3d"
+    },
+    {
+      "title": "遊長寧公主流杯池二十五首 二十",
+      "author": "上官昭容",
+      "lines": [
+        "瀑溜晴疑雨",
+        "叢篁晝似昏",
+        "山中真可玩",
+        "暫請報王孫"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "3ba02423-e8b6-491d-8478-4d2fe15eca91"
+    },
+    {
+      "title": "遊長寧公主流杯池二十五首 二十一",
+      "author": "上官昭容",
+      "lines": [
+        "傍池聊試筆",
+        "倚石旋題詩",
+        "豫彈山水調",
+        "終擬從鍾期"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "0279adf4-af13-41e9-b12a-a094f2860a06"
+    },
+    {
+      "title": "遊長寧公主流杯池二十五首 二十二",
+      "author": "上官昭容",
+      "lines": [
+        "橫鋪豹皮褥",
+        "側帶鹿胎巾",
+        "借問何爲者",
+        "山中有逸人"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "38bcda3c-a23f-4906-acd7-bcda8ec8bc2c"
+    },
+    {
+      "title": "梅花",
+      "author": "後主煜",
+      "lines": [
+        "失却煙花主",
+        "東君自不知",
+        "清香更何用",
+        "猶發去年枝"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "82f109d2-3bc1-447a-a73e-018133ac8929"
+    },
+    {
+      "title": "書靈筵手巾",
+      "author": "後主煜",
+      "lines": [
+        "浮生共顦顇",
+        "壯歲失嬋娟",
+        "汗手遺香漬",
+        "痕眉染黛煙"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "a1bfef77-89cd-4e38-90b7-bc41784d58de"
+    },
+    {
+      "title": "書琵琶背",
+      "author": "後主煜",
+      "lines": [
+        "侁自肩如削",
+        "難勝數縷絛",
+        "天香留鳳尾",
+        "餘煖在檀槽"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "bbf02817-86a8-42de-b8bf-9d13c764fdb3"
+    },
+    {
+      "title": "郊廟歌辭 武后享清廟樂章十首 第八武舞作",
+      "author": "不詳",
+      "lines": [
+        "荷恩承顧託",
+        "執契恭臨撫",
+        "廟畧靜邊荒",
+        "天兵耀神武"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "75e066a5-dabc-422d-aac7-938ea029d94d"
+    },
+    {
+      "title": "舞曲歌辭 凱樂歌辭 破陣樂",
+      "author": "不詳",
+      "lines": [
+        "受律辭元首",
+        "相將討叛臣",
+        "咸歌破陣樂",
+        "共賞太平人"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "1a189c45-aa28-4599-96c8-dd55e1d67a23"
+    },
+    {
+      "title": "舞曲歌辭 凱樂歌辭 賀聖歡",
+      "author": "不詳",
+      "lines": [
+        "四海皇風被",
+        "千年德水清",
+        "戎衣更不著",
+        "今日告功成"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "55c332db-d62a-45b9-83ce-1b22f3261c7a"
+    },
+    {
+      "title": "舞曲歌辭 凱樂歌辭 君臣同慶樂",
+      "author": "不詳",
+      "lines": [
+        "主聖開昌曆",
+        "臣忠奉大猷",
+        "君看偃革後",
+        "便是太平秋"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "5fe98de1-5cd1-4a24-892c-56e058583719"
+    },
+    {
+      "title": "郊廟歌辭 周郊祀樂章 感順樂",
+      "author": "不詳",
+      "lines": [
+        "明君陳大禮",
+        "展幣祀圓丘",
+        "雅樂聲其發",
+        "祥雲色正浮"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "8c45a628-700b-4822-80b5-01cff6f7997b"
+    },
+    {
+      "title": "郊廟歌辭 周郊祀樂章 福順樂",
+      "author": "不詳",
+      "lines": [
+        "上天垂景貺",
+        "哲后舉鸞觴",
+        "明德今方祚",
+        "邦家萬世昌"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "52d4576e-8c59-4eb6-b447-418a531cb97e"
+    },
+    {
+      "title": "郊廟歌辭 周郊祀樂章 武舞樂",
+      "author": "不詳",
+      "lines": [
+        "圭瓚方陳禮",
+        "干旄乃象功",
+        "成文非羽籥",
+        "猛勢若羆熊"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "ae1d49cc-efe9-4014-ad98-8417fedced83"
+    },
+    {
+      "title": "橫吹曲辭 關山月二首 一",
+      "author": "戴叔倫",
+      "lines": [
+        "月出照關山",
+        "秋風人未還",
+        "清光無遠近",
+        "鄉淚半書間"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "6795674b-74d6-4ac8-94ef-792c9892c714"
+    },
+    {
+      "title": "橫吹曲辭 關山月二首 二",
+      "author": "戴叔倫",
+      "lines": [
+        "一雁過連營",
+        "繁霜覆古城",
+        "胡笳在何處",
+        "半夜起邊聲"
+      ],
+      "source_file": "poet.tang.0.json",
+      "source_id": "d8a62427-62ef-45a8-9b30-e0fc90d5b78f"
+    },
+    {
+      "title": "橫吹曲辭 洛陽陌",
+      "author": "李白",
+      "lines": [
+        "白玉誰家郎",
+        "回車渡天津",
+        "看花東上陌",
+        "驚動洛陽人"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "7f968ba8-1a23-4916-8b55-97f03e8cfe1e"
+    },
+    {
+      "title": "橫吹曲辭 長安道",
+      "author": "聶夷中",
+      "lines": [
+        "此地無駐馬",
+        "夜中猶走輪",
+        "所以路旁草",
+        "少於衣上塵"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "99a30357-99b0-4446-b35d-61a530b2c621"
+    },
+    {
+      "title": "橫吹曲辭 白鼻騧",
+      "author": "張祜",
+      "lines": [
+        "爲底胡姬酒",
+        "長來白鼻騧",
+        "摘蓮拋水上",
+        "郎意在浮花"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "b412160a-39d1-46f6-8e10-424610aea93e"
+    },
+    {
+      "title": "相和歌辭 江南曲",
+      "author": "李益",
+      "lines": [
+        "嫁得瞿塘賈",
+        "朝朝誤妾期",
+        "早知潮有信",
+        "嫁與弄潮兒"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "bb111748-d8f1-4a5e-b618-b70272a7a642"
+    },
+    {
+      "title": "相和歌辭 江南曲 一",
+      "author": "陸龜蒙",
+      "lines": [
+        "魚戲蓮葉間",
+        "參差隱葉扇",
+        "鵁鶄鸀鳿窺",
+        "瀲灩無因見"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "490c972f-cb5e-4289-a26f-c65b2aff10b0"
+    },
+    {
+      "title": "相和歌辭 江南曲 二",
+      "author": "陸龜蒙",
+      "lines": [
+        "魚戲蓮葉東",
+        "初霞射紅尾",
+        "傍臨謝山側",
+        "恰值清風起"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "7420cc4b-1eb0-4532-9261-c1d70fbfe100"
+    },
+    {
+      "title": "相和歌辭 江南曲 三",
+      "author": "陸龜蒙",
+      "lines": [
+        "魚戲蓮葉西",
+        "盤盤舞波急",
+        "潛依曲岸涼",
+        "正對斜光入"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "97b95df2-6c44-40aa-bd1c-f06aee6ceecf"
+    },
+    {
+      "title": "相和歌辭 江南曲 四",
+      "author": "陸龜蒙",
+      "lines": [
+        "魚戲蓮葉南",
+        "欹危午煙疊",
+        "光搖越鳥巢",
+        "影亂吳娃檝"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "49e10d3e-1925-4cb0-8fec-a96b79ed1ee8"
+    },
+    {
+      "title": "相和歌辭 江南曲 五",
+      "author": "陸龜蒙",
+      "lines": [
+        "魚戲蓮葉北",
+        "澄陽動微漣",
+        "回看帝子渚",
+        "稍背鄂君船"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "ee469591-8d2e-4541-8613-094aaf82d305"
+    },
+    {
+      "title": "相和歌辭 輓歌二首 一",
+      "author": "于鵠",
+      "lines": [
+        "陰風吹黃蒿",
+        "輓歌渡秋水",
+        "車馬却歸城",
+        "孤墳月明裏"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "bcd31207-66ec-44c9-9890-1c70b6e8ea69"
+    },
+    {
+      "title": "相和歌辭 采桑",
+      "author": "郎大家宋氏",
+      "lines": [
+        "春來南雁歸",
+        "日去西蠶遠",
+        "妾思紛何極",
+        "客遊殊未返"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "34008677-edfe-404c-92e8-547a08a9c815"
+    },
+    {
+      "title": "相和歌辭 王昭君",
+      "author": "崔國輔",
+      "lines": [
+        "漢使南還盡",
+        "胡中妾獨存",
+        "紫臺緜望絕",
+        "秋草不堪論"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "6da7aaf4-ed2a-49b3-97d9-b33860fa6283"
+    },
+    {
+      "title": "相和歌辭 王昭君三首 一",
+      "author": "東方虯",
+      "lines": [
+        "漢道初全盛",
+        "朝廷足武臣",
+        "何須薄命妾",
+        "辛苦事和親"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "36597939-2dd3-4fd3-8bb9-cb4bdfd1c0f6"
+    },
+    {
+      "title": "相和歌辭 王昭君三首 二",
+      "author": "東方虯",
+      "lines": [
+        "揜涕辭丹鳳",
+        "銜悲向白龍",
+        "單于浪驚喜",
+        "無復舊時容"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "9ceaf4b9-1baf-4fa1-ab59-a749cde469e2"
+    },
+    {
+      "title": "相和歌辭 王昭君三首 三",
+      "author": "東方虯",
+      "lines": [
+        "胡地無花草",
+        "春來不似春",
+        "自然衣帶緩",
+        "非是爲腰身"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "bbeea8e4-80b4-4dbf-801c-642990725c35"
+    },
+    {
+      "title": "相和歌辭 王昭君二首 二",
+      "author": "李白",
+      "lines": [
+        "昭君拂玉鞍",
+        "上馬啼紅頰",
+        "今日漢宮人",
+        "明朝胡地妾"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "d859edea-5188-4d7f-b4c2-f281d106bd59"
+    },
+    {
+      "title": "相和歌辭 昭君詞",
+      "author": "戴叔倫",
+      "lines": [
+        "漢宮若遠近",
+        "路在寒沙上",
+        "到死不得歸",
+        "何人共南望"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "4c21addf-505a-4646-ba87-7c04278d68ff"
+    },
+    {
+      "title": "相和歌辭 銅雀妓",
+      "author": "朱光弼",
+      "lines": [
+        "魏王銅雀妓",
+        "日暮管弦清",
+        "一見西陵樹",
+        "悲心舞不成"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "46e5e3dd-ca66-42e2-bb91-6cac9bd4e71c"
+    },
+    {
+      "title": "相和歌辭 從軍行五首 一",
+      "author": "令狐楚",
+      "lines": [
+        "荒雞隔水啼",
+        "汗馬逐風嘶",
+        "終日隨征斾",
+        "何時罷鼓鼙"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "62613bbc-4f00-412c-84eb-e2a8bd1a8a9d"
+    },
+    {
+      "title": "相和歌辭 從軍行五首 二",
+      "author": "令狐楚",
+      "lines": [
+        "孤心眠夜雪",
+        "滿眼是秋沙",
+        "萬里猶防塞",
+        "三年不見家"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "7fb4ee37-2d51-4a40-ad76-f14154635378"
+    },
+    {
+      "title": "相和歌辭 從軍行五首 三",
+      "author": "令狐楚",
+      "lines": [
+        "却望冰河闊",
+        "前登雪嶺高",
+        "征人幾多在",
+        "又擬戰臨洮"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "473a6b6f-4060-4a94-b8df-ee99062fe291"
+    },
+    {
+      "title": "相和歌辭 從軍行五首 四",
+      "author": "令狐楚",
+      "lines": [
+        "胡風千里驚",
+        "漢月五更明",
+        "縱有還家夢",
+        "猶聞出塞聲"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "2624f908-0651-480b-9132-d3b258a20c7e"
+    },
+    {
+      "title": "相和歌辭 從軍行五首 五",
+      "author": "令狐楚",
+      "lines": [
+        "暮雪連青海",
+        "陰雲覆白山",
+        "可憐班定遠",
+        "出入玉門關"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "ea5be606-2fc0-44cf-bd0b-a4dc72afdae8"
+    },
+    {
+      "title": "相和歌辭 從軍行三首 一",
+      "author": "王涯",
+      "lines": [
+        "旌甲從軍久",
+        "風雲識陣難",
+        "今朝韓信計",
+        "日下斬成安"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "a6e31a8e-4d7f-4e78-a9d5-88aaf1499945"
+    },
+    {
+      "title": "相和歌辭 從軍行三首 二",
+      "author": "王涯",
+      "lines": [
+        "燕頷多奇相",
+        "狼頭敢犯邊",
+        "寄言班定遠",
+        "正是立功年"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "843c9ce2-7636-4312-8b92-10a943e45ae4"
+    },
+    {
+      "title": "相和歌辭 相逢行二首 二",
+      "author": "李白",
+      "lines": [
+        "相逢紅塵內",
+        "高揖黃金鞭",
+        "萬戶垂楊裏",
+        "君家阿那邊"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "b26b1959-9880-4d5c-9c8a-baef9a5ea015"
+    },
+    {
+      "title": "相和歌辭 塘上行",
+      "author": "李賀",
+      "lines": [
+        "藕花涼露溼",
+        "花缺藕根澀",
+        "飛下雌鴛鴦",
+        "塘水聲溢溢"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "5f34d119-60d9-4762-87c7-7d84d0baa8ff"
+    },
+    {
+      "title": "相和歌辭 怨詩三首 一",
+      "author": "李暇",
+      "lines": [
+        "羅敷初總髻",
+        "蕙芳正嬌小",
+        "月落始歸船",
+        "春眠恆著曉"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "9709148e-d077-4032-90b4-f561a7e27ea1"
+    },
+    {
+      "title": "相和歌辭 怨詩三首 二",
+      "author": "李暇",
+      "lines": [
+        "何處期郎遊",
+        "小苑花臺間",
+        "相憶不可見",
+        "且復乘月還"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "1d5a1080-bad4-49d8-b2cf-d9e2f6a3308c"
+    },
+    {
+      "title": "相和歌辭 怨詩三首 三",
+      "author": "李暇",
+      "lines": [
+        "別來花照路",
+        "別後露垂葉",
+        "歌舞須及時",
+        "如何坐悲妾"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "f9a61da1-8c80-4698-b345-391cff7b3ac4"
+    },
+    {
+      "title": "相和歌辭 怨詩二首 一",
+      "author": "崔國輔",
+      "lines": [
+        "樓前桃李疎",
+        "池上芙蓉落",
+        "織錦猶未成",
+        "蟲聲入羅幕"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "162cbb9f-bbde-41a4-95b0-0be89ecabc99"
+    },
+    {
+      "title": "相和歌辭 怨詩二首 二",
+      "author": "崔國輔",
+      "lines": [
+        "妾有羅衣裳",
+        "秦王在時作",
+        "爲舞春風多",
+        "秋來不堪著"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "b52a6b7c-7890-4224-aa1a-cc9cab9b2e34"
+    },
+    {
+      "title": "相和歌辭 怨詩",
+      "author": "孟郊",
+      "lines": [
+        "試妾與君淚",
+        "兩處滴池水",
+        "看取芙蓉花",
+        "今年爲誰死"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "474eec78-7561-4f35-b428-1a437bb4adc6"
+    },
+    {
+      "title": "相和歌辭 長門怨",
+      "author": "盧綸",
+      "lines": [
+        "空宮古廊殿",
+        "寒月照斜暉",
+        "臥聽未央曲",
+        "滿箱歌舞衣"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "7d25f355-cbc3-4f18-ab8f-f605472ba32d"
+    },
+    {
+      "title": "相和歌辭 班倢伃三首 一",
+      "author": "王維",
+      "lines": [
+        "玉窗螢影度",
+        "金殿人聲絕",
+        "秋夜守羅幃",
+        "孤燈耿不滅"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "5ab180d2-87ce-418a-afdf-3a473f42a7d4"
+    },
+    {
+      "title": "相和歌辭 班倢伃三首 二",
+      "author": "王維",
+      "lines": [
+        "宮殿生秋草",
+        "君王恩幸疎",
+        "那堪聞鳳吹",
+        "門外度金輿"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "704cd99c-171d-4b5f-bbdc-0d21d559d83d"
+    },
+    {
+      "title": "相和歌辭 班倢伃三首 三",
+      "author": "王維",
+      "lines": [
+        "怪來妝閣閉",
+        "朝下不相迎",
+        "總向春園裏",
+        "花間語笑聲"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "2bbf8f35-26a3-4cbf-aa3c-4ccab73da8b0"
+    },
+    {
+      "title": "相和歌辭 倢伃怨",
+      "author": "崔國輔",
+      "lines": [
+        "長信宮中草",
+        "年年愁處生",
+        "故侵珠履跡",
+        "不使玉階行"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "1a35a870-6e18-4b98-8770-50bc0d64cee5"
+    },
+    {
+      "title": "相和歌辭 玉階怨",
+      "author": "李白",
+      "lines": [
+        "玉階生白露",
+        "夜久侵羅襪",
+        "却下水精簾",
+        "玲瓏望秋月"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "f93545e7-747e-4d12-a6c8-e484c46b2860"
+    },
+    {
+      "title": "相和歌辭 雜怨三首 二",
+      "author": "聶夷中",
+      "lines": [
+        "良人昨日去",
+        "明日又不還",
+        "別時各有淚",
+        "零落青樓前"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "35976b04-a1c4-4346-bc19-4f6eccd925b5"
+    },
+    {
+      "title": "相和歌辭 子夜冬歌",
+      "author": "崔國輔",
+      "lines": [
+        "寂寥抱冬心",
+        "裁羅又褧褧",
+        "夜久頻挑燈",
+        "霜寒剪刀冷"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "f3cb8917-c2b2-4619-9fa4-0f548a512bae"
+    },
+    {
+      "title": "相和歌辭 子夜四時歌六首 春歌二首 一",
+      "author": "郭元振",
+      "lines": [
+        "青樓含日光",
+        "綠池起風色",
+        "贈子同心花",
+        "殷勤此何極"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "b4f19aab-ff6a-40e2-b499-e43a45f7515c"
+    },
+    {
+      "title": "相和歌辭 子夜四時歌六首 春歌二首 二",
+      "author": "郭元振",
+      "lines": [
+        "陌頭楊柳枝",
+        "已被春風吹",
+        "妾心正斷絕",
+        "君懷那得知"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "ea32c92c-589f-40ce-8a57-32d133e364a8"
+    },
+    {
+      "title": "相和歌辭 子夜四時歌六首 秋歌二首 一",
+      "author": "郭元振",
+      "lines": [
+        "邀歡空佇立",
+        "望美頻迴顧",
+        "何時復採菱",
+        "江中密相遇"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "4113e9d5-2bdc-4951-addb-7e182fd75cc2"
+    },
+    {
+      "title": "相和歌辭 子夜四時歌六首 冬歌二首 一",
+      "author": "郭元振",
+      "lines": [
+        "北極嚴氣升",
+        "南至溫風謝",
+        "調絲競短歌",
+        "拂枕憐長夜"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "a58dc2b0-7454-4599-aa4c-a06605f39978"
+    },
+    {
+      "title": "相和歌辭 子夜四時歌六首 冬歌二首 二",
+      "author": "郭元振",
+      "lines": [
+        "帷橫雙翡翠",
+        "被卷兩鴛鴦",
+        "婉態不自得",
+        "宛轉君王牀"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "7201ac2c-75bd-495d-a203-339fb042959a"
+    },
+    {
+      "title": "相和歌辭 子夜四時歌四首 春歌",
+      "author": "陸龜蒙",
+      "lines": [
+        "山連翠羽屏",
+        "草接煙華席",
+        "望盡南飛燕",
+        "佳人斷信息"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "051a3fc4-b7c9-4345-a255-2e7887b448e5"
+    },
+    {
+      "title": "相和歌辭 子夜四時歌四首 夏歌",
+      "author": "陸龜蒙",
+      "lines": [
+        "蘭眼擡露斜",
+        "鶯脣映花老",
+        "金龍傾漏盡",
+        "玉井敲冰早"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "6335b64e-eb8c-4bfb-af43-04079f2bdd4c"
+    },
+    {
+      "title": "相和歌辭 子夜四時歌四首 秋歌",
+      "author": "陸龜蒙",
+      "lines": [
+        "涼漢清泬寥",
+        "衰林怨風雨",
+        "愁聽絡緯唱",
+        "似與羇魂語"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "8bb369b9-1505-409f-823c-346f3502e29f"
+    },
+    {
+      "title": "相和歌辭 子夜四時歌四首 冬歌",
+      "author": "陸龜蒙",
+      "lines": [
+        "南光走冷圭",
+        "北籟號空木",
+        "年年任霜霰",
+        "不減篔簹綠"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "94c281fc-90b7-47c8-8e6e-a18445b158fb"
+    },
+    {
+      "title": "相和歌辭 大子夜歌二首 一",
+      "author": "陸龜蒙",
+      "lines": [
+        "歌謠數百種",
+        "子夜最可憐",
+        "慷慨吐清音",
+        "明轉出天然"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "4e3884c7-3768-4f7d-abab-164219e603a1"
+    },
+    {
+      "title": "相和歌辭 大子夜歌二首 二",
+      "author": "陸龜蒙",
+      "lines": [
+        "絲竹發歌響",
+        "假器揚清音",
+        "不知歌謠妙",
+        "聲勢出口心"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "a473d2c3-e90d-447a-aa53-adb3b478290d"
+    },
+    {
+      "title": "相和歌辭 子夜警歌二首 一",
+      "author": "陸龜蒙",
+      "lines": [
+        "鏤椀傳綠酒",
+        "雕爐熏紫煙",
+        "誰知苦寒調",
+        "共作白雪弦"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "7a18b4c1-5ce6-46b6-84ee-86fec16eb74a"
+    },
+    {
+      "title": "相和歌辭 子夜警歌二首 二",
+      "author": "陸龜蒙",
+      "lines": [
+        "恃愛如欲進",
+        "含羞出不前",
+        "朱口發豔歌",
+        "玉指弄嬌弦"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "0129f4a2-76ec-4ed8-a385-a5142a49e274"
+    },
+    {
+      "title": "相和歌辭 碧玉歌",
+      "author": "李暇",
+      "lines": [
+        "碧玉上宮妓",
+        "出入千花林",
+        "珠被玳瑁牀",
+        "感郎情意深"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "78185292-1450-416c-bd9d-8403d9e69537"
+    },
+    {
+      "title": "相和歌辭 讀曲歌五首 一",
+      "author": "張祜",
+      "lines": [
+        "窗中獨自起",
+        "簾外獨自行",
+        "愁見蜘蛛織",
+        "尋思直到明"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "ae02eae3-4d12-45da-84a6-949f88a0bd48"
+    },
+    {
+      "title": "相和歌辭 讀曲歌五首 二",
+      "author": "張祜",
+      "lines": [
+        "碓上米不舂",
+        "窗中絲罷絡",
+        "看渠駕去車",
+        "定是無四角"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "fe5ade0f-5f0b-48b0-b645-00de441422a8"
+    },
+    {
+      "title": "相和歌辭 讀曲歌五首 三",
+      "author": "張祜",
+      "lines": [
+        "不見心相許",
+        "徒云脚漫勤",
+        "摘荷空摘葉",
+        "是底采蓮人"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "b3a8600d-8a45-441b-b9b1-36c08d87a691"
+    },
+    {
+      "title": "相和歌辭 讀曲歌五首 四",
+      "author": "張祜",
+      "lines": [
+        "窗外山魈立",
+        "知渠脚不多",
+        "三更機底下",
+        "摸著是誰梭"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "c2cde274-cda9-4603-8317-155ba71d9dc3"
+    },
+    {
+      "title": "相和歌辭 讀曲歌五首 五",
+      "author": "張祜",
+      "lines": [
+        "郎去摘黃瓜",
+        "郎來收赤棗",
+        "郎耕種麻地",
+        "今作西舍道"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "06b84ebb-073f-4ff0-9796-a615ac5d13f3"
+    },
+    {
+      "title": "相和歌辭 玉樹後庭花",
+      "author": "張祜",
+      "lines": [
+        "輕車何草草",
+        "獨唱後庭花",
+        "玉座誰爲主",
+        "徒悲張麗華"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "d74e9598-2653-4bb2-99b6-34f0f916858b"
+    },
+    {
+      "title": "相和歌辭 三閣詞四首 一",
+      "author": "劉禹錫",
+      "lines": [
+        "貴人三閣上",
+        "日晏未梳頭",
+        "不應有恨事",
+        "嬌甚却成愁"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "407210c8-10a9-412e-8dcb-2740914ddf70"
+    },
+    {
+      "title": "相和歌辭 三閣詞四首 二",
+      "author": "劉禹錫",
+      "lines": [
+        "珠箔曲瓊鉤",
+        "子細見揚州",
+        "北兵那得度",
+        "浪語判悠悠"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "8ca59348-308c-46a9-8472-cea3b91d7718"
+    },
+    {
+      "title": "相和歌辭 三閣詞四首 三",
+      "author": "劉禹錫",
+      "lines": [
+        "沈香帖閣柱",
+        "金縷畫門楣",
+        "回首降幡下",
+        "已見黍離離"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "fa1ecb79-ccad-4a2a-9194-7b86f872f0d1"
+    },
+    {
+      "title": "相和歌辭 三閣詞四首 四",
+      "author": "劉禹錫",
+      "lines": [
+        "三人出眢井",
+        "一身登檻車",
+        "朱門漫臨水",
+        "不可見鱸魚"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "2f94d44f-4079-460f-bdbd-474e5519bcf5"
+    },
+    {
+      "title": "相和歌辭 烏夜啼",
+      "author": "聶夷中",
+      "lines": [
+        "衆鳥各歸枝",
+        "烏烏爾不棲",
+        "還應知妾恨",
+        "故向綠窗啼"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "5c9f73b3-1088-48aa-b4c6-8506d0047799"
+    },
+    {
+      "title": "相和歌辭 莫愁樂",
+      "author": "張祜",
+      "lines": [
+        "儂居石城下",
+        "郎到石城遊",
+        "自郎石城出",
+        "長在石城頭"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "7ac317e6-a69f-4e17-b73a-f7775331b25d"
+    },
+    {
+      "title": "相和歌辭 估客樂",
+      "author": "李白",
+      "lines": [
+        "海客乘天風",
+        "將船遠行役",
+        "譬如雲中鳥",
+        "一去無蹤跡"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "aadd63e4-92bc-4d8d-9272-94e63ac260a8"
+    },
+    {
+      "title": "相和歌辭 襄陽樂",
+      "author": "張祜",
+      "lines": [
+        "大堤花月夜",
+        "長江春水流",
+        "東風正上信",
+        "春夜特來遊"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "0dc28dbc-d080-47fc-b44a-229e310c187a"
+    },
+    {
+      "title": "相和歌辭 襄陽曲二首 一",
+      "author": "崔國輔",
+      "lines": [
+        "蕙草嬌紅蕚",
+        "時光舞碧雞",
+        "城中美年少",
+        "相見白銅鞮"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "9322a025-9168-4abc-a815-1d4a235cee67"
+    },
+    {
+      "title": "相和歌辭 襄陽曲二首 二",
+      "author": "崔國輔",
+      "lines": [
+        "少年襄陽地",
+        "來往襄陽城",
+        "城中輕薄子",
+        "知妾解秦箏"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "9b0a9bf8-1708-44c2-ad48-e7bbfd01583e"
+    },
+    {
+      "title": "相和歌辭 采蓮曲",
+      "author": "崔國輔",
+      "lines": [
+        "玉溆花紅發",
+        "金塘水碧流",
+        "相逢畏相失",
+        "並著采蓮舟"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "6d8fb7db-36fd-40f1-b120-dc58e0d8b039"
+    },
+    {
+      "title": "琴曲歌辭 湘妃",
+      "author": "劉長卿",
+      "lines": [
+        "帝子不可見",
+        "秋風來暮思",
+        "嬋娟湘江月",
+        "千載空蛾眉"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "c5b74274-de21-482b-ae7a-b0d8200bbb18"
+    },
+    {
+      "title": "琴曲歌辭 昭君怨 一",
+      "author": "張祜",
+      "lines": [
+        "萬里邊城遠",
+        "千山行路難",
+        "舉頭唯見日",
+        "何處是長安"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "25723633-8e6d-4adb-857e-7f371a2572fd"
+    },
+    {
+      "title": "琴曲歌辭 昭君怨 二",
+      "author": "張祜",
+      "lines": [
+        "漢庭無大議",
+        "戎虜幾先和",
+        "莫羨傾城色",
+        "昭君恨最多"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "a26eb089-1854-4fda-b922-6f7be2e3e54c"
+    },
+    {
+      "title": "琴曲歌辭 蔡氏五弄 遊春曲二首 一",
+      "author": "王涯",
+      "lines": [
+        "萬樹江邊杏",
+        "新開一夜風",
+        "滿園深淺色",
+        "照在綠波中"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "2019c628-e417-42eb-8e73-9991b9003a32"
+    },
+    {
+      "title": "琴曲歌辭 蔡氏五弄 遊春曲二首 二",
+      "author": "王涯",
+      "lines": [
+        "上苑何窮樹",
+        "花開次第新",
+        "香車與絲騎",
+        "風靜亦生塵"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "4ba05592-e341-4956-b1fe-386bd7db5272"
+    },
+    {
+      "title": "琴曲歌辭  遊春辭三首 一",
+      "author": "令狐楚",
+      "lines": [
+        "晚遊臨碧殿",
+        "日上望春亭",
+        "芳樹羅仙仗",
+        "晴山展翠屏"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "314ba785-3431-4b8d-9ea3-ae18063492d4"
+    },
+    {
+      "title": "琴曲歌辭  遊春辭三首 二",
+      "author": "令狐楚",
+      "lines": [
+        "一夜好風吹",
+        "新花一萬枝",
+        "風前調玉管",
+        "花下簇金羈"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "95a1424f-b97b-481e-bf7a-50c140e1354b"
+    },
+    {
+      "title": "琴曲歌辭  遊春辭三首 三",
+      "author": "令狐楚",
+      "lines": [
+        "閶闔春風起",
+        "蓬萊雪水消",
+        "相將折楊柳",
+        "爭取最長條"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "cebc8c62-57f4-4b5c-bee3-9ef0de0e1df7"
+    },
+    {
+      "title": "琴曲歌辭  淥水曲",
+      "author": "李白",
+      "lines": [
+        "淥水明秋月",
+        "南湖采白蘋",
+        "荷花嬌欲語",
+        "愁殺蕩舟人"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "d473eaba-72be-4de0-a7da-db3d833e6564"
+    },
+    {
+      "title": "琴曲歌辭 秋風引",
+      "author": "劉禹錫",
+      "lines": [
+        "何處秋風至",
+        "蕭蕭送鴈羣",
+        "朝來入庭樹",
+        "孤客最先聞"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "7ecd869d-dd96-421b-905b-a70a0cb44bad"
+    },
+    {
+      "title": "雜曲歌辭 妾薄命",
+      "author": "崔國輔",
+      "lines": [
+        "雖入秦帝宮",
+        "不上秦帝牀",
+        "夜夜玉窗裏",
+        "與他卷羅裳"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "ad84f24a-7552-4e1d-ac0e-8e74b824f807"
+    },
+    {
+      "title": "雜曲歌辭 妾薄命三首 三",
+      "author": "李端",
+      "lines": [
+        "自從君棄妾",
+        "憔悴不羞人",
+        "惟餘壞粉淚",
+        "未免映衫勻"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "b80850c4-91b8-47bc-b9a7-7c51345c051e"
+    },
+    {
+      "title": "雜曲歌辭 少年行三首 二",
+      "author": "僧貫休",
+      "lines": [
+        "自拳五色毬",
+        "迸入他人宅",
+        "卻捉蒼頭奴",
+        "玉鞭打一百"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "c3702d36-4293-4d70-a4e9-3b752445769f"
+    },
+    {
+      "title": "雜曲歌辭 少年行三首 三",
+      "author": "僧貫休",
+      "lines": [
+        "面白如削玉",
+        "猖狂曲江曲",
+        "馬上黃金鞍",
+        "適來新賭得"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "de165d68-2bc6-4a4f-8b86-d746d9f82a7d"
+    },
+    {
+      "title": "雜曲歌辭 長樂少年行",
+      "author": "崔國輔",
+      "lines": [
+        "遺卻珊瑚鞭",
+        "白馬驕不行",
+        "章臺折楊柳",
+        "春草路旁情"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "9d98b9ab-f80b-40ee-9b22-370fd62cac82"
+    },
+    {
+      "title": "雜曲歌辭 壯士吟",
+      "author": "賈島",
+      "lines": [
+        "壯士不曾悲",
+        "悲即無回期",
+        "如何易水上",
+        "未歌先淚垂"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "199cb91d-b884-4cee-bb45-d85c40d9ef16"
+    },
+    {
+      "title": "雜曲歌辭 麗人曲",
+      "author": "崔國輔",
+      "lines": [
+        "紅顏稱絕代",
+        "欲並真無侶",
+        "獨有鏡中人",
+        "由來自相許"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "12fa4755-e5e9-40fe-91bf-590aafb4ddf9"
+    },
+    {
+      "title": "雜曲歌辭 自君之出矣",
+      "author": "辛弘智",
+      "lines": [
+        "自君之出矣",
+        "梁塵靜不飛",
+        "思君如滿月",
+        "夜夜減容暉"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "198f15ab-e3b2-404d-b6c5-7f53d7a0f0e8"
+    },
+    {
+      "title": "雜曲歌辭 長相思",
+      "author": "張繼",
+      "lines": [
+        "遼陽望河縣",
+        "白首無由見",
+        "海上珊瑚枝",
+        "年年寄春燕"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "2b87015d-2a4a-4fa7-af5e-fe7cebc4a99f"
+    },
+    {
+      "title": "雜曲歌辭 長相思二首 一",
+      "author": "令狐楚",
+      "lines": [
+        "君行登隴上",
+        "妾夢在閨中",
+        "玉筯千行落",
+        "銀牀一半空"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "4345418b-e039-46ad-b17a-e26a7bebed93"
+    },
+    {
+      "title": "雜曲歌辭 長相思二首 二",
+      "author": "令狐楚",
+      "lines": [
+        "綺席春眠覺",
+        "紗窗曉望迷",
+        "朦朧殘夢裏",
+        "猶自在遼西"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "158d4260-8f5c-4c8e-9ffd-872651a996ad"
+    },
+    {
+      "title": "雜曲歌辭 古別離",
+      "author": "聶夷中",
+      "lines": [
+        "欲別牽郎衣",
+        "問郎遊何處",
+        "不恨歸日遲",
+        "莫向臨邛去"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "dae495a8-d198-4fe8-86d6-a56da79ac7b6"
+    },
+    {
+      "title": "雜曲歌辭 遠別離二首 一",
+      "author": "令狐楚",
+      "lines": [
+        "楊柳黃金穗",
+        "梧桐碧玉枝",
+        "春來消息斷",
+        "早晚是歸時"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "7c76bd40-ab40-4b1d-97ed-c3a3dd2d8310"
+    },
+    {
+      "title": "雜曲歌辭 遠別離二首 二",
+      "author": "令狐楚",
+      "lines": [
+        "玳織鴛鴦履",
+        "金裝翡翠簪",
+        "畏人相問著",
+        "不擬到城南"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "66793505-27a2-4119-beb5-fc018b062fbc"
+    },
+    {
+      "title": "雜曲歌辭 新別離",
+      "author": "戴叔倫",
+      "lines": [
+        "手把杏花枝",
+        "未曾經別離",
+        "黃昏掩閨後",
+        "寂寞自心知"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "2f1de501-ff4c-4292-8b4c-5141753afc5d"
+    },
+    {
+      "title": "雜曲歌辭 今別離",
+      "author": "崔國輔",
+      "lines": [
+        "送別未能旋",
+        "相望連水口",
+        "船行欲映洲",
+        "幾度急搖手"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "ae14b4a7-e09b-4151-ab64-307800f6d5a7"
+    },
+    {
+      "title": "雜曲歌辭 荆州樂二首 一",
+      "author": "劉禹錫",
+      "lines": [
+        "渚宮楊柳暗",
+        "麥城朝雉飛",
+        "可憐踏青伴",
+        "乘暖著輕衣"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "c7466a70-7646-42f2-b7cb-e31e3734e8b1"
+    },
+    {
+      "title": "雜曲歌辭 荆州樂二首 二",
+      "author": "劉禹錫",
+      "lines": [
+        "今日好南風",
+        "商旅相催發",
+        "沙頭檣竿上",
+        "始見春江闊"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "48f8c45d-f720-4d52-ad85-5a7339ea14fd"
+    },
+    {
+      "title": "雜曲歌辭 紀南歌",
+      "author": "劉禹錫",
+      "lines": [
+        "風煙紀南城",
+        "塵土荆門路",
+        "天寒獵獸者",
+        "走上樊姬墓"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "ee2f7142-ec63-4efb-ad6b-b26db2c7255c"
+    },
+    {
+      "title": "雜曲歌辭 長干曲四首 一",
+      "author": "崔顥",
+      "lines": [
+        "君家定何處",
+        "妾住在橫塘",
+        "停舟暫借問",
+        "或恐是同鄉"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "4bef9a5e-f4a1-44bd-a78c-cb0fe38ccdff"
+    },
+    {
+      "title": "雜曲歌辭 長干曲四首 二",
+      "author": "崔顥",
+      "lines": [
+        "家臨九江水",
+        "去來九江側",
+        "同是長干人",
+        "生小不相識"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "8d480633-1876-4082-aaca-a7b3a26c04d7"
+    },
+    {
+      "title": "雜曲歌辭 長干曲四首 三",
+      "author": "崔顥",
+      "lines": [
+        "下渚多風浪",
+        "蓮舟漸覺稀",
+        "那能不相待",
+        "獨自逆潮歸"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "de3624ff-f06e-4552-8e8c-22e75c3e6303"
+    },
+    {
+      "title": "雜曲歌辭 長干曲四首 四",
+      "author": "崔顥",
+      "lines": [
+        "三江潮水急",
+        "五湖風浪湧",
+        "由來花性輕",
+        "莫畏蓮舟重"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "4e1d3e0d-b5d7-4d30-bce9-9fd69e694a80"
+    },
+    {
+      "title": "雜曲歌辭 小長干曲",
+      "author": "崔國輔",
+      "lines": [
+        "月暗送湖風",
+        "相尋路不通",
+        "菱歌唱不輟",
+        "知在此塘中"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "cf218c4b-ebb6-4ae0-8aaa-7ad0da70c949"
+    },
+    {
+      "title": "雜曲歌辭 王孫遊",
+      "author": "崔國輔",
+      "lines": [
+        "自與王孫別",
+        "頻看黃鳥飛",
+        "應由春草誤",
+        "著處不成歸"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "5b7a301f-f717-4fd1-a39f-f0db207a0887"
+    },
+    {
+      "title": "雜曲歌辭 上皇三臺",
+      "author": "韋應物",
+      "lines": [
+        "不寐倦長更",
+        "披衣出戶行",
+        "月寒秋竹冷",
+        "風切夜窗聲"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "ed42eaf6-78fd-493d-acf6-612c30c704fc"
+    },
+    {
+      "title": "雜曲歌辭 起夜來",
+      "author": "施肩吾",
+      "lines": [
+        "香銷連理帶",
+        "塵覆合歡杯",
+        "嬾臥相思枕",
+        "愁吟起夜來"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "27ce9f4a-b246-472d-b3c5-6f20fcdf2cc4"
+    },
+    {
+      "title": "雜曲歌辭 起夜半",
+      "author": "聶夷中",
+      "lines": [
+        "念遠心如燒",
+        "不覺中夜起",
+        "桃花帶露泛",
+        "立在月明裏"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "ec880efb-495d-48aa-9764-a827c4bd8864"
+    },
+    {
+      "title": "雜曲歌辭 夜夜曲",
+      "author": "不詳",
+      "lines": [
+        "愁人夜獨傷",
+        "滅燭臥蘭房",
+        "祗恐多情月",
+        "旋來照妾牀"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "e14cbebf-e7fd-4eb3-af52-d8d5587ae78b"
+    },
+    {
+      "title": "雜曲歌辭 定情樂",
+      "author": "施肩吾",
+      "lines": [
+        "敢嗟君不憐",
+        "自是命不諧",
+        "著破三條裾",
+        "卻還雙股釵"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "b1c23df5-e9ea-4ab7-bf23-ed6fd7036b62"
+    },
+    {
+      "title": "雜曲歌辭 春江曲",
+      "author": "郭元振",
+      "lines": [
+        "江水春沈沈",
+        "上有雙竹林",
+        "竹葉壞水色",
+        "郎亦壞人心"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "b3b95e77-5985-49ef-b603-cce95a5c6ae2"
+    },
+    {
+      "title": "雜曲歌辭 春江曲二首 一",
+      "author": "張仲素",
+      "lines": [
+        "家寄征江岸",
+        "征人幾歲遊",
+        "不知潮水信",
+        "每日到沙頭"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "6c3450f9-3313-4b37-a250-3a2a65ffc6ea"
+    },
+    {
+      "title": "雜曲歌辭 春江曲二首 二",
+      "author": "張仲素",
+      "lines": [
+        "乘曉南湖去",
+        "參差疊浪橫",
+        "前洲在何處",
+        "霧裏鴈嚶嚶"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "7c801e3f-7e0e-427e-bdc6-20a221935c19"
+    },
+    {
+      "title": "雜曲歌辭 樹中草",
+      "author": "張祜",
+      "lines": [
+        "青青樹中草",
+        "託根非不危",
+        "草生樹卻死",
+        "榮枯君可知"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "5f0805f2-27d7-4ca4-b338-22722d62e69e"
+    },
+    {
+      "title": "雜曲歌辭 春遊曲三首 一",
+      "author": "張仲素",
+      "lines": [
+        "煙柳飛輕絮",
+        "風榆落小錢",
+        "濛濛百花裏",
+        "羅綺競鞦韆"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "5a8f5fae-de21-42ba-b458-893eeffa3c54"
+    },
+    {
+      "title": "雜曲歌辭 春遊曲三首 二",
+      "author": "張仲素",
+      "lines": [
+        "騁望登香閣",
+        "爭高下砌臺",
+        "林間踏青去",
+        "席上意錢來"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "30a09ffc-27bf-4fec-b22b-6e91f4dd8a0a"
+    },
+    {
+      "title": "雜曲歌辭 春遊曲三首 三",
+      "author": "張仲素",
+      "lines": [
+        "行樂三春節",
+        "林花百和香",
+        "當年重意氣",
+        "先占鬬雞場"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "47fc9ebc-0070-4a86-bf6c-63fe970ae534"
+    },
+    {
+      "title": "雜曲歌辭 樂府三首 一",
+      "author": "孟郊",
+      "lines": [
+        "蓮子不可得",
+        "荷花生水中",
+        "猶勝道傍柳",
+        "無事蕩春風"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "bf9e7e4a-227e-441a-865f-873ad8e957c5"
+    },
+    {
+      "title": "雜曲歌辭 樂府三首 二",
+      "author": "孟郊",
+      "lines": [
+        "淥萍與荷葉",
+        "同時一水中",
+        "風吹荷葉在",
+        "淥萍西復東"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "0b0061ae-a45e-43f3-9c20-aa221f18852f"
+    },
+    {
+      "title": "雜曲歌辭 樂府三首 三",
+      "author": "孟郊",
+      "lines": [
+        "蓮花未開時",
+        "苦心終日卷",
+        "春水徒蕩漾",
+        "荷花未開展"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "a01640c4-01fc-44c4-bf10-f2a4b79a31e0"
+    },
+    {
+      "title": "雜曲歌辭 樂府",
+      "author": "陸長源",
+      "lines": [
+        "芙蓉初出水",
+        "菡萏露中花",
+        "風吹著枯木",
+        "無奈值空槎"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "e23c4038-0674-4bc3-b6f6-051d116a6191"
+    },
+    {
+      "title": "雜曲歌辭 古曲五首 一",
+      "author": "施肩吾",
+      "lines": [
+        "可憐江北女",
+        "慣唱江南曲",
+        "搖蕩木蘭舟",
+        "雙鳧不成浴"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "9dbfbde5-aa79-40ba-8a91-b22ee077a8e9"
+    },
+    {
+      "title": "雜曲歌辭 古曲五首 二",
+      "author": "施肩吾",
+      "lines": [
+        "郎爲匕上香",
+        "妾爲籠上灰",
+        "歸時雖暖熱",
+        "去罷生塵埃"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "6b77cfb9-d9f3-40ab-b94d-6d8f6d0d59f0"
+    },
+    {
+      "title": "雜曲歌辭 古曲五首 三",
+      "author": "施肩吾",
+      "lines": [
+        "夜裁鴛鴦綺",
+        "朝織蒲桃綾",
+        "欲試一寸心",
+        "待縫三尺冰"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "7aae9190-ddaa-4148-a93e-f1a7d7b3bb7b"
+    },
+    {
+      "title": "雜曲歌辭 古曲五首 四",
+      "author": "施肩吾",
+      "lines": [
+        "憐時魚得水",
+        "怨罷商與參",
+        "不如山支子",
+        "卻解結同心"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "b94c5a1b-2074-41fd-8545-1527160fe131"
+    },
+    {
+      "title": "雜曲歌辭 古曲五首 五",
+      "author": "施肩吾",
+      "lines": [
+        "紅顏感暮花",
+        "白日同流水",
+        "思君如孤燈",
+        "一夜一心死"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "3f566f5b-d74e-4b91-b7f6-31b49deff655"
+    },
+    {
+      "title": "雜曲歌辭 高句麗",
+      "author": "李白",
+      "lines": [
+        "金花折風帽",
+        "白馬小遲回",
+        "翩翩舞廣袖",
+        "似鳥海東來"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "b05b8916-14f3-4727-9074-7a5191560361"
+    },
+    {
+      "title": "雜曲歌辭 水調 歌第五",
+      "author": "不詳",
+      "lines": [
+        "雙帶仍分影",
+        "同心巧結香",
+        "不應須換彩",
+        "意欲媚濃妝"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "99774e06-b675-4e90-812d-8687d5dec0cc"
+    },
+    {
+      "title": "雜曲歌辭 水調 入破第六徹",
+      "author": "不詳",
+      "lines": [
+        "閨燭無人影",
+        "羅屏有夢魂",
+        "近來音耗絕",
+        "終日望君門"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "0fef5012-ce3c-4d1c-b10e-763f536f4d1f"
+    },
+    {
+      "title": "雜曲歌辭 堂堂 一",
+      "author": "李義府",
+      "lines": [
+        "鏤月成歌扇",
+        "裁雲作舞衣",
+        "自憐回雪影",
+        "好取洛川歸"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "ee4f90a7-2e12-4406-9160-0ce744364e98"
+    },
+    {
+      "title": "雜曲歌辭 堂堂 二",
+      "author": "李義府",
+      "lines": [
+        "嬾正鴛鴦被",
+        "羞褰玳瑁牀",
+        "春風別有意",
+        "密處也尋香"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "4443735c-8ed2-4f28-a04d-7b4e4b3f1005"
+    },
+    {
+      "title": "雜曲歌辭 涼州 歌第三",
+      "author": "不詳",
+      "lines": [
+        "開篋淚霑襦",
+        "見君前日書",
+        "夜臺空寂寞",
+        "猶見紫雲車"
+      ],
+      "source_file": "poet.tang.1000.json",
+      "source_id": "aa89c7ac-8d34-4f99-9572-205ac0ed78b2"
+    },
+    {
+      "title": "雜曲歌辭 伊州 歌第三",
+      "author": "蓋嘉運",
+      "lines": [
+        "聞道黃花戍",
+        "頻年不解兵",
+        "可憐閨裏月",
+        "偏照漢家營"
+      ],
+      "source_file": "poet.tang.2000.json",
+      "source_id": "71700e1e-f443-4d15-8ad9-0b7d116afde5"
+    },
+    {
+      "title": "雜曲歌辭 伊州 歌第四",
+      "author": "蓋嘉運",
+      "lines": [
+        "千里東歸客",
+        "無心憶舊遊",
+        "挂帆游白水",
+        "高枕到青州"
+      ],
+      "source_file": "poet.tang.2000.json",
+      "source_id": "3e9f7376-b439-4ae5-a7cc-c7b987b19317"
+    },
+    {
+      "title": "雜曲歌辭 伊州 歌第五",
+      "author": "蓋嘉運",
+      "lines": [
+        "桂殿江烏對",
+        "彫屏海燕重",
+        "秖應多釀酒",
+        "醉罷樂高鐘"
+      ],
+      "source_file": "poet.tang.2000.json",
+      "source_id": "39b8e8f4-e55f-44cc-9054-637f6babcce1"
+    },
+    {
+      "title": "雜曲歌辭 伊州 入破第四",
+      "author": "蓋嘉運",
+      "lines": [
+        "行樂三陽早",
+        "芳菲二月春",
+        "閨中紅粉態",
+        "陌上看花人"
+      ],
+      "source_file": "poet.tang.2000.json",
+      "source_id": "badca271-bf99-42c4-829c-2fcf20f16950"
+    },
+    {
+      "title": "雜曲歌辭 伊州 入破第五",
+      "author": "蓋嘉運",
+      "lines": [
+        "君住孤山下",
+        "煙深夜徑長",
+        "轅門渡綠水",
+        "遊苑遶垂楊"
+      ],
+      "source_file": "poet.tang.2000.json",
+      "source_id": "3f0c3044-abde-40f5-bd9f-ac83fdbe8319"
+    },
+    {
+      "title": "雜曲歌辭 陸州 歌第一",
+      "author": "不詳",
+      "lines": [
+        "分野中峰變",
+        "陰晴衆壑殊",
+        "欲投人處宿",
+        "隔浦問樵夫"
+      ],
+      "source_file": "poet.tang.2000.json",
+      "source_id": "94292002-770c-46a9-8403-d5b4db792fbf"
+    },
+    {
+      "title": "雜曲歌辭 陸州 歌第二",
+      "author": "不詳",
+      "lines": [
+        "共得煙霞徑",
+        "東歸山水遊",
+        "蕭蕭望林夜",
+        "寂寂坐中秋"
+      ],
+      "source_file": "poet.tang.2000.json",
+      "source_id": "7df9a231-79b5-4ae0-8350-5e2ca6f08da7"
+    },
+    {
+      "title": "雜曲歌辭 陸州 歌第三",
+      "author": "不詳",
+      "lines": [
+        "香氣傳空滿",
+        "妝花映薄紅",
+        "歌聲天仗外",
+        "舞態御樓中"
+      ],
+      "source_file": "poet.tang.2000.json",
+      "source_id": "c2d0eb43-3cb8-42b2-9ea0-c5614cadb1eb"
+    },
+    {
+      "title": "雜曲歌辭 陸州 排遍第一",
+      "author": "不詳",
+      "lines": [
+        "樹發花如錦",
+        "鶯嗁柳若絲",
+        "更逢歡宴地",
+        "愁見別離時"
+      ],
+      "source_file": "poet.tang.2000.json",
+      "source_id": "0a022fd2-30af-4cec-81fd-e5b991ecbfd5"
+    },
+    {
+      "title": "雜曲歌辭 陸州 排遍第二",
+      "author": "不詳",
+      "lines": [
+        "明月照秋葉",
+        "西風響夜砧",
+        "彊言徒自亂",
+        "往事不堪尋"
+      ],
+      "source_file": "poet.tang.2000.json",
+      "source_id": "4cc2e497-c243-49fc-a919-6e50b73ec5cf"
+    },
+    {
+      "title": "雜曲歌辭 陸州 排遍第三",
+      "author": "不詳",
+      "lines": [
+        "坐對銀釭曉",
+        "停留玉筯痕",
+        "君門常不見",
+        "無處謝前恩"
+      ],
+      "source_file": "poet.tang.2000.json",
+      "source_id": "599966fc-6eb9-4c49-97e8-89ca38dfbb78"
+    },
+    {
+      "title": "雜曲歌辭 陸州 排遍第四",
+      "author": "不詳",
+      "lines": [
+        "曙月當窗滿",
+        "征人出塞遙",
+        "畫樓終日閉",
+        "清管爲誰調"
+      ],
+      "source_file": "poet.tang.2000.json",
+      "source_id": "0b08a6a1-5fbc-4148-9992-fb1469abe45a"
+    },
+    {
+      "title": "雜曲歌辭 祓禊曲 一",
+      "author": "不詳",
+      "lines": [
+        "昨見春條綠",
+        "那知秋葉黃",
+        "蟬聲猶未斷",
+        "寒鴈已成行"
+      ],
+      "source_file": "poet.tang.2000.json",
+      "source_id": "f1991aab-5e58-411b-81ec-9a6c85e4601f"
+    },
+    {
+      "title": "雜曲歌辭 祓禊曲 二",
+      "author": "不詳",
+      "lines": [
+        "金谷園中柳",
+        "春來已舞腰",
+        "那堪好風景",
+        "獨上洛陽橋"
+      ],
+      "source_file": "poet.tang.2000.json",
+      "source_id": "4f33dbfd-6e6d-4ec9-97fd-aa549782ca2f"
+    },
+    {
+      "title": "雜曲歌辭 祓禊曲 三",
+      "author": "不詳",
+      "lines": [
+        "何處堪愁思",
+        "花間長樂宮",
+        "君王不重客",
+        "泣淚向春風"
+      ],
+      "source_file": "poet.tang.2000.json",
+      "source_id": "926a2036-d651-4bda-a7ef-55dd30aeecf3"
+    },
+    {
+      "title": "雜曲歌辭 穆護砂",
+      "author": "不詳",
+      "lines": [
+        "玉管朝朝弄",
+        "清歌日日新",
+        "折花當驛路",
+        "寄與隴頭人"
+      ],
+      "source_file": "poet.tang.2000.json",
+      "source_id": "68c8add6-7843-4c4f-b6c1-e18bb7e071bb"
+    },
+    {
+      "title": "雜曲歌辭 思歸樂 一",
+      "author": "不詳",
+      "lines": [
+        "晚日催弦管",
+        "春風入綺羅",
+        "杏花如有意",
+        "偏落舞衫多"
+      ],
+      "source_file": "poet.tang.2000.json",
+      "source_id": "1cb1b2d2-0d2c-43ab-945c-b037aecbc027"
+    },
+    {
+      "title": "雜曲歌辭 思歸樂 二",
+      "author": "不詳",
+      "lines": [
+        "萬里春應盡",
+        "三江鴈亦稀",
+        "連天漢水廣",
+        "孤客未言歸"
+      ],
+      "source_file": "poet.tang.2000.json",
+      "source_id": "e5ada04a-9a0c-4d4e-9fc1-223b9a670f76"
+    },
+    {
+      "title": "雜曲歌辭 金殿樂",
+      "author": "不詳",
+      "lines": [
+        "入夜秋砧動",
+        "千門起四鄰",
+        "不緣樓上月",
+        "應爲隴頭人"
+      ],
+      "source_file": "poet.tang.2000.json",
+      "source_id": "144cfce8-087e-423d-be53-e93551cdeb48"
+    },
+    {
+      "title": "雜曲歌辭 胡渭州 二",
+      "author": "不詳",
+      "lines": [
+        "楊柳千尋色",
+        "桃花一苑芳",
+        "風吹入簾裏",
+        "惟有惹衣香"
+      ],
+      "source_file": "poet.tang.2000.json",
+      "source_id": "c1594acd-0832-44f9-a254-6abff067a1a4"
+    },
+    {
+      "title": "雜曲歌辭 戎渾",
+      "author": "不詳",
+      "lines": [
+        "風勁角弓鳴",
+        "將軍獵渭城",
+        "草枯鷹眼疾",
+        "雪盡馬蹏輕"
+      ],
+      "source_file": "poet.tang.2000.json",
+      "source_id": "90e06f7f-0e09-4944-b773-b1583e0d29bd"
+    }
+  ]
+}

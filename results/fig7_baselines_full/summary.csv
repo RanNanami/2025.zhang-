@@ -1,0 +1,6 @@
+model,completed_trials,mean_final_moving_accuracy,std_final_moving_accuracy
+ELM,1,1.0,0.0
+HTM,1,1.0,0.0
+LSTM,1,1.0,0.0
+SNN,1,1.0,0.0
+TDNN,1,0.98,0.0
