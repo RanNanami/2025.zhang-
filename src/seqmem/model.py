@@ -94,6 +94,16 @@ class PredictionCandidate:
     segment: Segment
 
 
+@dataclass(frozen=True)
+class TransientStateSnapshot:
+    previous_active_cells: dict[int, float]
+    previous_winners: dict[int, float]
+    last_prediction_candidates: dict[int, list[PredictionCandidate]]
+    last_symbol_ranking: list[tuple[int, int, str]]
+    decode_rng_state: object
+    learning_rng_state: object
+
+
 @dataclass
 class MemoryParams:
     w0: float = 0.5
@@ -138,6 +148,8 @@ class SequentialMemory:
     the learning rules and parameterization reported in the paper.
     """
 
+    SPIKE_RESPONSE_CACHE_LIMIT = 500_000
+
     def __init__(
         self,
         encoder: SSTDDiscreteEncoder,
@@ -164,11 +176,46 @@ class SequentialMemory:
         self.last_prediction_candidates: dict[int, list[PredictionCandidate]] = {}
         self.last_symbol_ranking: list[tuple[int, int, str]] = []
 
+    def __getstate__(self) -> dict[str, object]:
+        """Exclude the reproducible numeric cache from model checkpoints."""
+
+        state = self.__dict__.copy()
+        state["_spike_response_cache"] = {}
+        return state
+
     def reset_state(self) -> None:
         self.previous_active_cells = {}
         self.previous_winners = {}
         self.last_prediction_candidates = {}
         self.last_symbol_ranking = []
+
+    def snapshot_transient_state(self) -> TransientStateSnapshot:
+        """Capture retrieval state without copying long-term synaptic memory."""
+
+        return TransientStateSnapshot(
+            previous_active_cells=self.previous_active_cells.copy(),
+            previous_winners=self.previous_winners.copy(),
+            last_prediction_candidates={
+                column: candidates.copy()
+                for column, candidates in self.last_prediction_candidates.items()
+            },
+            last_symbol_ranking=self.last_symbol_ranking.copy(),
+            decode_rng_state=self._decode_rng.getstate(),
+            learning_rng_state=self._learning_rng.getstate(),
+        )
+
+    def restore_transient_state(self, snapshot: TransientStateSnapshot) -> None:
+        """Restore a state captured by :meth:`snapshot_transient_state`."""
+
+        self.previous_active_cells = snapshot.previous_active_cells.copy()
+        self.previous_winners = snapshot.previous_winners.copy()
+        self.last_prediction_candidates = {
+            column: candidates.copy()
+            for column, candidates in snapshot.last_prediction_candidates.items()
+        }
+        self.last_symbol_ranking = snapshot.last_symbol_ranking.copy()
+        self._decode_rng.setstate(snapshot.decode_rng_state)
+        self._learning_rng.setstate(snapshot.learning_rng_state)
 
     def _active_sources(self) -> dict[int, float]:
         # The fallback keeps manually constructed tests and callers compatible.
@@ -335,6 +382,40 @@ class SequentialMemory:
             return []
         predicted = self.predict_code()
         if predicted is None:
+            return []
+        return self.decode_symbols_from_prediction(
+            predicted,
+            max_predictions=max_predictions,
+            min_overlap=min_overlap,
+            candidate_symbols=candidate_symbols,
+        )
+
+    def decode_symbol_from_prediction(
+        self,
+        predicted: SymbolCode,
+        min_overlap: int | None = None,
+        candidate_symbols: set[str] | None = None,
+    ) -> str | None:
+        """Decode one symbol from an already computed neural prediction."""
+
+        decoded = self.decode_symbols_from_prediction(
+            predicted,
+            max_predictions=1,
+            min_overlap=min_overlap,
+            candidate_symbols=candidate_symbols,
+        )
+        return decoded[0] if decoded else None
+
+    def decode_symbols_from_prediction(
+        self,
+        predicted: SymbolCode,
+        max_predictions: int,
+        min_overlap: int | None = None,
+        candidate_symbols: set[str] | None = None,
+    ) -> list[str]:
+        """Decode a raw prediction without predicting or advancing state."""
+
+        if max_predictions <= 0:
             return []
         if min_overlap is None:
             min_overlap = 1
@@ -657,8 +738,19 @@ class SequentialMemory:
         response = self._spike_response_cache.get(cache_key)
         if response is None:
             response = spike_response(cache_key, self._dynamics)
-            self._spike_response_cache[cache_key] = response
+            self._remember_spike_response(cache_key, response)
         return response
+
+    def _remember_spike_response(self, key: float, response: float) -> None:
+        """Keep a bounded cache of reusable numerical integration responses."""
+
+        limit = self.SPIKE_RESPONSE_CACHE_LIMIT
+        if limit <= 0:
+            return
+        cache = self._spike_response_cache
+        if len(cache) >= limit:
+            cache.clear()
+        cache[key] = response
 
     def _continuous_segment_prediction(
         self,
@@ -693,14 +785,15 @@ class SequentialMemory:
         response_cache = self._spike_response_cache
         dynamics = self._dynamics
 
-        def potential(time: float) -> float:
+        def potential(time: float, *, remember: bool = True) -> float:
             total = 0
             for arrival, weight in arrivals:
                 cache_key = round(time - arrival, 9)
                 response = response_cache.get(cache_key)
                 if response is None:
                     response = spike_response(cache_key, dynamics)
-                    response_cache[cache_key] = response
+                    if remember:
+                        self._remember_spike_response(cache_key, response)
                 total += weight * response
             return dynamics.v_rest + total
 
@@ -724,7 +817,10 @@ class SequentialMemory:
                 high = time
                 for _ in range(12):
                     middle = (low + high) / 2.0
-                    if potential(middle) >= effective_threshold:
+                    # Bisection midpoints are effectively one-shot values. Not
+                    # caching them preserves the calculation while preventing
+                    # autonomous rollout from flooding the reusable grid cache.
+                    if potential(middle, remember=False) >= effective_threshold:
                         high = middle
                     else:
                         low = middle

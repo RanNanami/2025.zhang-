@@ -42,8 +42,11 @@ Fig.9 follows reference [58]'s reported MAPE normalization,
 # Combine the new DS-memory curve with official [58] baseline curves
 .\.venv\Scripts\python.exe experiments\fig7_reference_comparison.py
 
-# Fig.8(a), 100 to 1000 real CBT sentences
-.\.venv\Scripts\python.exe experiments\fig8_sentence_memory.py
+# Fig.8(a), neural retrieval is the default; decoded words are not replayed
+.\.venv\Scripts\python.exe experiments\fig8_sentence_memory.py --retrieval-mode neural --details-csv results\fig8_details.csv
+
+# Same trained model comparison of neural and legacy proximal replay
+.\.venv\Scripts\python.exe experiments\fig8_retrieval_ablation.py --num-sentences 100 --output-prefix results\fig8_ablation
 
 # Fig.8(b), 10 trials for M={4,8,12} and N={500,...,50}
 .\.venv\Scripts\python.exe experiments\fig8_resource_sweep.py
@@ -71,6 +74,9 @@ Fig.9 follows reference [58]'s reported MAPE normalization,
 ```
 
 `run_all.ps1` runs the full strict set. It is intentionally long-running.
+
+See `FIG8_NEURAL_RETRIEVAL.md` for the autonomous-retrieval protocol audit,
+tests, 100/200/500/1000-sentence ablation, and failure analysis.
 
 ## Data Provenance
 

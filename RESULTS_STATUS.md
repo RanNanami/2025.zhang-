@@ -39,10 +39,19 @@ the final point. The source pickle and its checksum are documented in
 
 ## Fig. 8
 
-The full 1000-sentence CBT run is complete at
-`results/fig8_strict_paperflow_1000.csv` and `.png`. At 10,000 symbols it
-obtained a mean Levenshtein distance of `1.959`; the paper reports about `0.2`,
-so this is not numerical agreement.
+The corrected Fig.8(a) retrieval protocol is documented in
+`FIG8_NEURAL_RETRIEVAL.md`. Neural retrieval now advances the actual predicted
+cell identities and spike times; decoded words are output-only and are never
+re-encoded as proximal input. Legacy proximal replay remains available only as
+an ablation.
+
+At 1000 CBT sentences, neural retrieval obtained mean Levenshtein distance
+`3.981`, versus `3.984` for proximal replay. The paper reports about `0.2` at
+10,000 symbols. The protocol correction therefore did not produce numerical
+agreement and is not a complete reproduction. Auditable neural outputs are at
+`results/fig8_strict_neural_retrieval_1000.csv`, `.png`, and `_details.csv`.
+The former `fig8_strict_paperflow_1000` result used decoded-symbol proximal
+replay and is historical, not the corrected strict result.
 
 The 180-job resource sweep is complete at
 `results/fig8_strict_fixedset_resource_sweep/`. It evaluates every stored
@@ -124,6 +133,6 @@ valid corrected paper-protocol result.
 
 ## Verification
 
-The current implementation passes 54 unit tests. Run
+The current implementation passes 63 unit tests. Run
 `check_project.ps1` to repeat compilation, tests, dataset checks, and smoke
 experiments.
