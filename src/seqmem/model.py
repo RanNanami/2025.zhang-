@@ -88,11 +88,24 @@ class MiniColumn:
 
 
 @dataclass(frozen=True)
+class SynapsePSPContribution:
+    source_cell_id: int
+    source_time: float
+    arrival_time: float
+    weight: float
+    psp_contribution: float
+
+
+@dataclass(frozen=True)
 class PredictionCandidate:
     neuron_index: int
     score: float
     time: float
     segment: Segment
+    dendritic_crossing_time: float | None = None
+    crossing_synapse_contributions: tuple[SynapsePSPContribution, ...] = ()
+    peak_dendritic_potential: float | None = None
+    threshold_margin: float | None = None
 
 
 @dataclass
@@ -112,6 +125,7 @@ class SegmentPredictionTrace:
     contributing_source_times: tuple[float, ...] = ()
     synaptic_arrival_times: tuple[float, ...] = ()
     contributing_weights: tuple[float, ...] = ()
+    crossing_psp_contributions: tuple[float, ...] = ()
     peak_dendritic_potential: float | None = None
     threshold_margin: float | None = None
     first_threshold_crossing_time: float | None = None
@@ -138,6 +152,13 @@ class ReinforcementTrace:
     contributing_synapse_count: int
     weights_before: tuple[float, ...]
     weights_after: tuple[float, ...]
+    contribution_mode: str = "arrival-window"
+    prediction_candidate_identity: int | None = None
+    prediction_crossing_time: float | None = None
+    actual_positive_synapse_count: int = 0
+    actual_positive_weakened_count: int = 0
+    strengthened_synapse_count: int = 0
+    weakened_synapse_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -170,6 +191,8 @@ class MemoryParams:
     integration_step: float = 0.005
     integration_voltage_tolerance: float = 2e-5
     cycle_period: float = 1.0
+    scenario1_contribution_mode: str = "arrival-window"
+    capture_prediction_contributions: bool = False
 
     def dynamics(self) -> DSDynamicsParams:
         return DSDynamicsParams(
@@ -195,6 +218,11 @@ class SequentialMemory:
     """
 
     SPIKE_RESPONSE_CACHE_LIMIT = 500_000
+    SCENARIO1_CONTRIBUTION_MODES = {
+        "arrival-window",
+        "continuous-positive",
+        "continuous-causal",
+    }
 
     def __init__(
         self,
@@ -205,6 +233,14 @@ class SequentialMemory:
     ) -> None:
         self.encoder = encoder
         self.params = params or MemoryParams()
+        if (
+            self.params.scenario1_contribution_mode
+            not in self.SCENARIO1_CONTRIBUTION_MODES
+        ):
+            raise ValueError(
+                "unsupported Scenario-1 contribution mode: "
+                f"{self.params.scenario1_contribution_mode}"
+            )
         self.columns = [
             MiniColumn.create(num_neurons_per_column) for _ in range(encoder.num_columns)
         ]
@@ -343,6 +379,7 @@ class SequentialMemory:
                 trace.segments.append(item)
                 trace_by_segment[id(segment)] = item
 
+        prediction_metadata: dict[int, dict[str, object]] = {}
         best_by_event: dict[tuple[int, float], tuple[int, float, float, Segment]] = {}
         raw_eligible_segments: set[int] = set()
         for (
@@ -358,12 +395,20 @@ class SequentialMemory:
                 continue
             trace_item = trace_by_segment.get(id(segment))
             if self.params.continuous_dynamics:
+                capture_contributions = (
+                    trace_item is not None
+                    or self.params.capture_prediction_contributions
+                    or self.params.scenario1_contribution_mode
+                    != "arrival-window"
+                )
                 diagnostic: dict[str, object] | None = (
-                    {} if trace_item is not None else None
+                    {} if capture_contributions else None
                 )
                 continuous = self._continuous_segment_prediction(
                     segment, active_sources, diagnostic=diagnostic
                 )
+                if diagnostic is not None:
+                    prediction_metadata[id(segment)] = diagnostic
                 if trace_item is not None and diagnostic is not None:
                     trace_item.peak_dendritic_potential = diagnostic.get(
                         "peak_dendritic_potential"
@@ -388,6 +433,14 @@ class SequentialMemory:
                     )
                     trace_item.contributing_weights = tuple(
                         diagnostic.get("contributing_weights", ())
+                    )
+                    crossing_contributions = tuple(
+                        diagnostic.get("crossing_synapse_contributions", ())
+                    )
+                    trace_item.crossing_psp_contributions = tuple(
+                        item.psp_contribution
+                        for item in crossing_contributions
+                        if isinstance(item, SynapsePSPContribution)
                     )
                     if trace_item.peak_dendritic_potential is not None:
                         trace_item.threshold_margin = (
@@ -462,12 +515,35 @@ class SequentialMemory:
 
         for column_id, values in selected_events:
             neuron_index, score, target_time, segment = values
+            metadata = prediction_metadata.get(id(segment), {})
+            crossing_time = metadata.get("first_threshold_crossing_time")
+            peak_potential = metadata.get("peak_dendritic_potential")
             self.last_prediction_candidates.setdefault(column_id, []).append(
                 PredictionCandidate(
                     neuron_index=neuron_index,
                     score=score,
                     time=target_time - self.params.cycle_period,
                     segment=segment,
+                    dendritic_crossing_time=(
+                        crossing_time if isinstance(crossing_time, float) else None
+                    ),
+                    crossing_synapse_contributions=tuple(
+                        item
+                        for item in metadata.get(
+                            "crossing_synapse_contributions", ()
+                        )
+                        if isinstance(item, SynapsePSPContribution)
+                    ),
+                    peak_dendritic_potential=(
+                        peak_potential
+                        if isinstance(peak_potential, float)
+                        else None
+                    ),
+                    threshold_margin=(
+                        peak_potential - self.params.dendrite_threshold
+                        if isinstance(peak_potential, float)
+                        else None
+                    ),
                 )
             )
         if trace is not None:
@@ -743,6 +819,7 @@ class SequentialMemory:
                         grow_missing=False,
                         depress_noncontributing=True,
                         scenario="scenario1",
+                        prediction_candidate=predicted,
                     )
                 elif segment.timed_overlap(
                     previous_active,
@@ -970,28 +1047,41 @@ class SequentialMemory:
         )
         if diagnostic is not None:
             crossing = diagnostic.get("first_threshold_crossing_time")
-            contributing = []
+            crossing_contributions: list[SynapsePSPContribution] = []
             if isinstance(crossing, float):
                 for source, source_time, arrival, weight in matched:
                     response = spike_response(crossing - arrival, self._dynamics)
-                    if weight * response > 1e-12:
-                        contributing.append(
-                            (source, source_time, arrival, weight)
+                    crossing_contributions.append(
+                        SynapsePSPContribution(
+                            source_cell_id=source,
+                            source_time=source_time,
+                            arrival_time=arrival,
+                            weight=weight,
+                            psp_contribution=weight * response,
                         )
+                    )
+            contributing = [
+                item
+                for item in crossing_contributions
+                if item.psp_contribution > 0.0
+            ]
             diagnostic.update(
                 {
+                    "crossing_synapse_contributions": tuple(
+                        crossing_contributions
+                    ),
                     "contributing_synapse_count": len(contributing),
                     "contributing_source_cell_ids": tuple(
-                        item[0] for item in contributing
+                        item.source_cell_id for item in contributing
                     ),
                     "contributing_source_times": tuple(
-                        item[1] for item in contributing
+                        item.source_time for item in contributing
                     ),
                     "synaptic_arrival_times": tuple(
-                        item[2] for item in contributing
+                        item.arrival_time for item in contributing
                     ),
                     "contributing_weights": tuple(
-                        item[3] for item in contributing
+                        item.weight for item in contributing
                     ),
                 }
             )
@@ -1120,6 +1210,72 @@ class SequentialMemory:
         state.trigger_dendritic_spike(self._dendritic_time(target_time))
         return state.try_fire(target_time, dynamics)
 
+    def scenario1_contributing_sources(
+        self,
+        candidate: PredictionCandidate,
+        *,
+        mode: str | None = None,
+        active_sources: dict[int, float] | None = None,
+        target_time: float | None = None,
+    ) -> set[int]:
+        """Select Scenario-1 sources without recomputing a prediction."""
+
+        selected_mode = mode or self.params.scenario1_contribution_mode
+        if selected_mode not in self.SCENARIO1_CONTRIBUTION_MODES:
+            raise ValueError(
+                f"unsupported Scenario-1 contribution mode: {selected_mode}"
+            )
+        segment = candidate.segment
+        if selected_mode == "arrival-window":
+            if active_sources is None or target_time is None:
+                raise ValueError(
+                    "arrival-window requires active_sources and target_time"
+                )
+            dendritic_time = self._dendritic_time(
+                self.params.cycle_period + target_time
+            )
+            return {
+                source
+                for source, source_time in active_sources.items()
+                if (synapse := segment.synapses.get(source)) is not None
+                and abs(source_time + synapse.delay - dendritic_time)
+                <= self.params.timing_tolerance
+            }
+
+        positive = [
+            item
+            for item in candidate.crossing_synapse_contributions
+            if item.psp_contribution > 0.0
+            and item.source_cell_id in segment.synapses
+        ]
+        if selected_mode == "continuous-positive":
+            return {item.source_cell_id for item in positive}
+        if candidate.dendritic_crossing_time is None:
+            raise RuntimeError("continuous candidate has no threshold crossing")
+
+        effective_threshold = (
+            self.params.dendrite_threshold
+            - self.params.integration_voltage_tolerance
+        )
+        potential = self._dynamics.v_rest
+        causal: set[int] = set()
+        for item in sorted(
+            positive,
+            key=lambda value: (
+                -value.psp_contribution,
+                value.source_cell_id,
+            ),
+        ):
+            causal.add(item.source_cell_id)
+            potential += item.psp_contribution
+            if potential >= effective_threshold:
+                break
+        if potential < effective_threshold:
+            raise RuntimeError(
+                "saved prediction contributions do not reach threshold"
+            )
+        return causal
+
     def _reinforce_segment(
         self,
         column_id: int,
@@ -1131,21 +1287,38 @@ class SequentialMemory:
         grow_missing: bool = False,
         depress_noncontributing: bool = True,
         scenario: str = "unspecified",
+        prediction_candidate: PredictionCandidate | None = None,
     ) -> None:
+        weights_before_by_source = {
+            source: synapse.weight for source, synapse in segment.synapses.items()
+        }
         weights_before = tuple(
-            synapse.weight
-            for _source, synapse in sorted(segment.synapses.items())
+            weight for _source, weight in sorted(weights_before_by_source.items())
         )
         dendritic_time = self._dendritic_time(
             self.params.cycle_period + target_time
         )
-        contributed = {
-            source
-            for source, source_time in active_sources.items()
-            if (synapse := segment.synapses.get(source)) is not None
-            and abs(source_time + synapse.delay - dendritic_time)
-            <= self.params.timing_tolerance
-        }
+        if scenario == "scenario1":
+            if (
+                prediction_candidate is None
+                or prediction_candidate.segment is not segment
+            ):
+                raise RuntimeError(
+                    "Scenario 1 requires its matching PredictionCandidate"
+                )
+            contributed = self.scenario1_contributing_sources(
+                prediction_candidate,
+                active_sources=active_sources,
+                target_time=target_time,
+            )
+        else:
+            contributed = {
+                source
+                for source, source_time in active_sources.items()
+                if (synapse := segment.synapses.get(source)) is not None
+                and abs(source_time + synapse.delay - dendritic_time)
+                <= self.params.timing_tolerance
+            }
 
         if grow_missing:
             for source, source_time in (growth_sources or {}).items():
@@ -1183,6 +1356,29 @@ class SequentialMemory:
                     synapse.age += 1
 
         if self.reinforcement_trace_callback is not None:
+            weights_after_by_source = {
+                source: synapse.weight
+                for source, synapse in segment.synapses.items()
+            }
+            strengthened = {
+                source
+                for source, before in weights_before_by_source.items()
+                if weights_after_by_source.get(source, before) > before
+            }
+            weakened = {
+                source
+                for source, before in weights_before_by_source.items()
+                if weights_after_by_source.get(source, before) < before
+            }
+            actual_positive = (
+                {
+                    item.source_cell_id
+                    for item in prediction_candidate.crossing_synapse_contributions
+                    if item.psp_contribution > 0.0
+                }
+                if prediction_candidate is not None
+                else set()
+            )
             self.reinforcement_trace_callback(
                 ReinforcementTrace(
                     scenario=scenario,
@@ -1195,6 +1391,27 @@ class SequentialMemory:
                         synapse.weight
                         for _source, synapse in sorted(segment.synapses.items())
                     ),
+                    contribution_mode=(
+                        self.params.scenario1_contribution_mode
+                        if scenario == "scenario1"
+                        else "arrival-window"
+                    ),
+                    prediction_candidate_identity=(
+                        id(prediction_candidate)
+                        if prediction_candidate is not None
+                        else None
+                    ),
+                    prediction_crossing_time=(
+                        prediction_candidate.dendritic_crossing_time
+                        if prediction_candidate is not None
+                        else None
+                    ),
+                    actual_positive_synapse_count=len(actual_positive),
+                    actual_positive_weakened_count=len(
+                        actual_positive.intersection(weakened)
+                    ),
+                    strengthened_synapse_count=len(strengthened),
+                    weakened_synapse_count=len(weakened),
                 )
             )
 

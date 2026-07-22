@@ -55,7 +55,13 @@ def kernel_diagnostic(scale: float | None) -> dict[str, object]:
     }
 
 
-def build_model(scale: float | None, seed: int) -> SequentialMemory:
+def build_model(
+    scale: float | None,
+    seed: int,
+    *,
+    scenario1_contribution_mode: str = "arrival-window",
+    capture_prediction_contributions: bool = False,
+) -> SequentialMemory:
     return SequentialMemory(
         encoder=SSTDDiscreteEncoder(num_columns=100, k=10, seed=seed),
         num_neurons_per_column=10,
@@ -63,6 +69,8 @@ def build_model(scale: float | None, seed: int) -> SequentialMemory:
             l_match=3,
             forgetting_threshold=500.0,
             response_scale=scale,
+            scenario1_contribution_mode=scenario1_contribution_mode,
+            capture_prediction_contributions=capture_prediction_contributions,
         ),
         tie_break_seed=seed,
     )
@@ -74,16 +82,30 @@ class ReinforcementAccumulator:
         self.repetitions: Counter[int] = Counter()
 
     def __call__(self, item: ReinforcementTrace) -> None:
-        self.repetitions[item.segment_identity] += 1
         if item.scenario != "scenario1":
             return
+        self.repetitions[item.segment_identity] += 1
         self.rows.append(
             {
                 "scenario": item.scenario,
+                "target_column": item.target_column,
+                "target_neuron": item.target_neuron,
+                "segment_identity": item.segment_identity,
                 "contributing_synapse_count": item.contributing_synapse_count,
                 "mean_weight_before": _mean(item.weights_before),
                 "mean_weight_after": _mean(item.weights_after),
                 "reinforcement_number": self.repetitions[item.segment_identity],
+                "contribution_mode": item.contribution_mode,
+                "prediction_candidate_identity": item.prediction_candidate_identity,
+                "prediction_crossing_time": item.prediction_crossing_time,
+                "actual_positive_synapse_count": (
+                    item.actual_positive_synapse_count
+                ),
+                "actual_positive_weakened_count": (
+                    item.actual_positive_weakened_count
+                ),
+                "strengthened_synapse_count": item.strengthened_synapse_count,
+                "weakened_synapse_count": item.weakened_synapse_count,
             }
         )
 
@@ -96,6 +118,11 @@ class ReinforcementAccumulator:
                 "scenario1_mean_weight_after": 0.0,
                 "scenario1_mean_reinforcement_number": 0.0,
                 "scenario1_max_reinforcement_number": 0.0,
+                "scenario1_actual_positive_weakened_fraction": 0.0,
+                "scenario1_mean_strengthened_synapses": 0.0,
+                "scenario1_mean_weakened_synapses": 0.0,
+                "scenario1_missing_prediction_candidate_events": 0.0,
+                "scenario1_contributor_5_plus_fraction": 0.0,
             }
             empty.update(
                 {
@@ -110,6 +137,12 @@ class ReinforcementAccumulator:
         reinforcement_numbers = [
             float(row["reinforcement_number"]) for row in self.rows
         ]
+        actual_positive = sum(
+            int(row["actual_positive_synapse_count"]) for row in self.rows
+        )
+        actual_positive_weakened = sum(
+            int(row["actual_positive_weakened_count"]) for row in self.rows
+        )
         summary = {
             "scenario1_events": float(len(self.rows)),
             "scenario1_two_contributor_fraction": _fraction(
@@ -125,6 +158,26 @@ class ReinforcementAccumulator:
                 reinforcement_numbers
             ),
             "scenario1_max_reinforcement_number": max(reinforcement_numbers),
+            "scenario1_actual_positive_weakened_fraction": (
+                actual_positive_weakened / actual_positive
+                if actual_positive
+                else 0.0
+            ),
+            "scenario1_mean_strengthened_synapses": _mean(
+                float(row["strengthened_synapse_count"]) for row in self.rows
+            ),
+            "scenario1_mean_weakened_synapses": _mean(
+                float(row["weakened_synapse_count"]) for row in self.rows
+            ),
+            "scenario1_missing_prediction_candidate_events": float(
+                sum(
+                    row["prediction_candidate_identity"] is None
+                    for row in self.rows
+                )
+            ),
+            "scenario1_contributor_5_plus_fraction": _fraction(
+                count >= 5 for count in contributor_counts
+            ),
         }
         summary.update(
             {

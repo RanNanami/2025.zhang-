@@ -80,6 +80,9 @@ tests, 100/200/500/1000-sentence ablation, and failure analysis.
 See `FIG8_FALSE_POSITIVE_DIAGNOSTIC.md` for the second-stage response-kernel,
 false-positive segment, cue-prefix, and eventwise-inhibition diagnostics. All
 numeric response scales in that report are nonpaper sensitivity settings.
+See `FIG8_SCENARIO1_CONTRIBUTION.md` for the third-stage audit of whether
+Scenario 1 reinforces the same synapses that caused a continuous threshold
+crossing. The two continuous contribution modes remain nonpaper diagnostics.
 
 ## Data Provenance
 
