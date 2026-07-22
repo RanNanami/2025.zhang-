@@ -5,6 +5,48 @@ from dataclasses import dataclass
 from functools import lru_cache
 
 
+def unscaled_kernel_peak(tau_m: float, tau_s: float) -> tuple[float, float]:
+    """Return the peak time and value of the unscaled double exponential."""
+
+    if not 0 < tau_s < tau_m:
+        raise ValueError("time constants must satisfy 0 < tau_s < tau_m.")
+    peak_time = (
+        tau_m
+        * tau_s
+        / (tau_m - tau_s)
+        * math.log(tau_m / tau_s)
+    )
+    peak = math.exp(-peak_time / tau_m) - math.exp(-peak_time / tau_s)
+    return peak_time, peak
+
+
+def kernel_peak_value(
+    tau_m: float,
+    tau_s: float,
+    response_scale: float | None,
+) -> float:
+    """Return the exact peak after applying the configured response scale."""
+
+    _peak_time, peak = unscaled_kernel_peak(tau_m, tau_s)
+    return 1.0 if response_scale is None else response_scale * peak
+
+
+def minimum_synchronous_synapses(
+    *,
+    weight: float,
+    threshold: float,
+    kernel_peak: float,
+    voltage_tolerance: float = 0.0,
+) -> int:
+    """Minimum equal synchronous synapses needed to reach model threshold."""
+
+    contribution = weight * kernel_peak
+    if contribution <= 0.0:
+        raise ValueError("weight and kernel peak must have a positive product")
+    effective_threshold = threshold - voltage_tolerance
+    return max(1, math.ceil(effective_threshold / contribution - 1e-12))
+
+
 @dataclass(frozen=True)
 class DSDynamicsParams:
     """Normalized DS-neuron parameters based on Eqs. (1)-(3) and Table I."""
@@ -31,20 +73,13 @@ class DSDynamicsParams:
     @property
     @lru_cache(maxsize=64)
     def kernel_peak_time(self) -> float:
-        return (
-            self.tau_m
-            * self.tau_s
-            / (self.tau_m - self.tau_s)
-            * math.log(self.tau_m / self.tau_s)
-        )
+        return unscaled_kernel_peak(self.tau_m, self.tau_s)[0]
 
     @property
     def kernel_scale(self) -> float:
         if self.response_scale is not None:
             return self.response_scale
-        peak = math.exp(-self.kernel_peak_time / self.tau_m) - math.exp(
-            -self.kernel_peak_time / self.tau_s
-        )
+        _peak_time, peak = unscaled_kernel_peak(self.tau_m, self.tau_s)
         return 1.0 / peak
 
 

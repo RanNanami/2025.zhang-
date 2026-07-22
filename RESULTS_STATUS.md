@@ -53,6 +53,16 @@ agreement and is not a complete reproduction. Auditable neural outputs are at
 The former `fig8_strict_paperflow_1000` result used decoded-symbol proximal
 replay and is historical, not the corrected strict result.
 
+The second-stage false-positive analysis is documented in
+`FIG8_FALSE_POSITIVE_DIAGNOSTIC.md`. It confirms that the strict normalized
+kernel permits two synchronized initial synapses to cross threshold and that
+this contributes strongly to early prediction density. A nonpaper `V0=1.0`
+diagnostic reduced 200-sentence distance from `3.635` to `2.600` and mean raw
+columns from `91.026` to `35.255`, but at 500 sentences it degraded to `3.688`
+and `68.218` columns. Eventwise inhibition also caused substantial rollout
+termination. These diagnostics do not replace strict defaults and do not
+constitute numerical reproduction.
+
 The 180-job resource sweep is complete at
 `results/fig8_strict_fixedset_resource_sweep/`. It evaluates every stored
 sentence, keeps the CBT sample fixed across all network sizes, and varies the

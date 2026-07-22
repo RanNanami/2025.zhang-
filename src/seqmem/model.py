@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import random
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from .dynamics import (
@@ -94,6 +95,51 @@ class PredictionCandidate:
     segment: Segment
 
 
+@dataclass
+class SegmentPredictionTrace:
+    target_column: int
+    target_neuron: int
+    segment_id: str
+    segment_identity: int
+    segment_total_synapse_count: int
+    active_source_count: int
+    active_matched_synapse_count: int
+    target_sstd_event_time: float | None
+    sum_active_weights: float
+    dendritic_threshold: float
+    temporally_contributing_synapse_count: int = 0
+    contributing_source_cell_ids: tuple[int, ...] = ()
+    contributing_source_times: tuple[float, ...] = ()
+    synaptic_arrival_times: tuple[float, ...] = ()
+    contributing_weights: tuple[float, ...] = ()
+    peak_dendritic_potential: float | None = None
+    threshold_margin: float | None = None
+    first_threshold_crossing_time: float | None = None
+    predicted_soma_firing_time: float | None = None
+    crossed_threshold: bool = False
+    entered_raw_prediction: bool = False
+    inhibited_intracolumn: bool = False
+    inhibited_intercolumn: bool = False
+
+
+@dataclass
+class PredictionTrace:
+    """Optional per-call diagnostics; discarded after the caller streams it."""
+
+    segments: list[SegmentPredictionTrace] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class ReinforcementTrace:
+    scenario: str
+    target_column: int
+    target_neuron: int
+    segment_identity: int
+    contributing_synapse_count: int
+    weights_before: tuple[float, ...]
+    weights_after: tuple[float, ...]
+
+
 @dataclass(frozen=True)
 class TransientStateSnapshot:
     previous_active_cells: dict[int, float]
@@ -175,6 +221,9 @@ class SequentialMemory:
         self.previous_winners: dict[int, float] = {}
         self.last_prediction_candidates: dict[int, list[PredictionCandidate]] = {}
         self.last_symbol_ranking: list[tuple[int, int, str]] = []
+        self.reinforcement_trace_callback: (
+            Callable[[ReinforcementTrace], None] | None
+        ) = None
 
     def __getstate__(self) -> dict[str, object]:
         """Exclude the reproducible numeric cache from model checkpoints."""
@@ -223,9 +272,11 @@ class SequentialMemory:
             return self.previous_active_cells or self.previous_winners
         return self.previous_winners
 
-    def predict_code(self) -> SymbolCode | None:
+    def predict_code(self, trace: PredictionTrace | None = None) -> SymbolCode | None:
         """Return the next symbol code predicted from previous winners."""
         self.last_prediction_candidates = {}
+        if trace is not None:
+            trace.segments.clear()
         active_sources = self._active_sources()
         if not active_sources:
             return None
@@ -258,7 +309,42 @@ class SequentialMemory:
                     contributions,
                 )
 
+        trace_by_segment: dict[int, SegmentPredictionTrace] = {}
+        if trace is not None:
+            for column_id, neuron_index, segment, upper_bound, _ in candidates.values():
+                segment_index = next(
+                    index
+                    for index, candidate_segment in enumerate(
+                        self.columns[column_id].neurons[neuron_index].segments
+                    )
+                    if candidate_segment is segment
+                )
+                matched = [
+                    (source, source_time, segment.synapses[source])
+                    for source, source_time in active_sources.items()
+                    if source in segment.synapses
+                ]
+                item = SegmentPredictionTrace(
+                    target_column=column_id,
+                    target_neuron=neuron_index,
+                    segment_id=f"{column_id}:{neuron_index}:{segment_index}",
+                    segment_identity=id(segment),
+                    segment_total_synapse_count=len(segment.synapses),
+                    active_source_count=len(active_sources),
+                    active_matched_synapse_count=len(matched),
+                    target_sstd_event_time=(
+                        segment.target_time - self.params.cycle_period
+                        if segment.target_time is not None
+                        else None
+                    ),
+                    sum_active_weights=upper_bound,
+                    dendritic_threshold=self.params.dendrite_threshold,
+                )
+                trace.segments.append(item)
+                trace_by_segment[id(segment)] = item
+
         best_by_event: dict[tuple[int, float], tuple[int, float, float, Segment]] = {}
+        raw_eligible_segments: set[int] = set()
         for (
             column_id,
             neuron_index,
@@ -270,10 +356,44 @@ class SequentialMemory:
             # active weights cannot reach threshold need no timed evaluation.
             if self._dynamics.v_rest + upper_bound < self.params.dendrite_threshold:
                 continue
+            trace_item = trace_by_segment.get(id(segment))
             if self.params.continuous_dynamics:
-                continuous = self._continuous_segment_prediction(
-                    segment, active_sources
+                diagnostic: dict[str, object] | None = (
+                    {} if trace_item is not None else None
                 )
+                continuous = self._continuous_segment_prediction(
+                    segment, active_sources, diagnostic=diagnostic
+                )
+                if trace_item is not None and diagnostic is not None:
+                    trace_item.peak_dendritic_potential = diagnostic.get(
+                        "peak_dendritic_potential"
+                    )  # type: ignore[assignment]
+                    trace_item.first_threshold_crossing_time = diagnostic.get(
+                        "first_threshold_crossing_time"
+                    )  # type: ignore[assignment]
+                    trace_item.predicted_soma_firing_time = diagnostic.get(
+                        "predicted_soma_firing_time"
+                    )  # type: ignore[assignment]
+                    trace_item.temporally_contributing_synapse_count = int(
+                        diagnostic.get("contributing_synapse_count", 0)
+                    )
+                    trace_item.contributing_source_cell_ids = tuple(
+                        diagnostic.get("contributing_source_cell_ids", ())
+                    )
+                    trace_item.contributing_source_times = tuple(
+                        diagnostic.get("contributing_source_times", ())
+                    )
+                    trace_item.synaptic_arrival_times = tuple(
+                        diagnostic.get("synaptic_arrival_times", ())
+                    )
+                    trace_item.contributing_weights = tuple(
+                        diagnostic.get("contributing_weights", ())
+                    )
+                    if trace_item.peak_dendritic_potential is not None:
+                        trace_item.threshold_margin = (
+                            trace_item.peak_dendritic_potential
+                            - self.params.dendrite_threshold
+                        )
                 timed_scores = (continuous,) if continuous is not None else ()
             else:
                 target_times = (
@@ -298,6 +418,8 @@ class SequentialMemory:
             for target_time, score in timed_scores:
                 if score < self.params.dendrite_threshold:
                     continue
+                if trace_item is not None:
+                    trace_item.crossed_threshold = True
                 if (
                     not self.params.continuous_dynamics
                     and not self._predictive_soma_can_fire
@@ -311,6 +433,7 @@ class SequentialMemory:
                     + self.params.timing_tolerance
                 ):
                     continue
+                raw_eligible_segments.add(id(segment))
                 event_key = (column_id, round(target_time, 12))
                 previous = best_by_event.get(event_key)
                 if previous is None or score > previous[1]:
@@ -347,6 +470,18 @@ class SequentialMemory:
                     segment=segment,
                 )
             )
+        if trace is not None:
+            selected_segment_ids = {
+                id(values[3]) for _column, values in selected_events
+            }
+            for item in trace.segments:
+                item.entered_raw_prediction = (
+                    item.segment_identity in selected_segment_ids
+                )
+                item.inhibited_intracolumn = (
+                    item.segment_identity in raw_eligible_segments
+                    and item.segment_identity not in selected_segment_ids
+                )
         return SymbolCode(
             events=tuple(
                 SpikeEvent(
@@ -355,6 +490,62 @@ class SequentialMemory:
                 )
                 for column_id,
                 (_neuron_index, _score, target_time, _segment) in selected_events
+            )
+        )
+
+    def select_prediction_events(
+        self,
+        predicted: SymbolCode,
+        max_predictions_per_event: int = 1,
+        trace: PredictionTrace | None = None,
+    ) -> SymbolCode | None:
+        """Apply diagnostic intercolumn inhibition to real prediction cells."""
+
+        if max_predictions_per_event <= 0:
+            return None
+        raw_events = {
+            (event.column, round(event.time, 12)) for event in predicted.events
+        }
+        selected: list[tuple[int, PredictionCandidate]] = []
+        selected_segment_ids: set[int] = set()
+        for event_time in self._event_times:
+            choices = [
+                (column, candidate)
+                for column, candidates in self.last_prediction_candidates.items()
+                for candidate in candidates
+                if (column, round(candidate.time, 12)) in raw_events
+                and abs(candidate.time - event_time)
+                <= self.params.timing_tolerance
+            ]
+            choices.sort(
+                key=lambda item: (
+                    -item[1].score,
+                    item[0],
+                    item[1].neuron_index,
+                    item[1].time,
+                )
+            )
+            used_columns: set[int] = set()
+            for column, candidate in choices:
+                if column in used_columns:
+                    continue
+                used_columns.add(column)
+                selected.append((column, candidate))
+                selected_segment_ids.add(id(candidate.segment))
+                if len(used_columns) >= max_predictions_per_event:
+                    break
+        if trace is not None:
+            for item in trace.segments:
+                item.inhibited_intercolumn = (
+                    item.entered_raw_prediction
+                    and item.segment_identity not in selected_segment_ids
+                )
+        if not selected:
+            return None
+        return SymbolCode(
+            events=tuple(
+                SpikeEvent(column=column, time=candidate.time)
+                for column, candidate in selected
             )
         )
 
@@ -422,11 +613,15 @@ class SequentialMemory:
 
         predicted_times: dict[int, list[float]] = {}
         if self.last_prediction_candidates:
+            allowed_events = {
+                (event.column, round(event.time, 12)) for event in predicted.events
+            }
             for event_time in self._event_times:
                 choices = [
                     (candidate.score, column)
                     for column, candidates in self.last_prediction_candidates.items()
                     for candidate in candidates
+                    if (column, round(candidate.time, 12)) in allowed_events
                     if abs(candidate.time - event_time)
                     <= self.params.timing_tolerance
                 ]
@@ -547,6 +742,7 @@ class SequentialMemory:
                         growth_sources=self.previous_winners,
                         grow_missing=False,
                         depress_noncontributing=True,
+                        scenario="scenario1",
                     )
                 elif segment.timed_overlap(
                     previous_active,
@@ -562,6 +758,7 @@ class SequentialMemory:
                         growth_sources=self.previous_winners,
                         grow_missing=True,
                         depress_noncontributing=False,
+                        scenario="scenario2",
                     )
                 else:
                     neuron_index = self._least_used_neuron_index(column)
@@ -756,21 +953,54 @@ class SequentialMemory:
         self,
         segment: Segment,
         active_sources: dict[int, float],
+        diagnostic: dict[str, object] | None = None,
     ) -> tuple[float, float] | None:
         """Integrate one distal segment through dendritic and soma firing."""
 
-        arrivals = [
-            (source_time + synapse.delay, synapse.weight)
+        matched = [
+            (source, source_time, source_time + synapse.delay, synapse.weight)
             for source, source_time in active_sources.items()
             if (synapse := segment.synapses.get(source)) is not None
         ]
-        if not arrivals:
+        if not matched:
             return None
-        return self._continuous_prediction_from_arrivals(arrivals)
+        result = self._continuous_prediction_from_arrivals(
+            [(arrival, weight) for _source, _time, arrival, weight in matched],
+            diagnostic=diagnostic,
+        )
+        if diagnostic is not None:
+            crossing = diagnostic.get("first_threshold_crossing_time")
+            contributing = []
+            if isinstance(crossing, float):
+                for source, source_time, arrival, weight in matched:
+                    response = spike_response(crossing - arrival, self._dynamics)
+                    if weight * response > 1e-12:
+                        contributing.append(
+                            (source, source_time, arrival, weight)
+                        )
+            diagnostic.update(
+                {
+                    "contributing_synapse_count": len(contributing),
+                    "contributing_source_cell_ids": tuple(
+                        item[0] for item in contributing
+                    ),
+                    "contributing_source_times": tuple(
+                        item[1] for item in contributing
+                    ),
+                    "synaptic_arrival_times": tuple(
+                        item[2] for item in contributing
+                    ),
+                    "contributing_weights": tuple(
+                        item[3] for item in contributing
+                    ),
+                }
+            )
+        return result
 
     def _continuous_prediction_from_arrivals(
         self,
         arrivals: list[tuple[float, float]],
+        diagnostic: dict[str, object] | None = None,
     ) -> tuple[float, float] | None:
         """Integrate a canonical set of delayed, weighted distal spikes."""
 
@@ -830,7 +1060,32 @@ class SequentialMemory:
             previous_potential = voltage
             time += step
         if crossing is None:
+            if diagnostic is not None:
+                diagnostic.update(
+                    {
+                        "peak_dendritic_potential": peak,
+                        "first_threshold_crossing_time": None,
+                        "predicted_soma_firing_time": None,
+                    }
+                )
             return None
+
+        if diagnostic is not None:
+            diagnostic_peak = peak
+            diagnostic_time = time + step
+            while diagnostic_time <= stop + step / 2.0:
+                diagnostic_peak = max(
+                    diagnostic_peak,
+                    potential(diagnostic_time, remember=False),
+                )
+                diagnostic_time += step
+            diagnostic.update(
+                {
+                    "peak_dendritic_potential": diagnostic_peak,
+                    "first_threshold_crossing_time": crossing,
+                    "predicted_soma_firing_time": None,
+                }
+            )
 
         state = DSNeuronState()
         state.trigger_dendritic_spike(crossing)
@@ -842,6 +1097,8 @@ class SequentialMemory:
                 >= self._dynamics.soma_threshold
                 - self.params.integration_voltage_tolerance
             ):
+                if diagnostic is not None:
+                    diagnostic["predicted_soma_firing_time"] = soma_time
                 return soma_time, max(peak, self.params.dendrite_threshold)
             soma_time += step
         if (
@@ -849,6 +1106,8 @@ class SequentialMemory:
             >= self._dynamics.soma_threshold
             - self.params.integration_voltage_tolerance
         ):
+            if diagnostic is not None:
+                diagnostic["predicted_soma_firing_time"] = soma_stop
             return soma_stop, max(peak, self.params.dendrite_threshold)
         return None
 
@@ -871,7 +1130,12 @@ class SequentialMemory:
         growth_sources: dict[int, float] | None = None,
         grow_missing: bool = False,
         depress_noncontributing: bool = True,
+        scenario: str = "unspecified",
     ) -> None:
+        weights_before = tuple(
+            synapse.weight
+            for _source, synapse in sorted(segment.synapses.items())
+        )
         dendritic_time = self._dendritic_time(
             self.params.cycle_period + target_time
         )
@@ -917,6 +1181,22 @@ class SequentialMemory:
                         0.0, synapse.weight - self.params.delta_w
                     )
                     synapse.age += 1
+
+        if self.reinforcement_trace_callback is not None:
+            self.reinforcement_trace_callback(
+                ReinforcementTrace(
+                    scenario=scenario,
+                    target_column=column_id,
+                    target_neuron=neuron_index,
+                    segment_identity=id(segment),
+                    contributing_synapse_count=len(contributed),
+                    weights_before=weights_before,
+                    weights_after=tuple(
+                        synapse.weight
+                        for _source, synapse in sorted(segment.synapses.items())
+                    ),
+                )
+            )
 
         self._prune_neuron(neuron)
 

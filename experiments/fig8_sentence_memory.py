@@ -19,11 +19,15 @@ DETAIL_FIELDS = [
     "checkpoint_sentences",
     "sentence_index",
     "retrieval_mode",
+    "neural_propagation",
     "recall_step",
     "expected_word",
     "decoded_word",
     "raw_event_count",
     "raw_predicted_column_count",
+    "propagated_event_count",
+    "propagated_column_count",
+    "inhibited_event_count",
     "prediction_active_cell_count",
     "advance_success",
     "timed_overlap_of_selected_word",
@@ -82,6 +86,7 @@ def recall_suffix(
     prefix: list[str],
     suffix_length: int,
     retrieval_mode: str = "neural",
+    neural_propagation: str = "raw",
     *,
     expected_suffix: list[str] | None = None,
     details_rows: list[dict[str, object]] | None = None,
@@ -90,6 +95,8 @@ def recall_suffix(
 ) -> list[str]:
     if retrieval_mode not in {"neural", "proximal-replay"}:
         raise ValueError(f"unsupported retrieval mode: {retrieval_mode}")
+    if neural_propagation not in {"raw", "eventwise-inhibited"}:
+        raise ValueError(f"unsupported neural propagation: {neural_propagation}")
 
     model.reset_state()
     for word in prefix:
@@ -120,8 +127,27 @@ def recall_suffix(
             )
             break
 
-        active_cells = model.prediction_active_cells(raw_code)
-        decoded = model.decode_symbol_from_prediction(raw_code)
+        propagated_code = raw_code
+        if retrieval_mode == "neural" and neural_propagation == "eventwise-inhibited":
+            propagated_code = model.select_prediction_events(raw_code)
+            if propagated_code is None:
+                _append_detail(
+                    details_rows,
+                    checkpoint_sentences,
+                    sentence_index,
+                    retrieval_mode,
+                    step,
+                    expected_word,
+                    neural_propagation=neural_propagation,
+                    raw_event_count=len(raw_code.events),
+                    raw_predicted_column_count=len(
+                        {event.column for event in raw_code.events}
+                    ),
+                    stopped_reason="no_prediction_active_cells",
+                )
+                break
+        active_cells = model.prediction_active_cells(propagated_code)
+        decoded = model.decode_symbol_from_prediction(propagated_code)
         ranking = model.last_symbol_ranking
         selected = next(
             (item for item in ranking if item[2] == decoded),
@@ -140,6 +166,14 @@ def recall_suffix(
             "raw_predicted_column_count": len(
                 {event.column for event in raw_code.events}
             ),
+            "propagated_event_count": len(propagated_code.events),
+            "propagated_column_count": len(
+                {event.column for event in propagated_code.events}
+            ),
+            "inhibited_event_count": (
+                len(raw_code.events) - len(propagated_code.events)
+            ),
+            "neural_propagation": neural_propagation,
             "prediction_active_cell_count": len(active_cells),
             "timed_overlap_of_selected_word": selected[0] if selected else 0,
             "column_overlap_of_selected_word": selected[1] if selected else 0,
@@ -180,7 +214,7 @@ def recall_suffix(
 
         recalled.append(decoded)
         if retrieval_mode == "neural":
-            advanced = model.advance_prediction(raw_code)
+            advanced = model.advance_prediction(propagated_code)
             if not advanced:
                 _append_detail(
                     details_rows,
@@ -250,6 +284,7 @@ def evaluate(
     eval_samples: int,
     seed: int,
     retrieval_mode: str = "neural",
+    neural_propagation: str = "raw",
     details_rows: list[dict[str, object]] | None = None,
     checkpoint_sentences: int | None = None,
     progress_callback: Callable[[int, int], None] | None = None,
@@ -273,6 +308,7 @@ def evaluate(
                 prefix,
                 suffix_length=len(expected),
                 retrieval_mode=retrieval_mode,
+                neural_propagation=neural_propagation,
                 expected_suffix=expected,
                 details_rows=details_rows,
                 checkpoint_sentences=checkpoint,
@@ -340,6 +376,7 @@ def run(args: argparse.Namespace) -> None:
                 args.eval_samples,
                 args.seed + index,
                 retrieval_mode=args.retrieval_mode,
+                neural_propagation=args.neural_propagation,
                 details_rows=details_rows if args.details_csv else None,
                 checkpoint_sentences=index,
             )
@@ -375,6 +412,7 @@ def run(args: argparse.Namespace) -> None:
     print("sentence length: 10")
     print(f"prefix length: {args.prefix_length}")
     print(f"retrieval mode: {args.retrieval_mode}")
+    print(f"neural propagation: {args.neural_propagation}")
     print(f"encoded vocabulary size: {len(encoder.known_symbols())}")
     print(f"mini-columns: {args.num_columns}")
     print(f"neurons per mini-column: {args.neurons_per_column}")
@@ -406,6 +444,12 @@ def parse_args() -> argparse.Namespace:
         "--retrieval-mode",
         choices=("neural", "proximal-replay"),
         default="neural",
+    )
+    parser.add_argument(
+        "--neural-propagation",
+        choices=("raw", "eventwise-inhibited"),
+        default="raw",
+        help="Nonpaper neural projection diagnostic; strict default is raw.",
     )
     parser.add_argument(
         "--eval-samples",

@@ -77,6 +77,9 @@ Fig.9 follows reference [58]'s reported MAPE normalization,
 
 See `FIG8_NEURAL_RETRIEVAL.md` for the autonomous-retrieval protocol audit,
 tests, 100/200/500/1000-sentence ablation, and failure analysis.
+See `FIG8_FALSE_POSITIVE_DIAGNOSTIC.md` for the second-stage response-kernel,
+false-positive segment, cue-prefix, and eventwise-inhibition diagnostics. All
+numeric response scales in that report are nonpaper sensitivity settings.
 
 ## Data Provenance
 
@@ -112,6 +115,9 @@ The following are useful engineering tests but are not Zhang-paper results:
 - `experiments/diagnostics/multivariate_fig9_transfer.py`
 - `experiments/diagnostics/multihorizon_fig9_transfer.py`
 - `experiments/diagnostics/fig9_taxi_prediction.py`
+- `experiments/diagnostics/fig8_response_scale_sweep.py`
+- `experiments/diagnostics/fig8_false_positive_ablation.py`
+- `experiments/diagnostics/fig8_scenario1_diagnostic.py`
 - `experiments/generate_fig8c_stress_dataset.py`
 - `experiments/plot_fig8c_stress_comparison.py`
 - `run_real_world_benchmarks.ps1`
