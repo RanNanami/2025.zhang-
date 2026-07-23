@@ -61,6 +61,7 @@ def build_model(
     *,
     scenario1_contribution_mode: str = "arrival-window",
     capture_prediction_contributions: bool = False,
+    synapse_delay_mode: str = "current-delay",
 ) -> SequentialMemory:
     return SequentialMemory(
         encoder=SSTDDiscreteEncoder(num_columns=100, k=10, seed=seed),
@@ -71,6 +72,7 @@ def build_model(
             response_scale=scale,
             scenario1_contribution_mode=scenario1_contribution_mode,
             capture_prediction_contributions=capture_prediction_contributions,
+            synapse_delay_mode=synapse_delay_mode,
         ),
         tie_break_seed=seed,
     )

@@ -83,6 +83,9 @@ numeric response scales in that report are nonpaper sensitivity settings.
 See `FIG8_SCENARIO1_CONTRIBUTION.md` for the third-stage audit of whether
 Scenario 1 reinforces the same synapses that caused a continuous threshold
 crossing. The two continuous contribution modes remain nonpaper diagnostics.
+See `FIG8_PREDICTION_COMPETITION.md` for the fourth-stage candidate-score,
+event-timing, read-only ranking, and peak-aligned-delay diagnostics. None of
+those diagnostic modes changes the strict Fig.8 defaults.
 
 ## Data Provenance
 

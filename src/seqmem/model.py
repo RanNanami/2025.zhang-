@@ -106,6 +106,7 @@ class PredictionCandidate:
     crossing_synapse_contributions: tuple[SynapsePSPContribution, ...] = ()
     peak_dendritic_potential: float | None = None
     threshold_margin: float | None = None
+    predicted_soma_firing_time: float | None = None
 
 
 @dataclass
@@ -193,6 +194,7 @@ class MemoryParams:
     cycle_period: float = 1.0
     scenario1_contribution_mode: str = "arrival-window"
     capture_prediction_contributions: bool = False
+    synapse_delay_mode: str = "current-delay"
 
     def dynamics(self) -> DSDynamicsParams:
         return DSDynamicsParams(
@@ -223,6 +225,15 @@ class SequentialMemory:
         "continuous-positive",
         "continuous-causal",
     }
+    PREDICTION_RANKING_MODES = {
+        "current-score",
+        "actual-peak",
+        "earliest-crossing",
+    }
+    SYNAPSE_DELAY_MODES = {
+        "current-delay",
+        "peak-aligned-delay",
+    }
 
     def __init__(
         self,
@@ -240,6 +251,11 @@ class SequentialMemory:
             raise ValueError(
                 "unsupported Scenario-1 contribution mode: "
                 f"{self.params.scenario1_contribution_mode}"
+            )
+        if self.params.synapse_delay_mode not in self.SYNAPSE_DELAY_MODES:
+            raise ValueError(
+                "unsupported synapse delay mode: "
+                f"{self.params.synapse_delay_mode}"
             )
         self.columns = [
             MiniColumn.create(num_neurons_per_column) for _ in range(encoder.num_columns)
@@ -518,6 +534,7 @@ class SequentialMemory:
             metadata = prediction_metadata.get(id(segment), {})
             crossing_time = metadata.get("first_threshold_crossing_time")
             peak_potential = metadata.get("peak_dendritic_potential")
+            soma_time = metadata.get("predicted_soma_firing_time")
             self.last_prediction_candidates.setdefault(column_id, []).append(
                 PredictionCandidate(
                     neuron_index=neuron_index,
@@ -543,6 +560,9 @@ class SequentialMemory:
                         peak_potential - self.params.dendrite_threshold
                         if isinstance(peak_potential, float)
                         else None
+                    ),
+                    predicted_soma_firing_time=(
+                        soma_time if isinstance(soma_time, float) else None
                     ),
                 )
             )
@@ -574,11 +594,16 @@ class SequentialMemory:
         predicted: SymbolCode,
         max_predictions_per_event: int = 1,
         trace: PredictionTrace | None = None,
+        ranking_mode: str = "current-score",
     ) -> SymbolCode | None:
         """Apply diagnostic intercolumn inhibition to real prediction cells."""
 
         if max_predictions_per_event <= 0:
             return None
+        if ranking_mode not in self.PREDICTION_RANKING_MODES:
+            raise ValueError(
+                f"unsupported prediction ranking mode: {ranking_mode}"
+            )
         raw_events = {
             (event.column, round(event.time, 12)) for event in predicted.events
         }
@@ -595,7 +620,9 @@ class SequentialMemory:
             ]
             choices.sort(
                 key=lambda item: (
-                    -item[1].score,
+                    *self.prediction_candidate_sort_key(
+                        item[1], ranking_mode
+                    ),
                     item[0],
                     item[1].neuron_index,
                     item[1].time,
@@ -623,6 +650,31 @@ class SequentialMemory:
                 SpikeEvent(column=column, time=candidate.time)
                 for column, candidate in selected
             )
+        )
+
+    def prediction_candidate_sort_key(
+        self,
+        candidate: PredictionCandidate,
+        ranking_mode: str = "current-score",
+    ) -> tuple[float]:
+        """Return a ground-truth-free ordering key for one saved candidate."""
+
+        if ranking_mode == "current-score":
+            return (-candidate.score,)
+        if ranking_mode == "actual-peak":
+            if candidate.peak_dendritic_potential is None:
+                raise RuntimeError(
+                    "actual-peak ranking requires prediction diagnostics"
+                )
+            return (-candidate.peak_dendritic_potential,)
+        if ranking_mode == "earliest-crossing":
+            if candidate.dendritic_crossing_time is None:
+                raise RuntimeError(
+                    "earliest-crossing ranking requires prediction diagnostics"
+                )
+            return (candidate.dendritic_crossing_time,)
+        raise ValueError(
+            f"unsupported prediction ranking mode: {ranking_mode}"
         )
 
     def predict_symbol(
@@ -974,7 +1026,7 @@ class SequentialMemory:
             synapses={
                 source: Synapse(
                     source=source,
-                    delay=self.params.cycle_period / 2.0 + target_time - source_time,
+                    delay=self._new_synapse_delay(target_time, source_time),
                     weight=self.params.w0,
                     age=0,
                 )
@@ -987,6 +1039,16 @@ class SequentialMemory:
             self._incoming_index.setdefault(source, []).append(
                 (column_id, neuron_index, segment)
             )
+
+    def _new_synapse_delay(
+        self,
+        target_time: float,
+        source_time: float,
+    ) -> float:
+        delay = self.params.cycle_period / 2.0 + target_time - source_time
+        if self.params.synapse_delay_mode == "peak-aligned-delay":
+            delay -= self._kernel_peak_time
+        return delay
 
     def _segment_score(
         self,
@@ -1326,7 +1388,7 @@ class SequentialMemory:
                     continue
                 segment.synapses[source] = Synapse(
                     source=source,
-                    delay=self.params.cycle_period / 2.0 + target_time - source_time,
+                    delay=self._new_synapse_delay(target_time, source_time),
                     weight=self.params.w0,
                     age=0,
                 )
