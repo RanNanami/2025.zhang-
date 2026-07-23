@@ -28,6 +28,16 @@ class Segment:
     synapses: dict[int, Synapse] = field(default_factory=dict)
     active: bool = True
     target_time: float | None = None
+    diagnostic_id: int | None = None
+    creation_sentence_index: int | None = None
+    creation_transition_index: int | None = None
+    creation_target_column: int | None = None
+    creation_target_time: float | None = None
+    creation_target_neuron: int | None = None
+    creation_source_cell_ids: tuple[int, ...] = ()
+    creation_source_fingerprint: str | None = None
+    scenario1_reinforcements: int = 0
+    scenario2_reinforcements: int = 0
 
     def overlap(self, active_sources: dict[int, float]) -> int:
         return sum(1 for source in active_sources if source in self.synapses)
@@ -163,11 +173,24 @@ class ReinforcementTrace:
 
 
 @dataclass(frozen=True)
+class BurstPSPTrace:
+    total_psp: float
+    predicted_source_psp: float
+    burst_only_psp: float
+    unlabelled_psp: float
+    predicted_without_burst_crosses: bool
+    burst_only_crosses: bool
+    classification: str
+
+
+@dataclass(frozen=True)
 class TransientStateSnapshot:
     previous_active_cells: dict[int, float]
     previous_winners: dict[int, float]
     last_prediction_candidates: dict[int, list[PredictionCandidate]]
     last_symbol_ranking: list[tuple[int, int, str]]
+    previous_predicted_sources: set[int]
+    previous_burst_only_sources: set[int]
     decode_rng_state: object
     learning_rng_state: object
 
@@ -195,6 +218,7 @@ class MemoryParams:
     scenario1_contribution_mode: str = "arrival-window"
     capture_prediction_contributions: bool = False
     synapse_delay_mode: str = "current-delay"
+    capture_branch_diagnostics: bool = False
 
     def dynamics(self) -> DSDynamicsParams:
         return DSDynamicsParams(
@@ -273,6 +297,11 @@ class SequentialMemory:
         self.previous_winners: dict[int, float] = {}
         self.last_prediction_candidates: dict[int, list[PredictionCandidate]] = {}
         self.last_symbol_ranking: list[tuple[int, int, str]] = []
+        self.previous_predicted_sources: set[int] = set()
+        self.previous_burst_only_sources: set[int] = set()
+        self._diagnostic_sentence_index: int | None = None
+        self._diagnostic_transition_index: int | None = None
+        self._next_segment_diagnostic_id = 1
         self.reinforcement_trace_callback: (
             Callable[[ReinforcementTrace], None] | None
         ) = None
@@ -289,6 +318,8 @@ class SequentialMemory:
         self.previous_winners = {}
         self.last_prediction_candidates = {}
         self.last_symbol_ranking = []
+        self.previous_predicted_sources = set()
+        self.previous_burst_only_sources = set()
 
     def snapshot_transient_state(self) -> TransientStateSnapshot:
         """Capture retrieval state without copying long-term synaptic memory."""
@@ -301,6 +332,8 @@ class SequentialMemory:
                 for column, candidates in self.last_prediction_candidates.items()
             },
             last_symbol_ranking=self.last_symbol_ranking.copy(),
+            previous_predicted_sources=self.previous_predicted_sources.copy(),
+            previous_burst_only_sources=self.previous_burst_only_sources.copy(),
             decode_rng_state=self._decode_rng.getstate(),
             learning_rng_state=self._learning_rng.getstate(),
         )
@@ -315,6 +348,12 @@ class SequentialMemory:
             for column, candidates in snapshot.last_prediction_candidates.items()
         }
         self.last_symbol_ranking = snapshot.last_symbol_ranking.copy()
+        self.previous_predicted_sources = (
+            snapshot.previous_predicted_sources.copy()
+        )
+        self.previous_burst_only_sources = (
+            snapshot.previous_burst_only_sources.copy()
+        )
         self._decode_rng.setstate(snapshot.decode_rng_state)
         self._learning_rng.setstate(snapshot.learning_rng_state)
 
@@ -323,6 +362,16 @@ class SequentialMemory:
         if self.params.burst_context:
             return self.previous_active_cells or self.previous_winners
         return self.previous_winners
+
+    def set_segment_provenance_context(
+        self,
+        sentence_index: int | None,
+        transition_index: int | None,
+    ) -> None:
+        """Set optional creation labels used only by diagnostic training."""
+
+        self._diagnostic_sentence_index = sentence_index
+        self._diagnostic_transition_index = transition_index
 
     def predict_code(self, trace: PredictionTrace | None = None) -> SymbolCode | None:
         """Return the next symbol code predicted from previous winners."""
@@ -677,6 +726,145 @@ class SequentialMemory:
             f"unsupported prediction ranking mode: {ranking_mode}"
         )
 
+    def select_coherent_prediction_events(
+        self,
+        predicted: SymbolCode,
+        *,
+        beam_width: int,
+        lambda_coherence: float,
+        lambda_support: float = 0.0,
+        trace: PredictionTrace | None = None,
+    ) -> SymbolCode | None:
+        """Select a coherent set of real candidates without symbol feedback."""
+
+        if beam_width <= 0:
+            raise ValueError("beam_width must be positive")
+        raw_events = {
+            (event.column, round(event.time, 12)) for event in predicted.events
+        }
+        groups: list[list[tuple[int, PredictionCandidate, float, float]]] = []
+        for event_time in self._event_times:
+            choices = [
+                (column, candidate)
+                for column, candidates in self.last_prediction_candidates.items()
+                for candidate in candidates
+                if (column, round(candidate.time, 12)) in raw_events
+                and abs(candidate.time - event_time)
+                <= self.params.timing_tolerance
+            ]
+            if not choices:
+                continue
+            maximum = max(candidate.score for _column, candidate in choices)
+            group: list[tuple[int, PredictionCandidate, float, float]] = []
+            for column, candidate in choices:
+                support = self.candidate_burst_psp_trace(candidate)
+                denominator = support.total_psp
+                predicted_fraction = (
+                    (support.predicted_source_psp + support.unlabelled_psp)
+                    / denominator
+                    if denominator > 0.0
+                    else 0.0
+                )
+                group.append(
+                    (
+                        column,
+                        candidate,
+                        candidate.score / maximum if maximum > 0.0 else 0.0,
+                        predicted_fraction,
+                    )
+                )
+            group.sort(
+                key=lambda item: (
+                    -item[2],
+                    item[0],
+                    item[1].neuron_index,
+                    item[1].time,
+                )
+            )
+            groups.append(group)
+
+        beams: list[
+            tuple[list[tuple[int, PredictionCandidate]], float, float]
+        ] = [([], 0.0, 0.0)]
+        for group in groups:
+            expanded: list[
+                tuple[
+                    list[tuple[int, PredictionCandidate]],
+                    float,
+                    float,
+                ]
+            ] = []
+            for selected, local_sum, support_sum in beams:
+                used_columns = {column for column, _candidate in selected}
+                for column, candidate, local_score, support in group:
+                    if column in used_columns:
+                        continue
+                    expanded.append(
+                        (
+                            [*selected, (column, candidate)],
+                            local_sum + local_score,
+                            support_sum + support,
+                        )
+                    )
+            if not expanded:
+                continue
+            expanded.sort(
+                key=lambda beam: (
+                    -self._coherent_beam_score(
+                        beam,
+                        lambda_coherence=lambda_coherence,
+                        lambda_support=lambda_support,
+                    ),
+                    tuple(
+                        (column, candidate.neuron_index, candidate.time)
+                        for column, candidate in beam[0]
+                    ),
+                )
+            )
+            beams = expanded[:beam_width]
+        if not beams or not beams[0][0]:
+            return None
+        selected = beams[0][0]
+        if trace is not None:
+            selected_segments = {id(candidate.segment) for _column, candidate in selected}
+            for item in trace.segments:
+                item.inhibited_intercolumn = (
+                    item.entered_raw_prediction
+                    and item.segment_identity not in selected_segments
+                )
+        return SymbolCode(
+            events=tuple(
+                SpikeEvent(column=column, time=candidate.time)
+                for column, candidate in selected
+            )
+        )
+
+    def _coherent_beam_score(
+        self,
+        beam: tuple[
+            list[tuple[int, PredictionCandidate]],
+            float,
+            float,
+        ],
+        *,
+        lambda_coherence: float,
+        lambda_support: float,
+    ) -> float:
+        selected, local_sum, support_sum = beam
+        source_sets = [set(candidate.segment.synapses) for _column, candidate in selected]
+        pairwise: list[float] = []
+        for index, left in enumerate(source_sets):
+            for right in source_sets[index + 1 :]:
+                union = left | right
+                pairwise.append(len(left & right) / len(union) if union else 1.0)
+        coherence = sum(pairwise) / len(pairwise) if pairwise else 0.0
+        support = support_sum / len(selected) if selected else 0.0
+        return (
+            local_sum
+            + lambda_coherence * coherence
+            + lambda_support * support
+        )
+
     def predict_symbol(
         self,
         min_overlap: int | None = None,
@@ -823,6 +1011,8 @@ class SequentialMemory:
         previous_active = self._active_sources()
         active_cells: dict[int, float] = {}
         learning_winners: dict[int, float] = {}
+        predicted_sources: set[int] = set()
+        burst_only_sources: set[int] = set()
 
         for event in code.events:
             column_id = event.column
@@ -899,11 +1089,12 @@ class SequentialMemory:
             learning_winners[winner_id] = event.time
             if was_predicted:
                 active_cells[winner_id] = event.time
+                predicted_sources.add(winner_id)
             else:
                 for active_neuron in range(len(column.neurons)):
-                    active_cells[
-                        self._cell_id(column_id, active_neuron)
-                    ] = event.time
+                    active_id = self._cell_id(column_id, active_neuron)
+                    active_cells[active_id] = event.time
+                    burst_only_sources.add(active_id)
 
         if learn:
             self._punish_wrong_predictions(
@@ -911,6 +1102,12 @@ class SequentialMemory:
             )
         self.previous_active_cells = active_cells
         self.previous_winners = learning_winners
+        if self.params.capture_branch_diagnostics:
+            self.previous_predicted_sources = predicted_sources
+            self.previous_burst_only_sources = burst_only_sources
+        else:
+            self.previous_predicted_sources = set()
+            self.previous_burst_only_sources = set()
         return learning_winners
 
     def step(self, symbol: str) -> str | None:
@@ -931,6 +1128,9 @@ class SequentialMemory:
             return False
         self.previous_active_cells = active_cells
         self.previous_winners = active_cells.copy()
+        if self.params.capture_branch_diagnostics:
+            self.previous_predicted_sources = set(active_cells)
+            self.previous_burst_only_sources = set()
         return True
 
     def prediction_active_cells(self, code: SymbolCode) -> dict[int, float]:
@@ -1022,6 +1222,11 @@ class SequentialMemory:
         if not active_sources:
             return
         neuron = self.columns[column_id].neurons[neuron_index]
+        source_ids = tuple(sorted(active_sources))
+        diagnostic_id: int | None = None
+        if self.params.capture_branch_diagnostics:
+            diagnostic_id = self._next_segment_diagnostic_id
+            self._next_segment_diagnostic_id += 1
         segment = Segment(
             synapses={
                 source: Synapse(
@@ -1033,6 +1238,26 @@ class SequentialMemory:
                 for source, source_time in active_sources.items()
             },
             target_time=self.params.cycle_period + target_time,
+            diagnostic_id=diagnostic_id,
+            creation_sentence_index=(
+                self._diagnostic_sentence_index
+                if self.params.capture_branch_diagnostics
+                else None
+            ),
+            creation_transition_index=(
+                self._diagnostic_transition_index
+                if self.params.capture_branch_diagnostics
+                else None
+            ),
+            creation_target_column=column_id if diagnostic_id is not None else None,
+            creation_target_time=target_time if diagnostic_id is not None else None,
+            creation_target_neuron=neuron_index if diagnostic_id is not None else None,
+            creation_source_cell_ids=source_ids if diagnostic_id is not None else (),
+            creation_source_fingerprint=(
+                ",".join(map(str, source_ids))
+                if diagnostic_id is not None
+                else None
+            ),
         )
         neuron.segments.append(segment)
         for source in active_sources:
@@ -1338,6 +1563,46 @@ class SequentialMemory:
             )
         return causal
 
+    def candidate_burst_psp_trace(
+        self,
+        candidate: PredictionCandidate,
+    ) -> BurstPSPTrace:
+        """Split saved crossing PSP by the active-cell origin labels."""
+
+        predicted = 0.0
+        burst_only = 0.0
+        unlabelled = 0.0
+        for item in candidate.crossing_synapse_contributions:
+            if item.source_cell_id in self.previous_predicted_sources:
+                predicted += item.psp_contribution
+            elif item.source_cell_id in self.previous_burst_only_sources:
+                burst_only += item.psp_contribution
+            else:
+                unlabelled += item.psp_contribution
+        total = predicted + burst_only + unlabelled
+        threshold = (
+            self.params.dendrite_threshold
+            - self.params.integration_voltage_tolerance
+            - self._dynamics.v_rest
+        )
+        predicted_crosses = predicted + unlabelled >= threshold
+        burst_crosses = burst_only >= threshold
+        if predicted_crosses:
+            classification = "predicted-supported"
+        elif burst_crosses:
+            classification = "burst-only"
+        else:
+            classification = "burst-assisted"
+        return BurstPSPTrace(
+            total_psp=total,
+            predicted_source_psp=predicted,
+            burst_only_psp=burst_only,
+            unlabelled_psp=unlabelled,
+            predicted_without_burst_crosses=predicted_crosses,
+            burst_only_crosses=burst_crosses,
+            classification=classification,
+        )
+
     def _reinforce_segment(
         self,
         column_id: int,
@@ -1351,6 +1616,11 @@ class SequentialMemory:
         scenario: str = "unspecified",
         prediction_candidate: PredictionCandidate | None = None,
     ) -> None:
+        if segment.diagnostic_id is not None:
+            if scenario == "scenario1":
+                segment.scenario1_reinforcements += 1
+            elif scenario == "scenario2":
+                segment.scenario2_reinforcements += 1
         weights_before_by_source = {
             source: synapse.weight for source, synapse in segment.synapses.items()
         }
