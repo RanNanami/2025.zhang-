@@ -1,0 +1,13 @@
+after 25: predictions=0, missing=0, mape=0.000%
+after 50: predictions=0, missing=0, mape=0.000%
+after 75: predictions=25, missing=0, mape=40.701%
+after 100: predictions=50, missing=0, mape=59.056%
+Fig. 9 paper-aligned DS-memory approximation
+records: 120
+horizon: 5 steps
+column groups: day=30, time=58, passenger=482
+active columns per field: 10
+neurons per column: 32
+predictions evaluated: 65
+missing predictions: 0
+MAPE: 62.809%

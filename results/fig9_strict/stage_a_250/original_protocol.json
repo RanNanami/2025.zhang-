@@ -1,0 +1,45 @@
+{
+  "K": 10,
+  "L_match": 4,
+  "MAPE_denominator": "sum_abs_targets_reference_58",
+  "RNG_seeds": {
+    "tie_break_seed": 0
+  },
+  "V0": null,
+  "burst_context": "all-cell",
+  "continuous_dynamics": true,
+  "data_file_limit": 250,
+  "data_file_path": "data\\paper_nyc_taxi.csv",
+  "data_file_rows_used": 250,
+  "data_file_sha256": "092d957f5bb0d2cd62f85098ed2268114a47b4738a5f4b29ea6be4be7349fc4d",
+  "date_range": [
+    "2014-07-01 00:00:00",
+    "2014-07-06 04:30:00"
+  ],
+  "encoder_sizes": {
+    "passenger": 482,
+    "time": 58,
+    "total": 570,
+    "weekday": 30
+  },
+  "forgetting_threshold": 65.0,
+  "git_commit_sha": "ab84634ff80b15f4f5659da7dcd3a43d263aaf78",
+  "integration_step": 0.005,
+  "intracolumn_inhibition": true,
+  "learns_during_rollout": false,
+  "neurons_per_column": 32,
+  "prediction_horizon": 5,
+  "propagation_mode": "raw",
+  "reencodes_decoded_value": false,
+  "response_scale": null,
+  "restores_transient_state": true,
+  "rolling_MAPE_denominator": "global_mean_abs_target_reference_58",
+  "rolling_window": 400,
+  "scenario1_rule": "direct-reinforce-predicted-segment",
+  "stream_label": "original",
+  "strict_label": "strict",
+  "tau_m": 0.1,
+  "tau_s": 0.02,
+  "uses_future_covariates": false,
+  "warmup_length": 200
+}

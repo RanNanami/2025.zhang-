@@ -100,37 +100,29 @@ proximal/apical membrane simulation.
 
 ## Fig. 9
 
-The existing full-year runs at
-`results/fig9_corrected_original.*` and
-`results/fig9_corrected_perturbed.*` use the former winner-context/eventwise
-compensation. They evaluate 11,611 predictions with 100% coverage and remain
-useful adaptation diagnostics, but are no longer labeled strict-default runs.
+The former full-year Fig.9 outputs have been isolated under
+`results/fig9_historical_compensated/`. They used winner-context/eventwise or
+other compensated diagnostics and are not valid strict Fig.9 reproductions.
+Their historical values remain useful background only and must not be used in
+the strict main result table.
 
-| Stream | Overall MAPE | Post-April-1 MAPE | Final rolling-400 MAPE |
-| --- | ---: | ---: | ---: |
-| original | 0.131 | 0.089 | 0.066 |
-| perturbed | 0.131 | 0.088 | 0.074 |
+The current strict runner is `experiments/fig9_strict_reproduction.py`. It
+enforces all-cell burst, raw neural propagation, prediction-before-observe,
+no decoded-value replay, no rollout learning, no future-covariate clamping,
+and no eventwise/coherent/top-k projection. The machine-readable fingerprint is
+at `results/fig9_strict/protocol.json`.
 
-The perturbation raises rolling error from about `0.089` to a peak near `0.133`,
-then it falls to `0.065` by April 29. This closely reproduces the rise and
-rapid adaptation in Fig.9(d); the paper's curve peaks around `0.13` and falls
-to roughly `0.05`. The modified-data comparison now correctly uses the
-post-April-1 value `0.088`, rather than the full-stream perturbed value. The
-formal overlay and checkpoint tables are at
-`results/fig9_corrected_comparison/`.
+Strict stage A completed for 250 original and 250 perturbed records with
+`warmup=200`. Both streams are before April 1 and matched exactly over 45
+evaluated rows. The original smoke MAPE is `0.505450`, coverage is `1.000`,
+mean raw predicted columns are `291.538`, peak raw predicted columns are `358`,
+and runtime is `605.327` seconds (`0.413 records/s`). The perturbed smoke has
+the same MAPE and density with runtime `592.518` seconds.
 
-The unified model comparison is at `results/fig9_reference_comparison/`.
-`bars.csv` separates approximate paper bar heights from the local full-year
-result, and `comparison.png` plots original and modified data side by side.
-The cited author repository contains the experiment scripts but not trained
-Fig.9 arrays, so these paper bars are explicitly digitized approximations.
-
-The current code defaults to the paper-explicit all-cell burst, raw neural
-retrieval, direct scenario-1 reinforcement, and fine-grid integration of
-dendritic threshold crossing, phase-precessed soma firing, and first-spike
-intracolumn competition. A full-year run under these corrected defaults has
-not yet completed, so the historical compensated CSVs must not be reported as
-its numerical result.
+The 2,000-record strict stage B and full-year strict runs have not completed.
+The 250-record runtime implies roughly 80 minutes per 2,000-record stream by a
+linear estimate, before nonlinear growth in segments and raw prediction
+density. Therefore no strict Fig.9(b,c,d) numerical reproduction is claimed.
 
 The rolling curve uses the exact reference-[58] plotting formula: mean
 absolute error over the last 400 predictions divided by the global mean
@@ -143,6 +135,6 @@ valid corrected paper-protocol result.
 
 ## Verification
 
-The current implementation passes 63 unit tests. Run
+The current implementation passes 108 unit tests. Run
 `check_project.ps1` to repeat compilation, tests, dataset checks, and smoke
 experiments.

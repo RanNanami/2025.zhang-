@@ -1,0 +1,33 @@
+{
+  "stage_a_250": {
+    "original": {
+      "attempted_predictions": 45,
+      "coverage": 1.0,
+      "mape": 0.5054500721931258,
+      "mean_raw_column_count": 291.53777777777776,
+      "peak_raw_column_count": 358,
+      "records_per_second": 0.4129997634641311,
+      "runtime_seconds": 605.3272232000018
+    },
+    "perturbed": {
+      "attempted_predictions": 45,
+      "coverage": 1.0,
+      "mape": 0.5054500721931258,
+      "mean_raw_column_count": 291.53777777777776,
+      "peak_raw_column_count": 358,
+      "records_per_second": 0.4219283057417925,
+      "runtime_seconds": 592.5177253999937
+    },
+    "pre_change_prediction_mismatches": 0,
+    "warmup": 200
+  },
+  "stage_b_2000": {
+    "status": "not_run",
+    "reason": "Stage A strict raw continuous runtime was about 10 minutes per 250-record stream and raw prediction density was already high.",
+    "linear_estimated_seconds_per_stream": 4842.617785600014
+  },
+  "full_year_17520": {
+    "status": "not_run",
+    "reason": "Stage B was not started after Stage A exposed prohibitive strict runtime and high raw prediction density."
+  }
+}

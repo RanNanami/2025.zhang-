@@ -96,19 +96,18 @@ These choices remain visible and must not be called author-specified:
   without applying the scenario-2 `L_match` gate. Scenario 2 reinforces or
   grows a matching segment without aging unrelated segments; scenario 3
   weakens synapses that contributed to an incorrect prediction.
-- Intercolumn inhibition is implemented event-wise: at each SSTD firing time,
-  only the `K` strongest distinct mini-columns survive. The paper requires
-  inhibition to preserve encoding sparsity but does not publish its scheduling
-  or tie-breaking code.
+- Intercolumn inhibition scheduling is unpublished. Event-wise projection is
+  retained only as a nonpaper diagnostic and is forbidden in the strict Fig.9
+  runner.
 - Fig.9 uses a passenger range of 0 to 40,000, matching the cited [58]
   experiment configuration; Zhang specifies 482 fields but not range bounds.
-- Fig.9 retrieval now advances raw predictive-neuron spikes by default and
-  applies likelihood decoding only to the final passenger pattern. Coherent
-  legal-code and eventwise projection remain optional diagnostics.
-- Literal all-neuron bursting and first-spike intracolumn inhibition are now
-  Fig.9 defaults. The former winner-only/eventwise compensation remains
-  available with `--no-burst-context --no-intracolumn-inhibition
-  --projection-mode eventwise`, but its better score is not a strict result.
+- Fig.9 strict retrieval advances raw predictive-neuron spikes and applies
+  likelihood decoding only to the final passenger pattern. Coherent legal-code
+  and eventwise projection remain optional diagnostics outside the strict
+  runner.
+- Literal all-neuron bursting and first-spike intracolumn inhibition are Fig.9
+  strict defaults. The former winner-only/eventwise compensation is isolated
+  under `results/fig9_historical_compensated/` and is not a strict result.
 - Fig.8(c) uses the first 200 unique-title/text five-character quatrains
   selected from three deterministic `chinese-poetry` Tang-poem JSON shards.
   The paper does not publish its poem list. All three local layers use the
@@ -158,9 +157,10 @@ These choices remain visible and must not be called author-specified:
 - Fig.8(a) and Fig.8(b) reproduce the protocols and qualitative resource trend
   but do not numerically match the paper. Older result folders are historical
   and are not valid strict runs.
-- The previous full-year Fig.9 outputs used winner-only context and eventwise
-  projection. After restoring [58]'s global rolling denominator, those legacy
-  outputs have original overall AltMAPE `0.131`, post-change modified AltMAPE
-  `0.088`, an April peak of `0.133`, and early-May rolling error near `0.065`.
-  They reproduce the adaptation shape but are not strict-default results. A
-  full 17,520-record strict rerun remains pending.
+- The previous full-year Fig.9 outputs used winner-only context, eventwise
+  projection, or other compensated diagnostics. They have been moved to
+  `results/fig9_historical_compensated/`. A 250-record strict smoke completed
+  with MAPE `0.505450`, mean raw predicted columns `291.538`, and runtime
+  `605.327` seconds for the original stream. The 2,000-record and full-year
+  strict reruns remain pending because the strict raw continuous runner is far
+  slower and denser than the compensated historical path.

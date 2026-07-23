@@ -1,0 +1,31 @@
+{
+  "finished_at": "2026-07-23 15:58:00",
+  "limit": 250,
+  "started_at": "2026-07-23 15:47:53",
+  "streams": [
+    "original"
+  ],
+  "summaries": {
+    "original": {
+      "attempted_predictions": 45,
+      "autonomous_rollout_steps": 5,
+      "coverage": 1.0,
+      "diagnostic_label": "strict Fig.9 reproduction attempt",
+      "final_rolling_mape": 0.44952575235367487,
+      "mape": 0.5054500721931258,
+      "mean_raw_column_count": 291.53777777777776,
+      "mean_raw_event_count": 291.53777777777776,
+      "missing_predictions": 0,
+      "peak_raw_column_count": 358,
+      "prediction_before_observe": true,
+      "predictions": 45,
+      "records_per_second": 0.4129997634641311,
+      "records_used": 250,
+      "rolling_window": 400,
+      "runtime_seconds": 605.3272232000018,
+      "stream_label": "original",
+      "uses_compensation": false
+    }
+  },
+  "warmup": 200
+}

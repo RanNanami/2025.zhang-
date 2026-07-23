@@ -1,0 +1,126 @@
+﻿Fig. 9 taxi prediction reproduction log
+
+Dataset: Numenta NAB realKnownCause/nyc_taxi.csv
+
+[seasonal baseline, full NAB file]
+Fig. 9 seasonal baseline
+records: 10320
+time range: 2014-07-01 00:00:00 -> 2015-01-31 23:30:00
+horizon steps: 5
+predictions evaluated: 9815
+MAPE: 35.149%
+
+[optimized context-table baseline, full NAB file, value_bins=50]
+Fig. 9 context-table taxi baseline
+records: 10320
+time range: 2014-07-01 00:00:00 -> 2015-01-31 23:30:00
+horizon steps: 5
+value bins: 50
+predictions evaluated: 7374
+MAPE: 7.499%
+
+checkpoints:
+  after  2500 records: mape=5.125%, n=1230
+  after  5000 records: mape=6.278%, n=3013
+  after  7500 records: mape=6.128%, n=5191
+  after 10000 records: mape=7.443%, n=7164
+
+[sparse-context memory, full NAB file, value_bins=30, k=5, order=3, blend=0.5]
+Fig. 9 sparse-context taxi prediction
+records: 10320
+time range: 2014-07-01 00:00:00 -> 2015-01-31 23:30:00
+horizon steps: 5
+value bins: 30
+mini-columns: 570
+k: 5
+context order: 3
+context decay: 1.0
+context fallback margin: 0.0
+context blend: 0.5
+context backoff: False
+predictions evaluated: 9815
+MAPE: 33.222%
+
+checkpoints:
+  after  2500 records: mape=7.541%, n=2000
+  after  5000 records: mape=8.394%, n=4500
+  after  7500 records: mape=8.499%, n=7000
+  after 10000 records: mape=11.062%, n=9500
+
+[generic SNN context-memory, first 800 records, small network]
+Fig. 9 context-memory taxi prediction
+records: 800
+time range: 2014-07-01 00:00:00 -> 2014-07-17 15:30:00
+horizon steps: 5
+value bins: 20
+mini-columns: 200
+neurons per mini-column: 8
+predictions evaluated: 387
+MAPE: 24.789%
+
+checkpoints:
+  after   200 records: mape=42.135%, n=13
+  after   400 records: mape=28.251%, n=111
+  after   600 records: mape=26.919%, n=225
+
+[sparse-regression attempt, full NAB file, value_bins=30, k=5, order=3]
+Fig. 9 sparse-regression taxi prediction
+records: 10320
+time range: 2014-07-01 00:00:00 -> 2015-01-31 23:30:00
+horizon steps: 5
+value bins: 30
+mini-columns: 570
+k: 5
+context order: 3
+context decay: 1.0
+min confidence: 0.0
+predictions evaluated: 9815
+MAPE: 80.410%
+
+checkpoints:
+  after  2500 records: mape=20.502%, n=2000
+  after  5000 records: mape=22.616%, n=4500
+  after  7500 records: mape=23.522%, n=7000
+  after 10000 records: mape=26.135%, n=9500
+
+[sparse-knn SSTD retrieval, eval_end=10000]
+Fig. 9 sparse-knn taxi prediction
+records: 10320
+time range: 2014-07-01 00:00:00 -> 2015-01-31 23:30:00
+horizon steps: 5
+value bins: 50
+mini-columns: 570
+k: 10
+knn neighbors: 5
+knn min overlap: 45
+knn max candidates: 2000
+knn fallback: True
+predictions evaluated: 9500
+MAPE: 10.749%
+
+checkpoints:
+  after  2500 records: mape=6.813%, n=2000
+  after  5000 records: mape=7.922%, n=4500
+  after  7500 records: mape=8.266%, n=7000
+  after 10000 records: mape=10.749%, n=9500
+
+[sparse-knn SSTD retrieval, full NAB file]
+Fig. 9 sparse-knn taxi prediction
+records: 10320
+time range: 2014-07-01 00:00:00 -> 2015-01-31 23:30:00
+horizon steps: 5
+value bins: 50
+mini-columns: 570
+k: 10
+knn neighbors: 5
+knn min overlap: 45
+knn max candidates: 2000
+knn fallback: True
+predictions evaluated: 9815
+MAPE: 34.140%
+
+checkpoints:
+  after  2500 records: mape=6.813%, n=2000
+  after  5000 records: mape=7.922%, n=4500
+  after  7500 records: mape=8.266%, n=7000
+  after 10000 records: mape=10.749%, n=9500

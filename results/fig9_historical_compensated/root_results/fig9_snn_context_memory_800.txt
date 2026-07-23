@@ -1,0 +1,14 @@
+﻿Fig. 9 context-memory taxi prediction
+records: 800
+time range: 2014-07-01 00:00:00 -> 2014-07-17 15:30:00
+horizon steps: 5
+value bins: 20
+mini-columns: 200
+neurons per mini-column: 8
+predictions evaluated: 387
+MAPE: 24.789%
+
+checkpoints:
+  after   200 records: mape=42.135%, n=13
+  after   400 records: mape=28.251%, n=111
+  after   600 records: mape=26.919%, n=225
