@@ -30,6 +30,13 @@ class TaxiRecord:
 
 
 def read_records(path: Path, limit: int) -> list[TaxiRecord]:
+    """Read the half-hourly taxi stream used by Fig.9-style experiments.
+
+    中文调试提示：每一行最终只留下 timestamp 和 passenger_count/value。
+    若 MAPE 异常，先检查这里读到的 date range 和行数是否和 strict protocol
+    输出一致。
+    """
+
     records: list[TaxiRecord] = []
     with path.open("r", encoding="utf-8", newline="") as handle:
         for row in csv.DictReader(handle):
@@ -116,6 +123,10 @@ def plot_adaptation(
 
 
 def record_values(record: TaxiRecord) -> tuple[float, float, float]:
+    """Convert one taxi record into weekday, half-hour slot, passenger value."""
+
+    # DEBUG WATCH: slot 范围应为 0..47；weekday 范围应为 0..6。
+    # passenger 原值交给 SSTDRealValueEncoder 截断到 [0, 40000]。
     slot = record.timestamp.hour * 2 + record.timestamp.minute // 30
     return float(record.timestamp.weekday()), float(slot), record.value
 
@@ -124,6 +135,8 @@ def project_sparse_prediction(
     model: SequentialMemory,
     encoder: SSTDCompositeEncoder,
 ) -> SymbolCode | None:
+    """Project raw neural predictions onto one legal composite code."""
+
     ranked = rank_sparse_predictions(model, encoder, max_predictions=1)
     return ranked[0][1] if ranked else None
 
@@ -161,6 +174,13 @@ def rank_sparse_predictions(
     encoder: SSTDCompositeEncoder,
     max_predictions: int,
 ) -> list[tuple[tuple[int, float, int, float], SymbolCode]]:
+    """Rank legal field codes using only saved prediction candidates.
+
+    中文调试提示：这里不会重新 predict_code()，也不会 observe decoded value。
+    它只在已有 last_prediction_candidates 中按 timed overlap、column overlap
+    给合法 weekday/time/passenger code 排序。
+    """
+
     if max_predictions <= 0:
         return []
     field_rankings: list[
@@ -231,6 +251,15 @@ def rollout(
     projection_mode: str = "coherent",
     retrieval_mode: str = "neural",
 ) -> SymbolCode | None:
+    """Diagnostic multi-step rollout used by the older Fig.9 runner.
+
+    STRICT PROTOCOL: 当前严格复现使用 fig9_strict_reproduction.py 中的
+    rollout_raw_autonomous()。本函数保留 raw/coherent/eventwise/proximal-replay
+    方便历史对照，不能把诊断最优模式说成论文 strict。
+    """
+
+    # DEBUG WATCH: 进入 rollout 前保存 transient state。若 finally 没恢复，
+    # 预测评估次数会影响后续在线学习和最终 MAPE。
     previous_active_cells = model.previous_active_cells.copy()
     previous_winners = model.previous_winners.copy()
     last_prediction_candidates = {
@@ -244,6 +273,8 @@ def rollout(
             tuple[tuple[int, float, int, float], dict[int, float], SymbolCode | None]
         ] = [((0, 0.0, 0, 0.0), previous_active_cells, None)]
         for step_index in range(steps):
+            # DEBUG WATCH: horizon step start。beam 中的 active_cells 是上一轮
+            # 神经预测推进出来的上下文，不一定是合法完整 record 编码。
             expanded: dict[
                 tuple[tuple[int, float], ...],
                 tuple[
@@ -256,6 +287,8 @@ def rollout(
                 model.previous_active_cells = active_cells
                 model.previous_winners = active_cells.copy()
                 raw_prediction = model.predict_code()
+                # DEBUG WATCH: after predict_code。若 raw_prediction 很密，
+                # passenger decoder 会被大量无关列干扰。
                 if raw_prediction is None:
                     continue
                 if projection_mode == "raw":
@@ -273,6 +306,8 @@ def rollout(
                     output_code = code
                     next_active = model.prediction_active_cells(code)
                     if future_context_codes is not None:
+                        # LOCAL CHOICE: known_future_time 是诊断/对照，不属于
+                        # strict Fig.9，因为它把未来 weekday/time 夹入 rollout。
                         context_code = future_context_codes[step_index]
                         passenger_events = tuple(
                             event for event in code.events if event.column >= 88
@@ -285,6 +320,8 @@ def rollout(
                             model.external_input_active_cells(context_code)
                         )
                     if retrieval_mode == "proximal-replay":
+                        # LOCAL CHOICE: legacy proximal replay 会把 decoded code
+                        # 重新作为外部输入，保留它只为了 ablation comparison。
                         model.observe_code(output_code, learn=False)
                         next_active = model.previous_active_cells.copy()
                     if not next_active:
@@ -304,6 +341,8 @@ def rollout(
         prediction = beam[0][2]
         return prediction
     finally:
+        # STATE MUTATION: 只恢复临时状态和 RNG；长期 synapse 结构在 rollout
+        # 中不应发生任何变化。
         model.previous_active_cells = previous_active_cells
         model.previous_winners = previous_winners
         model.last_prediction_candidates = last_prediction_candidates
@@ -313,6 +352,8 @@ def rollout(
 def learn_actual_code(model: SequentialMemory, code: SymbolCode) -> None:
     """Advance predictions before applying the paper's three learning cases."""
 
+    # STRICT PROTOCOL: prediction-before-observe。先让 distal context 产生
+    # last_prediction_candidates，再用真实 code 决定 Scenario 1/2/3 学习分支。
     model.predict_code()
     model.observe_code(code, learn=True)
 
@@ -322,6 +363,8 @@ def run(args: argparse.Namespace) -> None:
     if len(records) <= args.horizon:
         raise ValueError("Not enough records for the requested horizon.")
 
+    # PAPER-EXPLICIT: Fig.9 三字段编码。column_offset 把 weekday/time/passenger
+    # 放进同一个 composite code，但三块列空间互不重叠。
     day_encoder = SSTDPeriodicEncoder(
         num_columns=30,
         k=10,
@@ -372,8 +415,10 @@ def run(args: argparse.Namespace) -> None:
             model.last_prediction_candidates = {}
         code = encoder.encode(record_values(record))
         if args.learning_mode == "paper":
+            # DEBUG WATCH: actual observe。这里会真正修改长期 segment/synapse。
             learn_actual_code(model, code)
         else:
+            # LOCAL CHOICE: growth-only 是旧诊断路径，不是论文学习规则。
             model.last_prediction_candidates = {}
             model.observe_code(code, learn=True)
         if args.forecast_mode == "direct-lag":
@@ -392,6 +437,8 @@ def run(args: argparse.Namespace) -> None:
             rolling_value: float | str = ""
             future_context_codes = None
             if args.known_future_time:
+                # LOCAL CHOICE: 使用未来 weekday/time 只用于诊断 horizon 问题。
+                # strict reproduction 中必须保持关闭。
                 future_context_codes = [
                     SymbolCode(
                         day_encoder.encode(record_values(future)[0]).events

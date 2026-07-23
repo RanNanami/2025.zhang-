@@ -40,3 +40,5 @@ results/**/*partial*
 # Regenerable streamed Fig.8 segment traces are locally auditable but total
 # hundreds of MB. Commit their compact summaries, cue samples, and reports.
 results/fig8_diagnostics/**/*.jsonl.gz
+results/fig8_diagnostics.zip
+results/fig8_diagnostics/**/*.zip

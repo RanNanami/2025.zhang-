@@ -1,3 +1,10 @@
+"""Strict Fig.9 taxi adaptation runner.
+
+中文调试提示：这个文件是当前 Fig.9 严格协议入口。主循环按
+“读出租车记录 -> 对当前上下文做 5 步自主预测 -> 解码 passenger_count
+-> 再把真实当前记录 observe/learn 进去”的顺序执行。
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -76,6 +83,14 @@ class RolloutResult:
 
 
 def build_fig9_encoder(config: Fig9StrictConfig) -> SSTDCompositeEncoder:
+    """Build weekday/time/passenger encoders with fixed Fig.9 column offsets.
+
+    调试时看这里确认三字段列空间没有重叠：
+    weekday: 0..29，time: 30..87，passenger: 88..569。
+    """
+
+    # STRICT PROTOCOL: Fig.9 使用 30/58/482 三组 mini-column，K=10。
+    # 改这里会改变编码容量，不能和论文 strict 结果直接比较。
     day_encoder = SSTDPeriodicEncoder(
         num_columns=config.weekday_columns,
         k=config.k,
@@ -164,6 +179,13 @@ def protocol_fingerprint(
     config: Fig9StrictConfig,
     limit: int,
 ) -> dict[str, object]:
+    """Record the protocol knobs that must stay stable across strict runs.
+
+    DEBUG WATCH: 先看输出的 protocol JSON，再看 summary。若这里记录
+    的 strict flags 不是 raw/no-future/no-replay/no-rollout-learning，后面
+    的 MAPE 数值就不能当作 strict Fig.9。
+    """
+
     params = MemoryParams(
         response_scale=config.response_scale,
         continuous_dynamics=config.continuous_dynamics,
@@ -220,6 +242,8 @@ def protocol_fingerprint(
 
 
 def validate_strict_fingerprint(fingerprint: dict[str, object]) -> None:
+    """Fail fast when a historical compensation leaks into the strict runner."""
+
     forbidden = []
     if fingerprint["burst_context"] != "all-cell":
         forbidden.append("winner-only burst context")
@@ -241,25 +265,44 @@ def rollout_raw_autonomous(
     model: SequentialMemory,
     steps: int,
 ) -> RolloutResult:
+    """Roll out future SSTD codes using only raw predictive neurons.
+
+    中文调试提示：这里是 5-step rollout 的核心。每一步只调用
+    predict_code()，然后把 raw prediction 对应的真实预测细胞放回
+    previous_active_cells/previous_winners，绝不把解码值重新 encode 后输入。
+    finally 中 restore_transient_state() 会撤销 rollout 对临时状态和 RNG 的影响。
+    """
+
+    # DEBUG WATCH: 在这里下断点可观察每个 horizon step 的 raw.events、
+    # raw columns 数量和 prediction_active_cells(raw) 是否突然爆炸。
     snapshot = model.snapshot_transient_state()
     prediction: SymbolCode | None = None
     raw_events: list[int] = []
     raw_columns: list[int] = []
     try:
         for _step_index in range(steps):
+            # DEBUG WATCH: horizon step start。此时 previous_active_cells
+            # 来自上一轮 raw predictive neurons，而不是 decoded passenger。
             raw = model.predict_code()
             if raw is None:
                 return RolloutResult(None, tuple(raw_events), tuple(raw_columns))
+            # DEBUG WATCH: after predict_code。raw_event_counts/raw_column_counts
+            # 是定位“预测列密度膨胀”的最直接指标。
             raw_events.append(len(raw.events))
             raw_columns.append(len({event.column for event in raw.events}))
             active = model.prediction_active_cells(raw)
             if not active:
                 return RolloutResult(None, tuple(raw_events), tuple(raw_columns))
+            # STATE MUTATION: 下面两行只推进临时检索状态；长期记忆中的
+            # segment/synapse/weight/age 不会改变，并会在 finally 中恢复。
             model.previous_active_cells = active
             model.previous_winners = active.copy()
             prediction = raw
         return RolloutResult(prediction, tuple(raw_events), tuple(raw_columns))
     finally:
+        # DEBUG WATCH: before/after transient restore。比较 restore 前后的
+        # previous_active_cells、last_prediction_candidates、RNG state，确认
+        # checkpoint/rollout 没污染后续在线学习。
         model.restore_transient_state(snapshot)
 
 
@@ -283,6 +326,8 @@ def run_strict_stream(
     event_hook: Callable[[str, int], None] | None = None,
     print_fingerprint: bool = True,
 ) -> dict[str, object]:
+    """Run one original or perturbed stream under the strict Fig.9 protocol."""
+
     if len(records) <= config.horizon:
         raise ValueError("Not enough records for the requested horizon.")
     encoder = build_fig9_encoder(config)
@@ -313,6 +358,10 @@ def run_strict_stream(
         code = encoder.encode(record_values(record))
         if index >= config.warmup:
             target_record = records[index + config.horizon]
+            # STRICT PROTOCOL: 先预测，再 observe 当前真实记录。这样第 index
+            # 条记录的真实 passenger_count 不会泄漏到它自己的 horizon 预测里。
+            # DEBUG WATCH: before each record prediction。重点看 index、
+            # input_timestamp、target_timestamp、previous_active_cells。
             event_hook and event_hook("predict", index)
             rollout = rollout_raw_autonomous(model, config.horizon)
             raw_event_counts.extend(rollout.raw_event_counts)
@@ -325,6 +374,8 @@ def run_strict_stream(
                 missing += 1
             else:
                 try:
+                    # DEBUG WATCH: before/after passenger decode。decode_likelihood
+                    # 只把 raw SSTD 活动转成数值，不能反向污染 model 状态。
                     prediction = passenger_encoder.decode_likelihood(rollout.code)  # type: ignore[attr-defined]
                 except ValueError:
                     missing += 1
@@ -352,6 +403,8 @@ def run_strict_stream(
                 }
             )
         event_hook and event_hook("observe", index)
+        # STATE MUTATION: 这里才把真实当前 record 写入长期记忆，触发三种
+        # learning scenario、weight/age/segment 变化。预测阶段不能学习。
         learn_actual_code(model, code)
 
     attempted = len(rows)
@@ -412,6 +465,13 @@ def compare_pre_change_predictions(
     original_csv: Path,
     perturbed_csv: Path,
 ) -> dict[str, object]:
+    """Check original/perturbed streams are identical before Apr 1 targets.
+
+    DEBUG WATCH: Apr 1 是论文扰动点。target_timestamp 早于
+    2015-04-01 的行若出现 prediction mismatch，说明数据切分或扰动文件
+    对齐有问题，而不是模型适应问题。
+    """
+
     with original_csv.open("r", encoding="utf-8", newline="") as handle:
         original = list(csv.DictReader(handle))
     with perturbed_csv.open("r", encoding="utf-8", newline="") as handle:

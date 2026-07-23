@@ -14,6 +14,12 @@ from .encoding import SSTDDiscreteEncoder, SpikeEvent, SymbolCode
 
 @dataclass
 class Synapse:
+    """One distal synapse from a previous active cell into a segment.
+
+    中文调试提示：source 是 presynaptic cell id，delay 把 source spike time
+    移到目标 dendrite 时间，weight/age 是长期记忆，会被学习规则修改。
+    """
+
     source: int
     delay: float = 1.0
     weight: float = 0.5
@@ -25,6 +31,12 @@ class Synapse:
 
 @dataclass
 class Segment:
+    """Distal dendritic segment on one neuron.
+
+    中文调试提示：segment 是“某个上下文 -> 某个目标 neuron/time”的记忆单元。
+    synapses 是长期结构；active=False 代表被 forgetting/pruning 停用。
+    """
+
     synapses: dict[int, Synapse] = field(default_factory=dict)
     active: bool = True
     target_time: float | None = None
@@ -108,6 +120,12 @@ class SynapsePSPContribution:
 
 @dataclass(frozen=True)
 class PredictionCandidate:
+    """A neuron that crossed dendritic threshold during one predict_code call.
+
+    DEBUG WATCH: Scenario 1 必须使用同一个 PredictionCandidate 中保存的
+    crossing time/contributions；不能重新预测后再判断贡献突触。
+    """
+
     neuron_index: int
     score: float
     time: float
@@ -185,6 +203,13 @@ class BurstPSPTrace:
 
 @dataclass(frozen=True)
 class TransientStateSnapshot:
+    """Read-only/evaluation snapshot of state that is not long-term memory.
+
+    中文调试提示：这里保存 previous_active_cells、previous_winners、
+    last_prediction_candidates、解码 RNG 和学习 RNG。segment/synapse 本体
+    不会被复制，所以它只适合保护 rollout/evaluate 的瞬时污染。
+    """
+
     previous_active_cells: dict[int, float]
     previous_winners: dict[int, float]
     last_prediction_candidates: dict[int, list[PredictionCandidate]]
@@ -314,6 +339,7 @@ class SequentialMemory:
         return state
 
     def reset_state(self) -> None:
+        # STATE MUTATION: 只清空当前序列上下文，不删除任何已学 segment/synapse。
         self.previous_active_cells = {}
         self.previous_winners = {}
         self.last_prediction_candidates = {}
@@ -322,7 +348,11 @@ class SequentialMemory:
         self.previous_burst_only_sources = set()
 
     def snapshot_transient_state(self) -> TransientStateSnapshot:
-        """Capture retrieval state without copying long-term synaptic memory."""
+        """Capture retrieval state without copying long-term synaptic memory.
+
+        DEBUG WATCH: checkpoint/evaluate/rollout 前在这里下断点。若不同
+        report_every 导致最终模型不同，通常是某个临时字段或 RNG 没恢复。
+        """
 
         return TransientStateSnapshot(
             previous_active_cells=self.previous_active_cells.copy(),
@@ -339,7 +369,11 @@ class SequentialMemory:
         )
 
     def restore_transient_state(self, snapshot: TransientStateSnapshot) -> None:
-        """Restore a state captured by :meth:`snapshot_transient_state`."""
+        """Restore a state captured by :meth:`snapshot_transient_state`.
+
+        STATE MUTATION: 恢复的是 transient state，不回滚 synapse 权重。
+        因此调用方必须保证 snapshot 期间没有 learn=True。
+        """
 
         self.previous_active_cells = snapshot.previous_active_cells.copy()
         self.previous_winners = snapshot.previous_winners.copy()
@@ -358,6 +392,12 @@ class SequentialMemory:
         self._learning_rng.setstate(snapshot.learning_rng_state)
 
     def _active_sources(self) -> dict[int, float]:
+        """Return the cells that provide lateral/distal context now.
+
+        中文调试提示：burst_context=True 时，未预测列会把整列 active cells
+        送入下一步；这是 Fig.8/Fig.9 raw columns 膨胀的重要观察点。
+        """
+
         # The fallback keeps manually constructed tests and callers compatible.
         if self.params.burst_context:
             return self.previous_active_cells or self.previous_winners
@@ -374,7 +414,16 @@ class SequentialMemory:
         self._diagnostic_transition_index = transition_index
 
     def predict_code(self, trace: PredictionTrace | None = None) -> SymbolCode | None:
-        """Return the next symbol code predicted from previous winners."""
+        """Return the next symbol code predicted from previous context cells.
+
+        中文调试提示：这是“神经预测”本体。它只读 previous_active_cells /
+        previous_winners 和长期 segment/synapse，写 last_prediction_candidates
+        作为本次预测候选；不学习、不 observe 外部输入。
+        """
+
+        # DEBUG WATCH: after predict_code 要看的核心字段是
+        # last_prediction_candidates、返回 SymbolCode 的 event/column 数量、
+        # trace.segments 中 crossed_threshold/entered_raw_prediction。
         self.last_prediction_candidates = {}
         if trace is not None:
             trace.segments.clear()
@@ -383,6 +432,8 @@ class SequentialMemory:
             return None
 
         candidates: dict[int, tuple[int, int, Segment, float, list[float]]] = {}
+        # DEBUG WATCH: active_sources 是 lateral context。若这里已经很大，
+        # 后面每个 source 都会查 incoming segment，候选数会迅速上升。
         for source, source_time in active_sources.items():
             for column_id, neuron_index, segment in self._live_incoming(source):
                 key = id(segment)
@@ -460,6 +511,8 @@ class SequentialMemory:
                 continue
             trace_item = trace_by_segment.get(id(segment))
             if self.params.continuous_dynamics:
+                # PAPER-EXPLICIT: 连续 PSP 路径会寻找实际 dendritic threshold
+                # crossing，再推算 soma firing time。诊断 trace 只记录，不改变排序。
                 capture_contributions = (
                     trace_item is not None
                     or self.params.capture_prediction_contributions
@@ -514,6 +567,8 @@ class SequentialMemory:
                         )
                 timed_scores = (continuous,) if continuous is not None else ()
             else:
+                # LOCAL CHOICE: event mode 使用固定 target_time 评分，主要用于
+                # 历史对照；strict Fig.8/Fig.9 默认走 continuous_dynamics。
                 target_times = (
                     (segment.target_time,)
                     if segment.target_time is not None
@@ -555,6 +610,8 @@ class SequentialMemory:
                 event_key = (column_id, round(target_time, 12))
                 previous = best_by_event.get(event_key)
                 if previous is None or score > previous[1]:
+                    # DEBUG WATCH: candidate selection。若许多候选 score 都贴近
+                    # dendrite_threshold，这里的 winner 可能近似靠 tie/order 决定。
                     best_by_event[event_key] = (
                         neuron_index,
                         score,
@@ -566,6 +623,8 @@ class SequentialMemory:
             return None
 
         if self.params.intracolumn_inhibition:
+            # PAPER-EXPLICIT: 同一 mini-column 最终只保留最早 firing 的预测事件，
+            # 防止一个列内多个 neuron 同时代表同一个输入列。
             winner_by_column: dict[int, tuple[int, float, float, Segment]] = {}
             for (column_id, _event_time), values in best_by_event.items():
                 previous = winner_by_column.get(column_id)
@@ -585,6 +644,8 @@ class SequentialMemory:
             peak_potential = metadata.get("peak_dendritic_potential")
             soma_time = metadata.get("predicted_soma_firing_time")
             self.last_prediction_candidates.setdefault(column_id, []).append(
+                # DEBUG WATCH: 这里保存“同一次 predict_code”的 crossing metadata。
+                # 后续 decode/advance/Scenario 1 都应复用它，不能重新预测。
                 PredictionCandidate(
                     neuron_index=neuron_index,
                     score=score,
@@ -870,7 +931,11 @@ class SequentialMemory:
         min_overlap: int | None = None,
         candidate_symbols: set[str] | None = None,
     ) -> str | None:
-        """Decode a predicted code using both mini-columns and firing order."""
+        """Decode a predicted code using both mini-columns and firing order.
+
+        中文调试提示：兼容旧接口，会先 predict_code() 一次，再 decode。
+        如果你已经有 raw_code，请改用 decode_symbol_from_prediction()，避免重复预测。
+        """
         predictions = self.predict_symbols(
             max_predictions=1,
             min_overlap=min_overlap,
@@ -884,7 +949,11 @@ class SequentialMemory:
         min_overlap: int | None = None,
         candidate_symbols: set[str] | None = None,
     ) -> list[str]:
-        """Return the strongest order-sensitive symbol predictions."""
+        """Return the strongest order-sensitive symbol predictions.
+
+        DEBUG WATCH: 这个函数内部只能调用一次 predict_code()。断点统计调用次数
+        时，decode_symbols_from_prediction() 不应该再次进入 predict_code()。
+        """
         if max_predictions <= 0:
             return []
         predicted = self.predict_code()
@@ -903,7 +972,11 @@ class SequentialMemory:
         min_overlap: int | None = None,
         candidate_symbols: set[str] | None = None,
     ) -> str | None:
-        """Decode one symbol from an already computed neural prediction."""
+        """Decode one symbol from an already computed neural prediction.
+
+        STRICT PROTOCOL: decode 只把 raw neural activity 转成可读符号/数值；
+        它不能 observe、不能改 previous_active_cells，也不能新建/强化 synapse。
+        """
 
         decoded = self.decode_symbols_from_prediction(
             predicted,
@@ -920,7 +993,11 @@ class SequentialMemory:
         min_overlap: int | None = None,
         candidate_symbols: set[str] | None = None,
     ) -> list[str]:
-        """Decode a raw prediction without predicting or advancing state."""
+        """Decode a raw prediction without predicting or advancing state.
+
+        DEBUG WATCH: 输入 predicted 必须来自同一次 predict_code()，排序依据是
+        timed overlap 优先、column overlap 次之，再用 seeded RNG 做可复现 tie-break。
+        """
 
         if max_predictions <= 0:
             return []
@@ -1002,12 +1079,23 @@ class SequentialMemory:
         return {symbol for symbol, count in counts.items() if count >= min_overlap}
 
     def observe(self, symbol: str, learn: bool = True) -> dict[int, float]:
-        """Feed one symbol, learn online, and return current winner ids."""
+        """Feed one symbol, learn online, and return current winner ids.
+
+        中文调试提示：observe(symbol) 会先完整 SSTD 编码外部输入，所以在
+        autonomous retrieval 阶段不能拿 decoded_symbol 调它。
+        """
         code = self.encoder.encode(symbol)
         return self.observe_code(code, learn=learn)
 
     def observe_code(self, code: SymbolCode, learn: bool = True) -> dict[int, float]:
-        """Feed an already encoded SSTD item into the sequential memory."""
+        """Feed an already encoded SSTD item into the sequential memory.
+
+        中文调试提示：这是外部 proximal input 入口，也是 learn=True 时唯一
+        会修改长期记忆结构/权重/age 的主路径。
+        """
+
+        # DEBUG WATCH: actual observe。previous_active 是上一周期 lateral
+        # context；code.events 是这周期真实外部输入。
         previous_active = self._active_sources()
         active_cells: dict[int, float] = {}
         learning_winners: dict[int, float] = {}
@@ -1028,6 +1116,8 @@ class SequentialMemory:
                 else None
             )
             if predicted is None:
+                # Scenario 2/3 候选入口：真实输入没有被 last_prediction_candidates
+                # 准确预测时，尝试找同列里最匹配的已有 segment。
                 matched = self._best_matching_neuron(
                     column_id, column, previous_active, event.time
                 )
@@ -1039,6 +1129,8 @@ class SequentialMemory:
                 )
             was_predicted = predicted is not None and matched is not None
             if matched is None:
+                # PAPER-EXPLICIT: Scenario 3。既没有预测，也没有足够匹配的
+                # segment，就在 least-used neuron 上长一个新 segment。
                 neuron_index = self._least_used_neuron_index(column)
                 if learn:
                     self._grow_segment(
@@ -1051,6 +1143,8 @@ class SequentialMemory:
                 elif was_predicted:
                     # Paper scenario 1: a predictive neuron that subsequently
                     # receives its proximal input triggers learning directly.
+                    # DEBUG WATCH: Scenario 1 branch。这里应复用 predicted
+                    # PredictionCandidate，检查贡献突触如何被增强/减弱。
                     self._reinforce_segment(
                         column_id,
                         neuron_index,
@@ -1068,6 +1162,8 @@ class SequentialMemory:
                     self._dendritic_time(self.params.cycle_period + event.time),
                     self.params.timing_tolerance,
                 ) >= self.params.l_match:
+                    # PAPER-EXPLICIT: Scenario 2。没有提前预测成功，但存在
+                    # 与当前输入匹配的旧 segment；会强化并补长缺失突触。
                     self._reinforce_segment(
                         column_id,
                         neuron_index,
@@ -1080,6 +1176,8 @@ class SequentialMemory:
                         scenario="scenario2",
                     )
                 else:
+                    # PAPER-EXPLICIT: Scenario 3 fallback。匹配 segment 不足
+                    # L_match，转为新建 segment。
                     neuron_index = self._least_used_neuron_index(column)
                     self._grow_segment(
                         column_id, neuron_index, self.previous_winners, event.time
@@ -1091,12 +1189,16 @@ class SequentialMemory:
                 active_cells[winner_id] = event.time
                 predicted_sources.add(winner_id)
             else:
+                # PAPER-EXPLICIT: unpredicted proximal input triggers burst。
+                # DEBUG WATCH: 这里会把整列 neuron 加入 active_cells，是 Fig.8/9
+                # raw-column explosion 的常见起点。
                 for active_neuron in range(len(column.neurons)):
                     active_id = self._cell_id(column_id, active_neuron)
                     active_cells[active_id] = event.time
                     burst_only_sources.add(active_id)
 
         if learn:
+            # STATE MUTATION: 惩罚错误预测会修改未兑现 segment 的权重/age。
             self._punish_wrong_predictions(
                 {event.column: event.time for event in code.events}
             )
@@ -1121,11 +1223,16 @@ class SequentialMemory:
         return prediction
 
     def advance_prediction(self, code: SymbolCode) -> bool:
-        """Advance retrieval through neurons that actually entered prediction."""
+        """Advance retrieval through neurons that actually entered prediction.
+
+        STRICT PROTOCOL: autonomous retrieval 只能用 raw_code 对应的预测细胞
+        推进上下文。这里不会把 decoded word/value 重新编码，也不会学习。
+        """
 
         active_cells = self.prediction_active_cells(code)
         if not active_cells:
             return False
+        # STATE MUTATION: 只改 transient context。长期 segment/synapse 不变。
         self.previous_active_cells = active_cells
         self.previous_winners = active_cells.copy()
         if self.params.capture_branch_diagnostics:
@@ -1134,7 +1241,11 @@ class SequentialMemory:
         return True
 
     def prediction_active_cells(self, code: SymbolCode) -> dict[int, float]:
-        """Resolve an inhibited prediction code back to its firing neurons."""
+        """Resolve an inhibited prediction code back to its firing neurons.
+
+        DEBUG WATCH: neural rollout 后 previous_active_cells 应等于这个返回值。
+        若出现 decoded symbol 中其他列的整列 burst，说明走错到了 observe_code()。
+        """
 
         active_cells: dict[int, float] = {}
         for event in code.events:
@@ -1152,7 +1263,11 @@ class SequentialMemory:
         return active_cells
 
     def external_input_active_cells(self, code: SymbolCode) -> dict[int, float]:
-        """Resolve known proximal context without applying synaptic learning."""
+        """Resolve known proximal context without applying synaptic learning.
+
+        中文调试提示：这是“外部输入但不学习”的 cell 激活规则。已预测事件选
+        winner cell；未预测事件按论文 burst 整列 active。
+        """
 
         active_cells: dict[int, float] = {}
         for event in code.events:
@@ -1180,6 +1295,12 @@ class SequentialMemory:
         active_sources: dict[int, float],
         target_time: float,
     ) -> tuple[int, Segment] | None:
+        """Find the best old segment for an unpredicted proximal event.
+
+        DEBUG WATCH: Scenario 2/3 分界点。timed_overlap >= L_match 才能走
+        Scenario 2，否则会退到新建 segment。
+        """
+
         if not active_sources:
             return None
 
@@ -1219,6 +1340,12 @@ class SequentialMemory:
         active_sources: dict[int, float],
         target_time: float,
     ) -> None:
+        """Create a new distal segment from current winners to a target event.
+
+        PAPER-EXPLICIT: Scenario 3 和部分 Scenario 2 会长新突触。新突触的
+        delay 由 source_time 与 target_time 决定，weight 从 w0 开始。
+        """
+
         if not active_sources:
             return
         neuron = self.columns[column_id].neurons[neuron_index]
@@ -1260,6 +1387,8 @@ class SequentialMemory:
             ),
         )
         neuron.segments.append(segment)
+        # STATE MUTATION: 长期记忆结构在这里真正增加；同时维护 incoming index，
+        # 让后续 predict_code 可以从 source cell 快速找到目标 segment。
         for source in active_sources:
             self._incoming_index.setdefault(source, []).append(
                 (column_id, neuron_index, segment)
@@ -1270,6 +1399,12 @@ class SequentialMemory:
         target_time: float,
         source_time: float,
     ) -> float:
+        """Compute distal delay from source event time to target dendritic time.
+
+        LOCAL CHOICE: peak-aligned-delay 只是 nonpaper diagnostic；strict 默认
+        current-delay，不能静默改成补偿 PSP peak 的公式。
+        """
+
         delay = self.params.cycle_period / 2.0 + target_time - source_time
         if self.params.synapse_delay_mode == "peak-aligned-delay":
             delay -= self._kernel_peak_time
@@ -1319,7 +1454,11 @@ class SequentialMemory:
         active_sources: dict[int, float],
         diagnostic: dict[str, object] | None = None,
     ) -> tuple[float, float] | None:
-        """Integrate one distal segment through dendritic and soma firing."""
+        """Integrate one distal segment through dendritic and soma firing.
+
+        DEBUG WATCH: 这里把 active synapse 的 arrival_time/weight 送进连续
+        PSP 积分。diagnostic 打开时会保存 crossing 时每条突触的 PSP contribution。
+        """
 
         matched = [
             (source, source_time, source_time + synapse.delay, synapse.weight)
@@ -1379,7 +1518,11 @@ class SequentialMemory:
         arrivals: list[tuple[float, float]],
         diagnostic: dict[str, object] | None = None,
     ) -> tuple[float, float] | None:
-        """Integrate a canonical set of delayed, weighted distal spikes."""
+        """Integrate a canonical set of delayed, weighted distal spikes.
+
+        中文调试提示：先找 dendritic threshold crossing，再模拟 soma 是否在
+        depolarization window 内放电。返回值是 (soma firing time, score/peak)。
+        """
 
         step = self.params.integration_step
         if step <= 0.0:
@@ -1393,6 +1536,8 @@ class SequentialMemory:
         dynamics = self._dynamics
 
         def potential(time: float, *, remember: bool = True) -> float:
+            # DEBUG WATCH: potential(time) 是所有 active synapse PSP 的和。
+            # trace 开关不能改变这个求和顺序，否则会影响浮点可重复性。
             total = 0
             for arrival, weight in arrivals:
                 cache_key = round(time - arrival, 9)
@@ -1420,6 +1565,8 @@ class SequentialMemory:
             if (
                 previous_potential < effective_threshold <= voltage
             ):
+                # DEBUG WATCH: threshold crossing。若 crossing 很晚，预测 event
+                # time 可能超过 SSTD timing_tolerance，引发“列对但时间错”的 burst。
                 low = previous_time
                 high = time
                 for _ in range(12):
@@ -1505,7 +1652,12 @@ class SequentialMemory:
         active_sources: dict[int, float] | None = None,
         target_time: float | None = None,
     ) -> set[int]:
-        """Select Scenario-1 sources without recomputing a prediction."""
+        """Select Scenario-1 sources without recomputing a prediction.
+
+        STRICT PROTOCOL: 默认 arrival-window 是论文对齐规则。continuous-positive
+        和 continuous-causal 只用于 nonpaper diagnostic，且必须读取同一个
+        PredictionCandidate 保存的 crossing contributions。
+        """
 
         selected_mode = mode or self.params.scenario1_contribution_mode
         if selected_mode not in self.SCENARIO1_CONTRIBUTION_MODES:
@@ -1514,6 +1666,8 @@ class SequentialMemory:
             )
         segment = candidate.segment
         if selected_mode == "arrival-window":
+            # PAPER-EXPLICIT: 当前 strict 默认，按目标 dendritic time 的
+            # timing_tolerance 窗口判断哪些 synapse contributed。
             if active_sources is None or target_time is None:
                 raise ValueError(
                     "arrival-window requires active_sources and target_time"
@@ -1536,6 +1690,8 @@ class SequentialMemory:
             and item.source_cell_id in segment.synapses
         ]
         if selected_mode == "continuous-positive":
+            # LOCAL CHOICE: 诊断模式，只选 crossing 时 PSP contribution > 0 的
+            # active synapse，用来检查预测/学习贡献定义不一致。
             return {item.source_cell_id for item in positive}
         if candidate.dendritic_crossing_time is None:
             raise RuntimeError("continuous candidate has no threshold crossing")
@@ -1553,6 +1709,7 @@ class SequentialMemory:
                 value.source_cell_id,
             ),
         ):
+            # LOCAL CHOICE: causal subset 是诊断统计，不改变预测本身。
             causal.add(item.source_cell_id)
             potential += item.psp_contribution
             if potential >= effective_threshold:
@@ -1616,6 +1773,13 @@ class SequentialMemory:
         scenario: str = "unspecified",
         prediction_candidate: PredictionCandidate | None = None,
     ) -> None:
+        """Apply learning to one chosen segment.
+
+        中文调试提示：Scenario 1 会强化真实促成预测的突触并减弱非贡献突触；
+        Scenario 2 可补长缺失 winner 突触；Scenario 3 不进这里而是 grow segment。
+        forgetting/age 在后续 pruning 路径中使用。
+        """
+
         if segment.diagnostic_id is not None:
             if scenario == "scenario1":
                 segment.scenario1_reinforcements += 1
@@ -1631,6 +1795,8 @@ class SequentialMemory:
             self.params.cycle_period + target_time
         )
         if scenario == "scenario1":
+            # DEBUG WATCH: Scenario 1 branch。prediction_candidate_identity 必须
+            # 对应 observe_code 中刚匹配到的 predicted candidate。
             if (
                 prediction_candidate is None
                 or prediction_candidate.segment is not segment
@@ -1644,6 +1810,8 @@ class SequentialMemory:
                 target_time=target_time,
             )
         else:
+            # DEBUG WATCH: Scenario 2/other branch。这里仍按 arrival window
+            # 从 active_sources 判断贡献突触。
             contributed = {
                 source
                 for source, source_time in active_sources.items()
@@ -1653,6 +1821,7 @@ class SequentialMemory:
             }
 
         if grow_missing:
+            # STATE MUTATION: Scenario 2 会把 missing growth_sources 加成新突触。
             for source, source_time in (growth_sources or {}).items():
                 if source in segment.synapses:
                     continue
@@ -1673,6 +1842,8 @@ class SequentialMemory:
                 synapse.age = 0
             else:
                 if depress_noncontributing:
+                    # STATE MUTATION: 非贡献突触被减弱并老化；这是排查
+                    # “正确预测后被误减弱”的断点。
                     synapse.weight = max(0.0, synapse.weight - self.params.delta_w)
                     synapse.age += 1
 

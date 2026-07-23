@@ -37,7 +37,11 @@ class SSTDEncoder(Protocol):
 
 
 class SSTDDiscreteEncoder:
-    """Sparse spatiotemporal distributed encoder for discrete symbols."""
+    """Sparse spatiotemporal distributed encoder for discrete symbols.
+
+    中文调试提示：一个 symbol 会被固定映射成 K 个 mini-column/time event。
+    第一次 encode(symbol) 会消耗 encoder RNG；之后同一个 symbol 会复用缓存。
+    """
 
     def __init__(self, num_columns: int, k: int, seed: int = 0) -> None:
         if not 0 < k <= num_columns:
@@ -49,6 +53,8 @@ class SSTDDiscreteEncoder:
         self._symbols_by_event: dict[tuple[int, float], set[str]] = {}
 
     def encode(self, symbol: str) -> SymbolCode:
+        # DEBUG WATCH: 若复现实验不稳定，检查这里是否在不同顺序下首次遇到
+        # 新 symbol；首次编码顺序会决定离散词的随机 SSTD code。
         if symbol not in self._codes:
             columns = tuple(self._rng.sample(range(self.num_columns), self.k))
             if self.k == 1:
@@ -97,7 +103,12 @@ def _ordered_code(columns: list[int]) -> SymbolCode:
 
 
 class SSTDRealValueEncoder:
-    """Gaussian population encoder for real values as described in Fig. 3(a)."""
+    """Gaussian population encoder for real values as described in Fig. 3(a).
+
+    中文调试提示：Fig.9 的 passenger_count 使用 482 列、K=10。encode()
+    取响应最高的 10 个中心列；decode_likelihood() 再从预测列/时间中寻找
+    最可能的合法人口数编码。
+    """
 
     def __init__(
         self,
@@ -131,6 +142,8 @@ class SSTDRealValueEncoder:
         self._codes_by_event: dict[tuple[int, float], tuple[SymbolCode, ...]] | None = None
 
     def encode(self, value: float) -> SymbolCode:
+        # DEBUG WATCH: passenger 会先被截断到 [minimum, maximum]，再按高斯响应
+        # 选列。column_offset 保证 passenger 列从 88 开始，不与 weekday/time 混淆。
         clipped = min(self.maximum, max(self.minimum, float(value)))
         ranked = sorted(
             range(self.num_columns),
@@ -163,7 +176,12 @@ class SSTDRealValueEncoder:
         code: SymbolCode,
         timing_tolerance: float = 0.03,
     ) -> float:
-        """Decode the most likely population code, including firing order."""
+        """Decode the most likely population code, including firing order.
+
+        DEBUG WATCH: 这里只读传入的 code，不会调用 model.observe_code()。
+        如果 raw prediction 太密，很多 likelihood code 会共享列，best_values
+        变多，最后平均值可能被无关列拉偏。
+        """
 
         predicted_times: dict[int, list[float]] = {}
         for event in code.events:
@@ -173,6 +191,8 @@ class SSTDRealValueEncoder:
             raise ValueError("code contains no columns from this encoder.")
 
         grid = self.likelihood_grid()
+        # DEBUG WATCH: best_score=(timed_overlap, column_overlap)。timed overlap
+        # 优先，column overlap 次之；若 timed 全低，说明可能是 timing mismatch。
         best_score = (-1, -1)
         best_values: list[float] = []
         for value, candidate_code in grid:
@@ -196,6 +216,12 @@ class SSTDRealValueEncoder:
         return sum(best_values) / len(best_values)
 
     def likelihood_grid(self) -> tuple[tuple[float, SymbolCode], ...]:
+        """Return candidate values used by likelihood decoding.
+
+        中文调试提示：这是 passenger decode 的搜索网格；它不是训练数据，也不会
+        把预测值重新编码送回网络。
+        """
+
         if self._likelihood_grid is None:
             self._likelihood_grid = tuple(
                 (value, self.encode(value)) for value in self._likelihood_values()
@@ -245,7 +271,11 @@ class SSTDRealValueEncoder:
 
 
 class SSTDPeriodicEncoder(SSTDRealValueEncoder):
-    """Circular Gaussian population encoder for periodic values (Fig. 3(b))."""
+    """Circular Gaussian population encoder for periodic values (Fig. 3(b)).
+
+    中文调试提示：Fig.9 中 weekday 用 period=7，time slot 用 period=48。
+    周期编码会让周日/周一、23:30/00:00 在列空间中相邻。
+    """
 
     def __init__(
         self,
@@ -314,7 +344,12 @@ class SSTDPeriodicEncoder(SSTDRealValueEncoder):
 
 
 class SSTDCompositeEncoder:
-    """Combine disjoint SSTD fields into one simultaneous record code."""
+    """Combine disjoint SSTD fields into one simultaneous record code.
+
+    中文调试提示：Fig.9 一个 record = weekday + time slot + passenger。
+    三个字段各自 K=10，因此 composite code 共 30 个 event；column_offset
+    是定位字段串扰和 raw-column explosion 的第一处断点。
+    """
 
     def __init__(self, encoders: Sequence[SSTDEncoder]) -> None:
         if not encoders:
@@ -331,6 +366,8 @@ class SSTDCompositeEncoder:
         return tuple(sorted({time for encoder in self.encoders for time in encoder.event_times}))
 
     def encode(self, values: Sequence[float]) -> SymbolCode:
+        # DEBUG WATCH: 如果 len(events) 不是三个字段 K 之和，先检查 values
+        # 数量或某个 field encoder 是否被错误替换。
         if len(values) != len(self.encoders):
             raise ValueError("one value is required for each field encoder.")
         events = tuple(

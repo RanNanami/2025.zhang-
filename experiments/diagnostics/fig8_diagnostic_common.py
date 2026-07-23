@@ -64,6 +64,12 @@ def build_model(
     synapse_delay_mode: str = "current-delay",
     capture_branch_diagnostics: bool = False,
 ) -> SequentialMemory:
+    """Build the shared Fig.8 diagnostic model without changing strict defaults.
+
+    中文调试提示：这里的 response_scale、contribution mode、delay mode 都是
+    nonpaper diagnostic 开关；严格论文协议默认仍是 arrival-window/current-delay。
+    """
+
     return SequentialMemory(
         encoder=SSTDDiscreteEncoder(num_columns=100, k=10, seed=seed),
         num_neurons_per_column=10,
@@ -201,12 +207,16 @@ def train_once(
     model: SequentialMemory,
     sentences: list[list[str]],
 ) -> ReinforcementAccumulator:
+    """One-pass online training used by Fig.8 diagnostics."""
+
     reinforcement = ReinforcementAccumulator()
     model.reinforcement_trace_callback = reinforcement
     try:
         for sentence in sentences:
             model.reset_state()
             for word in sentence:
+                # PAPER-EXPLICIT: prediction-before-observe。先产生本周期
+                # last_prediction_candidates，再让真实 word 触发 Scenario 1/2/3。
                 model.predict_code()
                 model.observe(word)
     finally:
@@ -218,6 +228,9 @@ def _decode_without_side_effect(
     model: SequentialMemory,
     code: SymbolCode,
 ) -> tuple[str | None, list[tuple[int, int, str]]]:
+    """Decode for diagnostics while restoring decode RNG/ranking state."""
+
+    # DEBUG WATCH: 这里保证“看一眼 decoder 排名”不会改变后续评估路径。
     rng_state = model._decode_rng.getstate()
     ranking_before = model.last_symbol_ranking.copy()
     try:
@@ -277,8 +290,12 @@ def evaluate_diagnostic(
     segment_trace_path: Path | None,
     cue_rows: list[dict[str, object]],
 ) -> dict[str, object]:
+    """Evaluate Fig.8 recall while restoring transient model state afterward."""
+
     if propagation not in {"raw", "eventwise-inhibited"}:
         raise ValueError(f"unsupported propagation: {propagation}")
+    # DEBUG WATCH: evaluation 是只读流程。若评估次数改变训练结果，先检查
+    # snapshot/restore 是否覆盖了 last_prediction_candidates 和 RNG。
     snapshot = model.snapshot_transient_state()
     started = time.perf_counter()
     trace_handle: TextIO | None = None
@@ -317,6 +334,8 @@ def evaluate_diagnostic(
             sampled = sentence_index <= details_sample_sentences
             model.reset_state()
             model.predict_code()
+            # 仅首词作为外部 cue。后续 cue transition 用真实词推进，是为了
+            # 诊断“错误是否在 cue 阶段已出现”，不是 autonomous suffix。
             model.observe(sentence[0], learn=False)
             pending: tuple[SymbolCode, PredictionTrace] | None = None
 
@@ -326,6 +345,8 @@ def evaluate_diagnostic(
                 previous_active_count = len(model.previous_active_cells)
                 previous_winner_count = len(model.previous_winners)
                 raw = model.predict_code(trace=trace)
+                # DEBUG WATCH: cue transition。raw_predicted_column_count 和
+                # burst_cell_count 可定位 shared-context/burst 是否在前缀阶段膨胀。
                 peak_cache_size = max(peak_cache_size, len(model._spike_response_cache))
                 if raw is None:
                     selected = None
@@ -339,6 +360,8 @@ def evaluate_diagnostic(
                 burst_cells = 0
                 burst_columns = 0
                 if expected_index < 6:
+                    # PAPER-EXPLICIT: cue 阶段真实下一个词作为 proximal input。
+                    # 这里的 burst 是诊断数据，不属于 suffix autonomous recall。
                     model.observe(sentence[expected_index], learn=False)
                     extra = set(model.previous_active_cells) - set(predicted_cells)
                     burst_cells = len(extra)
@@ -390,6 +413,8 @@ def evaluate_diagnostic(
 
             recalled: list[str] = []
             for suffix_step in range(4):
+                # STRICT PROTOCOL: suffix 阶段使用 neural propagation。decoded word
+                # 只用于 Levenshtein 和日志，不作为下一轮 observe 输入。
                 if suffix_step == 0 and pending is not None:
                     raw, trace = pending
                 else:
@@ -399,6 +424,8 @@ def evaluate_diagnostic(
                         peak_cache_size, len(model._spike_response_cache)
                     )
                 if raw is None:
+                    # DEBUG WATCH: no_raw_prediction/early stop。不要补 expected
+                    # word，否则会把诊断结果变成 ground-truth assisted。
                     remaining = 4 - suffix_step
                     no_prediction_steps += remaining
                     early_stops += 1
@@ -482,6 +509,8 @@ def evaluate_diagnostic(
                         propagation=propagation,
                     )
                 if not model.advance_prediction(propagated) and suffix_step < 3:
+                    # DEBUG WATCH: no_prediction_active_cells。raw code 有事件但
+                    # 无法映射回真实 predictive cells，autonomous rollout 会中断。
                     remaining = 3 - suffix_step
                     no_prediction_steps += remaining
                     early_stops += 1
@@ -497,6 +526,8 @@ def evaluate_diagnostic(
     finally:
         if trace_handle is not None:
             trace_handle.close()
+        # STATE MUTATION: 只恢复 transient state；评估期间必须没有 learn=True，
+        # 因此长期 segment/synapse 结构应保持完全一致。
         model.restore_transient_state(snapshot)
 
     cue_bursts = [float(row["burst_cell_count"]) for row in all_cue_rows]
