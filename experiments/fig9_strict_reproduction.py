@@ -48,6 +48,11 @@ from seqmem.model import MemoryParams, SequentialMemory  # noqa: E402
 
 
 PAPER_CHANGE_DATE = datetime(2015, 4, 1)
+CONTINUOUS_IMPL_VERSIONS = {
+    "reference": "reference-v1",
+    "optimized_v1": "optimized-v1-local-bindings-local-response-memo",
+    "optimized_v2": "optimized-v2-exact-arrivals-memo",
+}
 
 
 @dataclass(frozen=True)
@@ -77,6 +82,7 @@ class Fig9StrictConfig:
     rollout_learning: bool = False
     restore_transient_state: bool = True
     strict_label: str = "strict"
+    continuous_prediction_impl: str = "reference"
 
 
 @dataclass(frozen=True)
@@ -465,6 +471,7 @@ def build_strict_model(
             intracolumn_inhibition=config.intracolumn_inhibition,
             continuous_dynamics=config.continuous_dynamics,
             integration_step=config.integration_step,
+            continuous_prediction_impl=config.continuous_prediction_impl,
         ),
         tie_break_seed=config.seed,
     )
@@ -476,6 +483,65 @@ def file_sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def stable_object_sha256(value: object) -> str:
+    return hashlib.sha256(
+        pickle.dumps(value, protocol=4)
+    ).hexdigest()
+
+
+def model_long_term_fingerprint(model: SequentialMemory) -> str:
+    payload = []
+    for column_index, column in enumerate(model.columns):
+        for neuron_index, neuron in enumerate(column.neurons):
+            for segment_index, segment in enumerate(neuron.segments):
+                payload.append(
+                    (
+                        column_index,
+                        neuron_index,
+                        segment_index,
+                        segment.active,
+                        segment.target_time,
+                        segment.diagnostic_id,
+                        segment.creation_sentence_index,
+                        segment.creation_transition_index,
+                        segment.creation_target_column,
+                        segment.creation_target_time,
+                        segment.creation_target_neuron,
+                        segment.creation_source_cell_ids,
+                        segment.creation_source_fingerprint,
+                        segment.scenario1_reinforcements,
+                        segment.scenario2_reinforcements,
+                        tuple(
+                            sorted(
+                                (
+                                    source,
+                                    synapse.source,
+                                    synapse.delay,
+                                    synapse.weight,
+                                    synapse.age,
+                                )
+                                for source, synapse in segment.synapses.items()
+                            )
+                        ),
+                    )
+                )
+    return stable_object_sha256(payload)
+
+
+def model_rng_fingerprint(model: SequentialMemory) -> str:
+    snapshot = model.snapshot_transient_state()
+    return stable_object_sha256(
+        {
+            "decode_rng_state": snapshot.decode_rng_state,
+            "learning_rng_state": snapshot.learning_rng_state,
+        }
+    )
+
+
+def continuous_impl_version(impl: str) -> str:
+    return CONTINUOUS_IMPL_VERSIONS[impl]
 
 
 def records_prefix_sha256(records: list[TaxiRecord], stop_index: int) -> str:
@@ -568,6 +634,10 @@ def protocol_fingerprint(
         "tau_m": dynamics.tau_m,
         "tau_s": dynamics.tau_s,
         "continuous_dynamics": config.continuous_dynamics,
+        "continuous_impl": config.continuous_prediction_impl,
+        "continuous_impl_version": continuous_impl_version(
+            config.continuous_prediction_impl
+        ),
         "integration_step": config.integration_step,
         "burst_context": "all-cell" if config.burst_context else "winner-only",
         "intracolumn_inhibition": config.intracolumn_inhibition,
@@ -1092,6 +1162,12 @@ def run_strict_stream(
         "peak_raw_column_count": max(raw_column_counts) if raw_column_counts else 0,
         "runtime_seconds": elapsed,
         "records_per_second": len(records) / elapsed if elapsed else 0.0,
+        "continuous_impl": config.continuous_prediction_impl,
+        "continuous_impl_version": continuous_impl_version(
+            config.continuous_prediction_impl
+        ),
+        "final_model_fingerprint": model_long_term_fingerprint(model),
+        "final_rng_fingerprint": model_rng_fingerprint(model),
         "prediction_before_observe": True,
         "autonomous_rollout_steps": config.horizon,
         "uses_compensation": False,
@@ -1209,6 +1285,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--stop-after-index", type=int, default=0)
     parser.add_argument("--debug-record-index", type=int, default=-1)
     parser.add_argument("--debug-output-json", default="")
+    parser.add_argument(
+        "--continuous-impl",
+        choices=("reference", "optimized_v1", "optimized_v2"),
+        default="reference",
+        help="Implementation-only continuous integrator switch for strict A/B.",
+    )
     parser.add_argument("--april-branch", action="store_true")
     parser.add_argument("--branch-records", type=int, default=2016)
     parser.add_argument(
@@ -1282,7 +1364,10 @@ def run_april_branch(args: argparse.Namespace, config: Fig9StrictConfig) -> None
 
 def run_main(args: argparse.Namespace) -> None:
     output_dir = Path(args.output_dir)
-    config = Fig9StrictConfig(warmup=args.warmup)
+    config = Fig9StrictConfig(
+        warmup=args.warmup,
+        continuous_prediction_impl=args.continuous_impl,
+    )
     if args.april_branch:
         run_april_branch(args, config)
         return
@@ -1291,6 +1376,10 @@ def run_main(args: argparse.Namespace) -> None:
         "limit": args.limit,
         "warmup": args.warmup,
         "streams": list(args.streams),
+        "continuous_impl": config.continuous_prediction_impl,
+        "continuous_impl_version": continuous_impl_version(
+            config.continuous_prediction_impl
+        ),
     }
     summaries: dict[str, object] = {}
     for stream in args.streams:

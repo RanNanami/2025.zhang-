@@ -246,6 +246,7 @@ class MemoryParams:
     capture_prediction_contributions: bool = False
     synapse_delay_mode: str = "current-delay"
     capture_branch_diagnostics: bool = False
+    continuous_prediction_impl: str = "reference"
 
     def dynamics(self) -> DSDynamicsParams:
         return DSDynamicsParams(
@@ -285,6 +286,11 @@ class SequentialMemory:
         "current-delay",
         "peak-aligned-delay",
     }
+    CONTINUOUS_PREDICTION_IMPLS = {
+        "reference",
+        "optimized_v1",
+        "optimized_v2",
+    }
 
     def __init__(
         self,
@@ -307,6 +313,11 @@ class SequentialMemory:
             raise ValueError(
                 "unsupported synapse delay mode: "
                 f"{self.params.synapse_delay_mode}"
+            )
+        if self.params.continuous_prediction_impl not in self.CONTINUOUS_PREDICTION_IMPLS:
+            raise ValueError(
+                "unsupported continuous prediction implementation: "
+                f"{self.params.continuous_prediction_impl}"
             )
         self.columns = [
             MiniColumn.create(num_neurons_per_column) for _ in range(encoder.num_columns)
@@ -517,6 +528,17 @@ class SequentialMemory:
         prediction_metadata: dict[int, dict[str, object]] = {}
         best_by_event: dict[tuple[int, float], tuple[int, float, float, Segment]] = {}
         raw_eligible_segments: set[int] = set()
+        continuous_result_memo: (
+            dict[
+                tuple[tuple[float, float], ...],
+                tuple[tuple[float, float] | None, dict[str, object]],
+            ]
+            | None
+        ) = (
+            {}
+            if self.params.continuous_prediction_impl == "optimized_v2"
+            else None
+        )
         for (
             column_id,
             neuron_index,
@@ -542,7 +564,10 @@ class SequentialMemory:
                     {} if capture_contributions else None
                 )
                 continuous = self._continuous_segment_prediction(
-                    segment, active_sources, diagnostic=diagnostic
+                    segment,
+                    active_sources,
+                    diagnostic=diagnostic,
+                    result_memo=continuous_result_memo,
                 )
                 if diagnostic is not None:
                     prediction_metadata[id(segment)] = diagnostic
@@ -1505,6 +1530,13 @@ class SequentialMemory:
         segment: Segment,
         active_sources: dict[int, float],
         diagnostic: dict[str, object] | None = None,
+        result_memo: (
+            dict[
+                tuple[tuple[float, float], ...],
+                tuple[tuple[float, float] | None, dict[str, object]],
+            ]
+            | None
+        ) = None,
     ) -> tuple[float, float] | None:
         """Integrate one distal segment through dendritic and soma firing.
 
@@ -1519,10 +1551,25 @@ class SequentialMemory:
         ]
         if not matched:
             return None
-        result = self._continuous_prediction_from_arrivals(
-            [(arrival, weight) for _source, _time, arrival, weight in matched],
-            diagnostic=diagnostic,
-        )
+        arrivals = [(arrival, weight) for _source, _time, arrival, weight in matched]
+        memo_key = tuple(arrivals)
+        cached_result = result_memo.get(memo_key) if result_memo is not None else None
+        if cached_result is not None and (
+            diagnostic is None or cached_result[1]
+        ):
+            result = cached_result[0]
+            if diagnostic is not None:
+                diagnostic.update(cached_result[1])
+        else:
+            result = self._continuous_prediction_from_arrivals(
+                arrivals,
+                diagnostic=diagnostic,
+            )
+            if result_memo is not None:
+                result_memo[memo_key] = (
+                    result,
+                    dict(diagnostic) if diagnostic is not None else {},
+                )
         if diagnostic is not None:
             crossing = diagnostic.get("first_threshold_crossing_time")
             crossing_contributions: list[SynapsePSPContribution] = []
@@ -1572,6 +1619,17 @@ class SequentialMemory:
     ) -> tuple[float, float] | None:
         """Strict prediction path using the optimized equivalent integrator."""
 
+        impl = self.params.continuous_prediction_impl
+        if impl == "reference":
+            return self.reference_continuous_prediction(
+                arrivals,
+                diagnostic=diagnostic,
+            )
+        if impl == "optimized_v1":
+            return self.optimized_v1_continuous_prediction(
+                arrivals,
+                diagnostic=diagnostic,
+            )
         return self.optimized_continuous_prediction(arrivals, diagnostic=diagnostic)
 
     def reference_continuous_prediction(
@@ -1696,7 +1754,7 @@ class SequentialMemory:
             return soma_stop, max(peak, self.params.dendrite_threshold)
         return None
 
-    def optimized_continuous_prediction(
+    def optimized_v1_continuous_prediction(
         self,
         arrivals: list[tuple[float, float]],
         diagnostic: dict[str, object] | None = None,
@@ -1748,6 +1806,123 @@ class SequentialMemory:
 
         start = min(arrival_times)
         stop = max(arrival_times) + max(
+            self.params.cycle_period / 2.0,
+            5.0 * self.params.tau_m,
+        )
+        previous_time = start
+        previous_potential = potential(start)
+        crossing: float | None = None
+        peak = previous_potential
+        time = start + step
+        half_step = step / 2.0
+        while time <= stop + half_step:
+            voltage = potential(time)
+            peak = max(peak, voltage)
+            if previous_potential < effective_threshold <= voltage:
+                low = previous_time
+                high = time
+                for _ in range(12):
+                    middle = (low + high) / 2.0
+                    if potential(middle, remember=False) >= effective_threshold:
+                        high = middle
+                    else:
+                        low = middle
+                crossing = high
+                break
+            previous_time = time
+            previous_potential = voltage
+            time += step
+        if crossing is None:
+            if diagnostic is not None:
+                diagnostic.update(
+                    {
+                        "peak_dendritic_potential": peak,
+                        "first_threshold_crossing_time": None,
+                        "predicted_soma_firing_time": None,
+                    }
+                )
+            return None
+
+        if diagnostic is not None:
+            diagnostic_peak = peak
+            diagnostic_time = time + step
+            while diagnostic_time <= stop + half_step:
+                diagnostic_peak = max(
+                    diagnostic_peak,
+                    potential(diagnostic_time, remember=False),
+                )
+                diagnostic_time += step
+            diagnostic.update(
+                {
+                    "peak_dendritic_potential": diagnostic_peak,
+                    "first_threshold_crossing_time": crossing,
+                    "predicted_soma_firing_time": None,
+                }
+            )
+
+        state = DSNeuronState()
+        state.trigger_dendritic_spike(crossing)
+        soma_time = max(crossing, self.params.cycle_period)
+        soma_stop = crossing + dynamics.depolarization_duration
+        soma_threshold = dynamics.soma_threshold - self.params.integration_voltage_tolerance
+        while soma_time <= soma_stop + half_step:
+            if state.membrane_potential(soma_time, dynamics) >= soma_threshold:
+                if diagnostic is not None:
+                    diagnostic["predicted_soma_firing_time"] = soma_time
+                return soma_time, max(peak, threshold)
+            soma_time += step
+        if state.membrane_potential(soma_stop, dynamics) >= soma_threshold:
+            if diagnostic is not None:
+                diagnostic["predicted_soma_firing_time"] = soma_stop
+            return soma_stop, max(peak, threshold)
+        return None
+
+    def optimized_continuous_prediction(
+        self,
+        arrivals: list[tuple[float, float]],
+        diagnostic: dict[str, object] | None = None,
+    ) -> tuple[float, float] | None:
+        """Equivalent continuous integration with conservative local binding.
+
+        optimized_v2 deliberately keeps the same per-synapse cache lookup order
+        as reference_continuous_prediction(). The first optimization round's
+        per-potential local response dict is preserved as optimized_v1 for A/B,
+        but this path avoids that short-lived dict when duplicate rounded
+        deltas are rare.
+        """
+
+        step = self.params.integration_step
+        if step <= 0.0:
+            raise ValueError("integration_step must be positive")
+
+        effective_threshold = (
+            self.params.dendrite_threshold
+            - self.params.integration_voltage_tolerance
+        )
+        response_cache = self._spike_response_cache
+        cache_get = response_cache.get
+        remember_response = self._remember_spike_response
+        dynamics = self._dynamics
+        spike_response_fn = spike_response
+        round_fn = round
+        v_rest = dynamics.v_rest
+        threshold = self.params.dendrite_threshold
+        arrivals_local = arrivals
+
+        def potential(time: float, *, remember: bool = True) -> float:
+            total = 0
+            for arrival, weight in arrivals_local:
+                cache_key = round_fn(time - arrival, 9)
+                response = cache_get(cache_key)
+                if response is None:
+                    response = spike_response_fn(cache_key, dynamics)
+                    if remember:
+                        remember_response(cache_key, response)
+                total += weight * response
+            return v_rest + total
+
+        start = min(arrival for arrival, _weight in arrivals_local)
+        stop = max(arrival for arrival, _weight in arrivals_local) + max(
             self.params.cycle_period / 2.0,
             5.0 * self.params.tau_m,
         )

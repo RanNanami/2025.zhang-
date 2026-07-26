@@ -16,6 +16,8 @@ from experiments.fig9_strict_reproduction import (
     field_column_counts,
     find_timestamp_split,
     load_strict_checkpoint,
+    model_long_term_fingerprint,
+    model_rng_fingerprint,
     protocol_fingerprint,
     rollout_raw_autonomous,
     run_strict_stream,
@@ -25,7 +27,7 @@ from experiments.fig9_strict_reproduction import (
 )
 from experiments.fig9_paper_snn import learn_actual_code, record_values
 from seqmem.encoding import SSTDDiscreteEncoder, SpikeEvent, SymbolCode
-from seqmem.model import MemoryParams, SequentialMemory
+from seqmem.model import MemoryParams, Segment, SequentialMemory, Synapse
 
 
 class Fig9StrictReproductionTests(unittest.TestCase):
@@ -116,15 +118,14 @@ class Fig9StrictReproductionTests(unittest.TestCase):
         self,
         records: list[TaxiRecord],
         *,
-        use_reference: bool,
+        continuous_impl: str,
     ) -> tuple[list[dict[str, object]], list[dict[str, object]], tuple, tuple]:
-        config = Fig9StrictConfig(warmup=max(0, len(records) - 10))
+        config = Fig9StrictConfig(
+            warmup=max(0, len(records) - 10),
+            continuous_prediction_impl=continuous_impl,
+        )
         encoder = build_fig9_encoder(config)
         model = build_strict_model(encoder, config)
-        if use_reference:
-            model._continuous_prediction_from_arrivals = (  # type: ignore[method-assign]
-                model.reference_continuous_prediction
-            )
         passenger_encoder = encoder.encoders[2]
         predictions: list[dict[str, object]] = []
         density_rows: list[dict[str, object]] = []
@@ -237,6 +238,8 @@ class Fig9StrictReproductionTests(unittest.TestCase):
         self.assertEqual(fingerprint["warmup_length"], 5)
         self.assertEqual(fingerprint["burst_context"], "all-cell")
         self.assertEqual(fingerprint["propagation_mode"], "raw")
+        self.assertEqual(fingerprint["continuous_impl"], "reference")
+        self.assertEqual(fingerprint["continuous_impl_version"], "reference-v1")
 
     def test_rollout_does_not_learn_or_reencode(self) -> None:
         encoder = SSTDDiscreteEncoder(num_columns=4, k=1, seed=2)
@@ -644,38 +647,130 @@ class Fig9StrictReproductionTests(unittest.TestCase):
         self.assertFalse(config.use_future_covariates)
         self.assertFalse(config.reencode_decoded_value)
         self.assertFalse(config.rollout_learning)
+        self.assertEqual(config.continuous_prediction_impl, "reference")
 
-    def test_reference_and_optimized_continuous_prediction_are_identical(self) -> None:
+    def test_continuous_prediction_implementations_are_identical(self) -> None:
         model = SequentialMemory(
             encoder=SSTDDiscreteEncoder(num_columns=8, k=2, seed=4),
             params=MemoryParams(continuous_dynamics=True),
         )
         arrivals = [(0.1, 0.5), (0.2, 0.5), (0.2, 0.25), (0.35, 0.75)]
         reference_diagnostic: dict[str, object] = {}
-        optimized_diagnostic: dict[str, object] = {}
+        optimized_v1_diagnostic: dict[str, object] = {}
+        optimized_v2_diagnostic: dict[str, object] = {}
 
         reference = model.reference_continuous_prediction(
             arrivals, diagnostic=reference_diagnostic
         )
-        optimized = model.optimized_continuous_prediction(
-            arrivals, diagnostic=optimized_diagnostic
+        optimized_v1 = model.optimized_v1_continuous_prediction(
+            arrivals, diagnostic=optimized_v1_diagnostic
+        )
+        optimized_v2 = model.optimized_continuous_prediction(
+            arrivals, diagnostic=optimized_v2_diagnostic
         )
 
-        self.assertEqual(reference, optimized)
+        self.assertEqual(reference, optimized_v1)
+        self.assertEqual(reference, optimized_v2)
         self.assertEqual(
             reference_diagnostic["first_threshold_crossing_time"],
-            optimized_diagnostic["first_threshold_crossing_time"],
+            optimized_v1_diagnostic["first_threshold_crossing_time"],
         )
-        self.assertEqual(reference_diagnostic, optimized_diagnostic)
+        self.assertEqual(
+            reference_diagnostic["first_threshold_crossing_time"],
+            optimized_v2_diagnostic["first_threshold_crossing_time"],
+        )
+        self.assertEqual(reference_diagnostic, optimized_v1_diagnostic)
+        self.assertEqual(reference_diagnostic, optimized_v2_diagnostic)
+
+    def test_non_grid_arrivals_use_equivalent_general_path(self) -> None:
+        model = SequentialMemory(
+            encoder=SSTDDiscreteEncoder(num_columns=8, k=2, seed=5),
+            params=MemoryParams(continuous_dynamics=True),
+        )
+        arrivals = [(0.1017, 0.5), (0.2134, 0.5), (0.3329, 0.25)]
+
+        self.assertEqual(
+            model.reference_continuous_prediction(arrivals, diagnostic={}),
+            model.optimized_continuous_prediction(arrivals, diagnostic={}),
+        )
+
+    def test_optimized_v2_memo_reuses_only_identical_arrivals(self) -> None:
+        model = SequentialMemory(
+            encoder=SSTDDiscreteEncoder(num_columns=8, k=2, seed=7),
+            params=MemoryParams(continuous_prediction_impl="optimized_v2"),
+        )
+        first = Segment(
+            synapses={
+                1: Synapse(source=1, delay=0.1, weight=0.5),
+                2: Synapse(source=2, delay=0.1, weight=0.5),
+            }
+        )
+        same_arrivals = Segment(
+            synapses={
+                1: Synapse(source=1, delay=0.1, weight=0.5),
+                2: Synapse(source=2, delay=0.1, weight=0.5),
+            }
+        )
+        different_arrivals = Segment(
+            synapses={
+                1: Synapse(source=1, delay=0.1, weight=0.5),
+                2: Synapse(source=2, delay=0.2, weight=0.5),
+            }
+        )
+        active_sources = {1: 0.0, 2: 0.0}
+        calls: list[tuple[tuple[float, float], ...]] = []
+        original = model._continuous_prediction_from_arrivals
+
+        def counted(arrivals, diagnostic=None):
+            calls.append(tuple(arrivals))
+            return original(arrivals, diagnostic=diagnostic)
+
+        model._continuous_prediction_from_arrivals = counted  # type: ignore[method-assign]
+        memo: dict[
+            tuple[tuple[float, float], ...],
+            tuple[tuple[float, float] | None, dict[str, object]],
+        ] = {}
+
+        first_result = model._continuous_segment_prediction(
+            first,
+            active_sources,
+            result_memo=memo,
+        )
+        same_result = model._continuous_segment_prediction(
+            same_arrivals,
+            active_sources,
+            result_memo=memo,
+        )
+        model._continuous_segment_prediction(
+            different_arrivals,
+            active_sources,
+            result_memo=memo,
+        )
+
+        self.assertEqual(first_result, same_result)
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(
+            calls,
+            [
+                ((0.1, 0.5), (0.1, 0.5)),
+                ((0.1, 0.5), (0.2, 0.5)),
+            ],
+        )
 
     def test_prediction_candidates_match_reference_path(self) -> None:
         encoder = SSTDDiscreteEncoder(num_columns=8, k=2, seed=3)
-        reference = SequentialMemory(encoder=encoder, num_neurons_per_column=4)
-        optimized = SequentialMemory(encoder=encoder, num_neurons_per_column=4)
-        reference._continuous_prediction_from_arrivals = (  # type: ignore[method-assign]
-            reference.reference_continuous_prediction
+        reference = SequentialMemory(
+            encoder=encoder,
+            num_neurons_per_column=4,
+            params=MemoryParams(continuous_prediction_impl="reference"),
         )
-        for model in (reference, optimized):
+        optimized_v1 = SequentialMemory(
+            encoder=encoder,
+            num_neurons_per_column=4,
+            params=MemoryParams(continuous_prediction_impl="optimized_v1"),
+        )
+        optimized_v2 = SequentialMemory(encoder=encoder, num_neurons_per_column=4)
+        for model in (reference, optimized_v1, optimized_v2):
             for _ in range(4):
                 model.reset_state()
                 model.observe("A")
@@ -685,25 +780,98 @@ class Fig9StrictReproductionTests(unittest.TestCase):
             model.observe("A", learn=False)
 
         reference_code = reference.predict_code()
-        optimized_code = optimized.predict_code()
+        optimized_v1_code = optimized_v1.predict_code()
+        optimized_v2_code = optimized_v2.predict_code()
 
-        self.assertEqual(reference_code, optimized_code)
+        self.assertEqual(reference_code, optimized_v1_code)
+        self.assertEqual(reference_code, optimized_v2_code)
         self.assertEqual(
             self._candidate_signature(reference),
-            self._candidate_signature(optimized),
+            self._candidate_signature(optimized_v1),
+        )
+        self.assertEqual(
+            self._candidate_signature(reference),
+            self._candidate_signature(optimized_v2),
         )
 
     def test_ten_and_fifty_record_streams_match_reference_path(self) -> None:
         for count in (10, 50):
             records = self._tiny_records(count)
 
-            reference = self._run_tiny_manual_fig9(records, use_reference=True)
-            optimized = self._run_tiny_manual_fig9(records, use_reference=False)
+            reference = self._run_tiny_manual_fig9(
+                records,
+                continuous_impl="reference",
+            )
+            optimized_v1 = self._run_tiny_manual_fig9(
+                records,
+                continuous_impl="optimized_v1",
+            )
+            optimized_v2 = self._run_tiny_manual_fig9(
+                records,
+                continuous_impl="optimized_v2",
+            )
 
-            self.assertEqual(reference[0], optimized[0])
-            self.assertEqual(reference[1], optimized[1])
-            self.assertEqual(reference[2], optimized[2])
-            self.assertEqual(reference[3], optimized[3])
+            self.assertEqual(reference[0], optimized_v1[0])
+            self.assertEqual(reference[1], optimized_v1[1])
+            self.assertEqual(reference[2], optimized_v1[2])
+            self.assertEqual(reference[3], optimized_v1[3])
+            self.assertEqual(reference[0], optimized_v2[0])
+            self.assertEqual(reference[1], optimized_v2[1])
+            self.assertEqual(reference[2], optimized_v2[2])
+            self.assertEqual(reference[3], optimized_v2[3])
+
+    def test_strict_summary_fingerprints_are_stable(self) -> None:
+        records = self._tiny_records(18)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            data_path = root / "synthetic.csv"
+            data_path.write_text(
+                "timestamp,passenger_count\n",
+                encoding="utf-8",
+            )
+            summaries = []
+            for impl in ("reference", "optimized_v1", "optimized_v2"):
+                config = Fig9StrictConfig(
+                    warmup=8,
+                    continuous_prediction_impl=impl,
+                )
+                summaries.append(
+                    run_strict_stream(
+                        records=records,
+                        data_path=data_path,
+                        stream_label=impl,
+                        output_dir=root / impl,
+                        config=config,
+                        limit=len(records),
+                        print_fingerprint=False,
+                    )
+                )
+
+        baseline = summaries[0]
+        for summary in summaries[1:]:
+            self.assertEqual(
+                baseline["final_model_fingerprint"],
+                summary["final_model_fingerprint"],
+            )
+            self.assertEqual(
+                baseline["final_rng_fingerprint"],
+                summary["final_rng_fingerprint"],
+            )
+
+    def test_model_fingerprint_helpers_are_stable(self) -> None:
+        encoder = SSTDDiscreteEncoder(num_columns=8, k=2, seed=6)
+        model = SequentialMemory(encoder=encoder, num_neurons_per_column=4)
+        for _ in range(3):
+            model.reset_state()
+            model.observe("A")
+            model.predict_code()
+            model.observe("B")
+
+        self.assertEqual(
+            model_long_term_fingerprint(model),
+            model_long_term_fingerprint(model),
+        )
+        self.assertEqual(model_rng_fingerprint(model), model_rng_fingerprint(model))
 
 
 if __name__ == "__main__":
