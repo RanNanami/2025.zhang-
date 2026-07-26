@@ -42,3 +42,12 @@ results/**/*partial*
 results/fig8_diagnostics/**/*.jsonl.gz
 results/fig8_diagnostics.zip
 results/fig8_diagnostics/**/*.zip
+
+# Regenerable Fig.9 strict stage-2 runs and local script logs
+results/script_logs/
+results/fig9_strict/phase2_250_density*/
+results/fig9_strict/profiling/
+results/fig9_strict/profile*/
+results/fig9_strict/stage_b_2000_original*/
+results/fig9_strict/checkpoint_smoke*/
+results/fig9_strict/april_*/

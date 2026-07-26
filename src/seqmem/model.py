@@ -213,6 +213,8 @@ class TransientStateSnapshot:
     previous_active_cells: dict[int, float]
     previous_winners: dict[int, float]
     last_prediction_candidates: dict[int, list[PredictionCandidate]]
+    last_prediction_stats: dict[str, int | float]
+    last_observe_stats: dict[str, int | float]
     last_symbol_ranking: list[tuple[int, int, str]]
     previous_predicted_sources: set[int]
     previous_burst_only_sources: set[int]
@@ -321,6 +323,8 @@ class SequentialMemory:
         self.previous_active_cells: dict[int, float] = {}
         self.previous_winners: dict[int, float] = {}
         self.last_prediction_candidates: dict[int, list[PredictionCandidate]] = {}
+        self.last_prediction_stats: dict[str, int | float] = {}
+        self.last_observe_stats: dict[str, int | float] = {}
         self.last_symbol_ranking: list[tuple[int, int, str]] = []
         self.previous_predicted_sources: set[int] = set()
         self.previous_burst_only_sources: set[int] = set()
@@ -343,6 +347,8 @@ class SequentialMemory:
         self.previous_active_cells = {}
         self.previous_winners = {}
         self.last_prediction_candidates = {}
+        self.last_prediction_stats = {}
+        self.last_observe_stats = {}
         self.last_symbol_ranking = []
         self.previous_predicted_sources = set()
         self.previous_burst_only_sources = set()
@@ -361,6 +367,8 @@ class SequentialMemory:
                 column: candidates.copy()
                 for column, candidates in self.last_prediction_candidates.items()
             },
+            last_prediction_stats=self.last_prediction_stats.copy(),
+            last_observe_stats=self.last_observe_stats.copy(),
             last_symbol_ranking=self.last_symbol_ranking.copy(),
             previous_predicted_sources=self.previous_predicted_sources.copy(),
             previous_burst_only_sources=self.previous_burst_only_sources.copy(),
@@ -381,6 +389,8 @@ class SequentialMemory:
             column: candidates.copy()
             for column, candidates in snapshot.last_prediction_candidates.items()
         }
+        self.last_prediction_stats = snapshot.last_prediction_stats.copy()
+        self.last_observe_stats = snapshot.last_observe_stats.copy()
         self.last_symbol_ranking = snapshot.last_symbol_ranking.copy()
         self.previous_predicted_sources = (
             snapshot.previous_predicted_sources.copy()
@@ -425,10 +435,19 @@ class SequentialMemory:
         # last_prediction_candidates、返回 SymbolCode 的 event/column 数量、
         # trace.segments 中 crossed_threshold/entered_raw_prediction。
         self.last_prediction_candidates = {}
+        self.last_prediction_stats = {}
         if trace is not None:
             trace.segments.clear()
         active_sources = self._active_sources()
         if not active_sources:
+            self.last_prediction_stats = {
+                "active_source_count": 0,
+                "candidate_segment_count": 0,
+                "threshold_crossing_segment_count": 0,
+                "accepted_candidate_count": 0,
+                "raw_event_count": 0,
+                "raw_predicted_column_count": 0,
+            }
             return None
 
         candidates: dict[int, tuple[int, int, Segment, float, list[float]]] = {}
@@ -620,6 +639,14 @@ class SequentialMemory:
                     )
 
         if not best_by_event:
+            self.last_prediction_stats = {
+                "active_source_count": len(active_sources),
+                "candidate_segment_count": len(candidates),
+                "threshold_crossing_segment_count": 0,
+                "accepted_candidate_count": 0,
+                "raw_event_count": 0,
+                "raw_predicted_column_count": 0,
+            }
             return None
 
         if self.params.intracolumn_inhibition:
@@ -688,6 +715,19 @@ class SequentialMemory:
                     item.segment_identity in raw_eligible_segments
                     and item.segment_identity not in selected_segment_ids
                 )
+        self.last_prediction_stats = {
+            "active_source_count": len(active_sources),
+            "candidate_segment_count": len(candidates),
+            "threshold_crossing_segment_count": len(raw_eligible_segments),
+            "accepted_candidate_count": sum(
+                len(candidates)
+                for candidates in self.last_prediction_candidates.values()
+            ),
+            "raw_event_count": len(selected_events),
+            "raw_predicted_column_count": len(
+                {column_id for column_id, _values in selected_events}
+            ),
+        }
         return SymbolCode(
             events=tuple(
                 SpikeEvent(
@@ -1101,6 +1141,7 @@ class SequentialMemory:
         learning_winners: dict[int, float] = {}
         predicted_sources: set[int] = set()
         burst_only_sources: set[int] = set()
+        scenario_counts = {"scenario1": 0, "scenario2": 0, "scenario3": 0}
 
         for event in code.events:
             column_id = event.column
@@ -1131,6 +1172,7 @@ class SequentialMemory:
             if matched is None:
                 # PAPER-EXPLICIT: Scenario 3。既没有预测，也没有足够匹配的
                 # segment，就在 least-used neuron 上长一个新 segment。
+                scenario_counts["scenario3"] += 1
                 neuron_index = self._least_used_neuron_index(column)
                 if learn:
                     self._grow_segment(
@@ -1145,6 +1187,7 @@ class SequentialMemory:
                     # receives its proximal input triggers learning directly.
                     # DEBUG WATCH: Scenario 1 branch。这里应复用 predicted
                     # PredictionCandidate，检查贡献突触如何被增强/减弱。
+                    scenario_counts["scenario1"] += 1
                     self._reinforce_segment(
                         column_id,
                         neuron_index,
@@ -1164,6 +1207,7 @@ class SequentialMemory:
                 ) >= self.params.l_match:
                     # PAPER-EXPLICIT: Scenario 2。没有提前预测成功，但存在
                     # 与当前输入匹配的旧 segment；会强化并补长缺失突触。
+                    scenario_counts["scenario2"] += 1
                     self._reinforce_segment(
                         column_id,
                         neuron_index,
@@ -1178,6 +1222,7 @@ class SequentialMemory:
                 else:
                     # PAPER-EXPLICIT: Scenario 3 fallback。匹配 segment 不足
                     # L_match，转为新建 segment。
+                    scenario_counts["scenario3"] += 1
                     neuron_index = self._least_used_neuron_index(column)
                     self._grow_segment(
                         column_id, neuron_index, self.previous_winners, event.time
@@ -1210,6 +1255,13 @@ class SequentialMemory:
         else:
             self.previous_predicted_sources = set()
             self.previous_burst_only_sources = set()
+        self.last_observe_stats = {
+            **scenario_counts,
+            "active_cell_count": len(active_cells),
+            "winner_count": len(learning_winners),
+            "predicted_cell_count": len(predicted_sources),
+            "burst_cell_count": len(burst_only_sources),
+        }
         return learning_winners
 
     def step(self, symbol: str) -> str | None:
@@ -1518,6 +1570,15 @@ class SequentialMemory:
         arrivals: list[tuple[float, float]],
         diagnostic: dict[str, object] | None = None,
     ) -> tuple[float, float] | None:
+        """Strict prediction path using the optimized equivalent integrator."""
+
+        return self.optimized_continuous_prediction(arrivals, diagnostic=diagnostic)
+
+    def reference_continuous_prediction(
+        self,
+        arrivals: list[tuple[float, float]],
+        diagnostic: dict[str, object] | None = None,
+    ) -> tuple[float, float] | None:
         """Integrate a canonical set of delayed, weighted distal spikes.
 
         中文调试提示：先找 dendritic threshold crossing，再模拟 soma 是否在
@@ -1633,6 +1694,129 @@ class SequentialMemory:
             if diagnostic is not None:
                 diagnostic["predicted_soma_firing_time"] = soma_stop
             return soma_stop, max(peak, self.params.dendrite_threshold)
+        return None
+
+    def optimized_continuous_prediction(
+        self,
+        arrivals: list[tuple[float, float]],
+        diagnostic: dict[str, object] | None = None,
+    ) -> tuple[float, float] | None:
+        """Equivalent continuous integration with lower Python overhead.
+
+        This keeps the same time grid, rounded cache key, spike-response
+        formula, threshold tests, and accumulation order as
+        reference_continuous_prediction(). The savings come only from local
+        bindings and reusing identical rounded responses inside one potential
+        evaluation.
+        """
+
+        step = self.params.integration_step
+        if step <= 0.0:
+            raise ValueError("integration_step must be positive")
+
+        effective_threshold = (
+            self.params.dendrite_threshold
+            - self.params.integration_voltage_tolerance
+        )
+        response_cache = self._spike_response_cache
+        cache_get = response_cache.get
+        remember_response = self._remember_spike_response
+        dynamics = self._dynamics
+        spike_response_fn = spike_response
+        round_fn = round
+        v_rest = dynamics.v_rest
+        threshold = self.params.dendrite_threshold
+
+        arrival_times = tuple(arrival for arrival, _weight in arrivals)
+        weights = tuple(weight for _arrival, weight in arrivals)
+
+        def potential(time: float, *, remember: bool = True) -> float:
+            total = 0
+            local_responses: dict[float, float] = {}
+            for arrival, weight in zip(arrival_times, weights):
+                cache_key = round_fn(time - arrival, 9)
+                response = local_responses.get(cache_key)
+                if response is None:
+                    response = cache_get(cache_key)
+                    if response is None:
+                        response = spike_response_fn(cache_key, dynamics)
+                        if remember:
+                            remember_response(cache_key, response)
+                    local_responses[cache_key] = response
+                total += weight * response
+            return v_rest + total
+
+        start = min(arrival_times)
+        stop = max(arrival_times) + max(
+            self.params.cycle_period / 2.0,
+            5.0 * self.params.tau_m,
+        )
+        previous_time = start
+        previous_potential = potential(start)
+        crossing: float | None = None
+        peak = previous_potential
+        time = start + step
+        half_step = step / 2.0
+        while time <= stop + half_step:
+            voltage = potential(time)
+            peak = max(peak, voltage)
+            if previous_potential < effective_threshold <= voltage:
+                low = previous_time
+                high = time
+                for _ in range(12):
+                    middle = (low + high) / 2.0
+                    if potential(middle, remember=False) >= effective_threshold:
+                        high = middle
+                    else:
+                        low = middle
+                crossing = high
+                break
+            previous_time = time
+            previous_potential = voltage
+            time += step
+        if crossing is None:
+            if diagnostic is not None:
+                diagnostic.update(
+                    {
+                        "peak_dendritic_potential": peak,
+                        "first_threshold_crossing_time": None,
+                        "predicted_soma_firing_time": None,
+                    }
+                )
+            return None
+
+        if diagnostic is not None:
+            diagnostic_peak = peak
+            diagnostic_time = time + step
+            while diagnostic_time <= stop + half_step:
+                diagnostic_peak = max(
+                    diagnostic_peak,
+                    potential(diagnostic_time, remember=False),
+                )
+                diagnostic_time += step
+            diagnostic.update(
+                {
+                    "peak_dendritic_potential": diagnostic_peak,
+                    "first_threshold_crossing_time": crossing,
+                    "predicted_soma_firing_time": None,
+                }
+            )
+
+        state = DSNeuronState()
+        state.trigger_dendritic_spike(crossing)
+        soma_time = max(crossing, self.params.cycle_period)
+        soma_stop = crossing + dynamics.depolarization_duration
+        soma_threshold = dynamics.soma_threshold - self.params.integration_voltage_tolerance
+        while soma_time <= soma_stop + half_step:
+            if state.membrane_potential(soma_time, dynamics) >= soma_threshold:
+                if diagnostic is not None:
+                    diagnostic["predicted_soma_firing_time"] = soma_time
+                return soma_time, max(peak, threshold)
+            soma_time += step
+        if state.membrane_potential(soma_stop, dynamics) >= soma_threshold:
+            if diagnostic is not None:
+                diagnostic["predicted_soma_firing_time"] = soma_stop
+            return soma_stop, max(peak, threshold)
         return None
 
     def _dendritic_time(self, soma_time: float) -> float:

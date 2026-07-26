@@ -8,14 +8,18 @@
 from __future__ import annotations
 
 import argparse
+import cProfile
 import csv
 import hashlib
+import io
 import json
+import pickle
+import pstats
 import subprocess
 import sys
 import time
 from collections import deque
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Callable
@@ -80,6 +84,339 @@ class RolloutResult:
     code: SymbolCode | None
     raw_event_counts: tuple[int, ...]
     raw_column_counts: tuple[int, ...]
+    diagnostics: tuple[dict[str, object], ...] = ()
+
+
+@dataclass
+class StrictRunState:
+    encoder: SSTDCompositeEncoder
+    model: SequentialMemory
+    fingerprint: dict[str, object]
+    stream_label: str
+    data_path: str
+    limit: int
+    next_index: int
+    predictions: list[float] = field(default_factory=list)
+    targets: list[float] = field(default_factory=list)
+    rows: list[dict[str, object]] = field(default_factory=list)
+    recent_errors: deque[float] = field(default_factory=deque)
+    missing: int = 0
+    raw_event_counts: list[int] = field(default_factory=list)
+    raw_column_counts: list[int] = field(default_factory=list)
+    density_rows: list[dict[str, object]] = field(default_factory=list)
+    interval_rows: list[dict[str, object]] = field(default_factory=list)
+    started_at: float = 0.0
+
+
+def _percentile(values: list[float], quantile: float) -> float:
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    index = min(len(ordered) - 1, max(0, round((len(ordered) - 1) * quantile)))
+    return ordered[index]
+
+
+def _correlation(left: list[float], right: list[float]) -> float:
+    if len(left) != len(right) or len(left) < 2:
+        return 0.0
+    left_mean = sum(left) / len(left)
+    right_mean = sum(right) / len(right)
+    numerator = sum(
+        (a - left_mean) * (b - right_mean)
+        for a, b in zip(left, right)
+    )
+    left_var = sum((a - left_mean) ** 2 for a in left)
+    right_var = sum((b - right_mean) ** 2 for b in right)
+    if left_var == 0.0 or right_var == 0.0:
+        return 0.0
+    return numerator / (left_var * right_var) ** 0.5
+
+
+def field_column_counts(code: SymbolCode | None, config: Fig9StrictConfig) -> dict[str, int]:
+    if code is None:
+        return {"weekday": 0, "time": 0, "passenger": 0}
+    weekday_stop = config.weekday_columns
+    time_stop = config.weekday_columns + config.time_columns
+    columns = {event.column for event in code.events}
+    return {
+        "weekday": sum(0 <= column < weekday_stop for column in columns),
+        "time": sum(weekday_stop <= column < time_stop for column in columns),
+        "passenger": sum(time_stop <= column < config.weekday_columns + config.time_columns + config.passenger_columns for column in columns),
+    }
+
+
+def synapse_count(model: SequentialMemory) -> int:
+    return sum(
+        len(segment.synapses)
+        for column in model.columns
+        for neuron in column.neurons
+        for segment in neuron.segments
+    )
+
+
+def passenger_decode_details(
+    passenger_encoder: SSTDRealValueEncoder,
+    code: SymbolCode,
+    timing_tolerance: float,
+) -> tuple[float, int]:
+    predicted_times: dict[int, list[float]] = {}
+    for event in code.events:
+        if (
+            passenger_encoder.column_offset
+            <= event.column
+            < passenger_encoder.column_offset + passenger_encoder.num_columns
+        ):
+            predicted_times.setdefault(event.column, []).append(event.time)
+    if not predicted_times:
+        raise ValueError("code contains no columns from this encoder.")
+    best_score = (-1, -1)
+    best_values: list[float] = []
+    for value, candidate_code in passenger_encoder.likelihood_grid():
+        column_overlap = sum(
+            event.column in predicted_times for event in candidate_code.events
+        )
+        timed_overlap = sum(
+            event.column in predicted_times
+            and any(
+                abs(predicted_time - event.time) <= timing_tolerance
+                for predicted_time in predicted_times[event.column]
+            )
+            for event in candidate_code.events
+        )
+        score = (timed_overlap, column_overlap)
+        if score > best_score:
+            best_score = score
+            best_values = [value]
+        elif score == best_score:
+            best_values.append(value)
+    return sum(best_values) / len(best_values), len(best_values)
+
+
+def segment_count(model: SequentialMemory) -> int:
+    return sum(
+        len(neuron.segments)
+        for column in model.columns
+        for neuron in column.neurons
+    )
+
+
+def transient_fingerprint(model: SequentialMemory) -> str:
+    payload = repr(
+        (
+            sorted(model.previous_active_cells.items()),
+            sorted(model.previous_winners.items()),
+            sorted(
+                (
+                    column,
+                    [
+                        (candidate.neuron_index, candidate.time, candidate.score)
+                        for candidate in candidates
+                    ],
+                )
+                for column, candidates in model.last_prediction_candidates.items()
+            ),
+            model._decode_rng.getstate(),
+            model._learning_rng.getstate(),
+        )
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def write_json(path: Path, payload: object) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+
+
+def write_density_trace(path: Path, rows: list[dict[str, object]]) -> None:
+    if not rows:
+        return
+    write_predictions(path, rows)
+
+
+def save_strict_checkpoint(
+    path: Path,
+    *,
+    encoder: SSTDCompositeEncoder,
+    model: SequentialMemory,
+    fingerprint: dict[str, object],
+    config: Fig9StrictConfig,
+    stream_label: str,
+    data_path: Path,
+    records: list[TaxiRecord],
+    limit: int,
+    next_index: int,
+    predictions: list[float],
+    targets: list[float],
+    rows: list[dict[str, object]],
+    recent_errors: deque[float],
+    missing: int,
+    raw_event_counts: list[int],
+    raw_column_counts: list[int],
+    density_rows: list[dict[str, object]],
+) -> None:
+    payload = {
+        "checkpoint_format": "fig9-strict-v1",
+        "git_commit_sha": git_commit_sha(),
+        "encoder": encoder,
+        "model": model,
+        "fingerprint": fingerprint,
+        "config": config,
+        "stream_label": stream_label,
+        "data_path": str(data_path),
+        "data_file_sha256": file_sha256(data_path),
+        "prefix_end_index": next_index,
+        "prefix_end_timestamp": (
+            records[next_index - 1].timestamp.isoformat(sep=" ")
+            if next_index > 0 and next_index <= len(records)
+            else ""
+        ),
+        "common_prefix_hash": records_prefix_sha256(records, next_index),
+        "perturbation_split_timestamp": PAPER_CHANGE_DATE.isoformat(sep=" "),
+        "limit": limit,
+        "next_index": next_index,
+        "predictions": predictions,
+        "targets": targets,
+        "rows": rows,
+        "recent_errors": list(recent_errors),
+        "missing": missing,
+        "raw_event_counts": raw_event_counts,
+        "raw_column_counts": raw_column_counts,
+        "density_rows": density_rows,
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("wb") as handle:
+        pickle.dump(payload, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+def load_strict_checkpoint(path: Path) -> dict[str, object]:
+    with path.open("rb") as handle:
+        payload = pickle.load(handle)
+    if payload.get("checkpoint_format") != "fig9-strict-v1":
+        raise ValueError("unsupported Fig.9 strict checkpoint format")
+    return payload
+
+
+def find_timestamp_split(
+    records: list[TaxiRecord],
+    split_time: datetime = PAPER_CHANGE_DATE,
+) -> int:
+    for index, record in enumerate(records):
+        if record.timestamp >= split_time:
+            return index
+    raise ValueError(f"no record at or after {split_time.isoformat(sep=' ')}")
+
+
+def summarize_density(rows: list[dict[str, object]]) -> dict[str, object]:
+    by_step: dict[int, list[dict[str, object]]] = {}
+    for row in rows:
+        by_step.setdefault(int(row["horizon_step"]), []).append(row)
+
+    step_summary: list[dict[str, object]] = []
+    for step, step_rows in sorted(by_step.items()):
+        raw_columns = [
+            float(row["raw_predicted_column_count"])
+            for row in step_rows
+        ]
+        active_cells = [
+            float(row["active_source_count"]) for row in step_rows
+        ]
+        candidates = [
+            float(row["candidate_segment_count"]) for row in step_rows
+        ]
+        accepted = [
+            float(row["accepted_candidate_count"]) for row in step_rows
+        ]
+        prediction_runtimes = [
+            float(row["prediction_runtime_seconds"]) for row in step_rows
+        ]
+        passenger_density = [
+            float(row["passenger_predicted_column_count"])
+            for row in step_rows
+        ]
+        absolute_errors = [
+            float(row["absolute_error"])
+            for row in step_rows
+            if row["absolute_error"] != ""
+        ]
+        targets = [
+            abs(float(row["actual_future_passenger"]))
+            for row in step_rows
+            if row["actual_future_passenger"] != ""
+        ]
+        no_prediction = sum(
+            row["stopped_reason"] in {"no_raw_prediction", "no_prediction_active_cells"}
+            for row in step_rows
+        )
+        step_summary.append(
+            {
+                "horizon_step": step,
+                "rows": len(step_rows),
+                "raw_columns_mean": sum(raw_columns) / len(raw_columns) if raw_columns else 0.0,
+                "raw_columns_p50": _percentile(raw_columns, 0.50),
+                "raw_columns_p90": _percentile(raw_columns, 0.90),
+                "raw_columns_p99": _percentile(raw_columns, 0.99),
+                "raw_columns_max": max(raw_columns) if raw_columns else 0.0,
+                "active_cells_mean": sum(active_cells) / len(active_cells) if active_cells else 0.0,
+                "candidate_segments_mean": sum(candidates) / len(candidates) if candidates else 0.0,
+                "accepted_candidates_mean": sum(accepted) / len(accepted) if accepted else 0.0,
+                "passenger_field_density_mean": sum(passenger_density) / len(passenger_density) if passenger_density else 0.0,
+                "prediction_runtime_mean": sum(prediction_runtimes) / len(prediction_runtimes) if prediction_runtimes else 0.0,
+                "mape": (
+                    sum(absolute_errors) / sum(targets)
+                    if absolute_errors and sum(targets)
+                    else 0.0
+                ),
+                "no_prediction_rate": no_prediction / len(step_rows) if step_rows else 0.0,
+            }
+        )
+
+    final_step = [
+        row for row in rows if int(row["horizon_step"]) == max(by_step, default=0)
+    ]
+    raw = [
+        float(row["raw_predicted_column_count"])
+        for row in final_step
+        if row["absolute_percentage_error"] != ""
+    ]
+    errors = [
+        float(row["absolute_percentage_error"])
+        for row in final_step
+        if row["absolute_percentage_error"] != ""
+    ]
+    weekday = [
+        float(row["weekday_predicted_column_count"]) for row in final_step
+    ]
+    time_field = [
+        float(row["time_predicted_column_count"]) for row in final_step
+    ]
+    passenger = [
+        float(row["passenger_predicted_column_count"]) for row in final_step
+    ]
+    return {
+        "diagnostic_label": "strict Fig.9 density diagnostic",
+        "rows": len(rows),
+        "step_summary": step_summary,
+        "final_step_raw_density_error_correlation": _correlation(raw, errors),
+        "final_step_mean_weekday_columns": sum(weekday) / len(weekday) if weekday else 0.0,
+        "final_step_mean_time_columns": sum(time_field) / len(time_field) if time_field else 0.0,
+        "final_step_mean_passenger_columns": sum(passenger) / len(passenger) if passenger else 0.0,
+        "answers": {
+            "step1_already_dense": (
+                step_summary[0]["raw_columns_mean"] > 100.0
+                if step_summary
+                else False
+            ),
+            "density_monotonic_step1_to_step5": all(
+                left["raw_columns_mean"] <= right["raw_columns_mean"]
+                for left, right in zip(step_summary, step_summary[1:])
+            ),
+            "high_mape_mainly_final_step_accumulation": (
+                len(step_summary) >= 5
+                and step_summary[-1]["raw_columns_mean"]
+                > step_summary[0]["raw_columns_mean"]
+            ),
+        },
+    }
 
 
 def build_fig9_encoder(config: Fig9StrictConfig) -> SSTDCompositeEncoder:
@@ -138,6 +475,15 @@ def file_sha256(path: Path) -> str:
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
+    return digest.hexdigest()
+
+
+def records_prefix_sha256(records: list[TaxiRecord], stop_index: int) -> str:
+    digest = hashlib.sha256()
+    for record in records[:stop_index]:
+        digest.update(
+            f"{record.timestamp.isoformat(sep=' ')},{record.value}\n".encode("utf-8")
+        )
     return digest.hexdigest()
 
 
@@ -264,6 +610,12 @@ def validate_strict_fingerprint(fingerprint: dict[str, object]) -> None:
 def rollout_raw_autonomous(
     model: SequentialMemory,
     steps: int,
+    *,
+    config: Fig9StrictConfig | None = None,
+    passenger_encoder: SSTDRealValueEncoder | None = None,
+    record_index: int | None = None,
+    timestamp: datetime | None = None,
+    future_records: list[TaxiRecord] | None = None,
 ) -> RolloutResult:
     """Roll out future SSTD codes using only raw predictive neurons.
 
@@ -279,26 +631,139 @@ def rollout_raw_autonomous(
     prediction: SymbolCode | None = None
     raw_events: list[int] = []
     raw_columns: list[int] = []
+    diagnostics: list[dict[str, object]] = []
     try:
         for _step_index in range(steps):
             # DEBUG WATCH: horizon step start。此时 previous_active_cells
             # 来自上一轮 raw predictive neurons，而不是 decoded passenger。
+            previous_active_count = len(model.previous_active_cells)
+            previous_winner_count = len(model.previous_winners)
+            predicted_source_count = len(model.previous_predicted_sources)
+            burst_source_count = len(model.previous_burst_only_sources)
+            predict_started = time.perf_counter()
             raw = model.predict_code()
+            predict_runtime = time.perf_counter() - predict_started
             if raw is None:
-                return RolloutResult(None, tuple(raw_events), tuple(raw_columns))
+                if config is not None:
+                    diagnostics.append(
+                        {
+                            "record_index": record_index if record_index is not None else "",
+                            "timestamp": timestamp.isoformat(sep=" ") if timestamp else "",
+                            "horizon_step": _step_index + 1,
+                            "previous_active_cell_count": previous_active_count,
+                            "previous_winner_count": previous_winner_count,
+                            "predicted_source_count": predicted_source_count,
+                            "burst_source_count": burst_source_count,
+                            "active_source_count": model.last_prediction_stats.get("active_source_count", 0),
+                            "candidate_segment_count": model.last_prediction_stats.get("candidate_segment_count", 0),
+                            "threshold_crossing_segment_count": model.last_prediction_stats.get("threshold_crossing_segment_count", 0),
+                            "accepted_candidate_count": 0,
+                            "raw_predicted_neuron_count": 0,
+                            "raw_predicted_column_count": 0,
+                            "weekday_predicted_column_count": 0,
+                            "time_predicted_column_count": 0,
+                            "passenger_predicted_column_count": 0,
+                            "raw_event_count": 0,
+                            "passenger_candidate_count": 0,
+                            "decoded_passenger": "",
+                            "actual_future_passenger": "",
+                            "absolute_error": "",
+                            "absolute_percentage_error": "",
+                            "prediction_runtime_seconds": predict_runtime,
+                            "decode_runtime_seconds": 0.0,
+                            "stopped_reason": "no_raw_prediction",
+                        }
+                    )
+                return RolloutResult(
+                    None,
+                    tuple(raw_events),
+                    tuple(raw_columns),
+                    tuple(diagnostics),
+                )
             # DEBUG WATCH: after predict_code。raw_event_counts/raw_column_counts
             # 是定位“预测列密度膨胀”的最直接指标。
             raw_events.append(len(raw.events))
             raw_columns.append(len({event.column for event in raw.events}))
             active = model.prediction_active_cells(raw)
+            decode_runtime = 0.0
+            decoded_passenger: float | str = ""
+            passenger_candidate_count: int | str = ""
+            actual_future: float | str = ""
+            absolute_error: float | str = ""
+            ape: float | str = ""
+            if (
+                config is not None
+                and passenger_encoder is not None
+            ):
+                decode_started = time.perf_counter()
+                try:
+                    decoded, candidate_count = passenger_decode_details(
+                        passenger_encoder,
+                        raw,
+                        model.params.timing_tolerance,
+                    )
+                except ValueError:
+                    decoded_passenger = ""
+                    passenger_candidate_count = 0
+                else:
+                    decoded_passenger = decoded
+                    passenger_candidate_count = candidate_count
+                    if future_records is not None and _step_index < len(future_records):
+                        actual_future = future_records[_step_index].value
+                        if actual_future:
+                            absolute_error = abs(decoded - actual_future)
+                            ape = absolute_error / abs(actual_future)
+                decode_runtime = time.perf_counter() - decode_started
+                counts = field_column_counts(raw, config)
+                diagnostics.append(
+                    {
+                        "record_index": record_index if record_index is not None else "",
+                        "timestamp": timestamp.isoformat(sep=" ") if timestamp else "",
+                        "horizon_step": _step_index + 1,
+                        "previous_active_cell_count": previous_active_count,
+                        "previous_winner_count": previous_winner_count,
+                        "predicted_source_count": predicted_source_count,
+                        "burst_source_count": burst_source_count,
+                        "active_source_count": model.last_prediction_stats.get("active_source_count", 0),
+                        "candidate_segment_count": model.last_prediction_stats.get("candidate_segment_count", 0),
+                        "threshold_crossing_segment_count": model.last_prediction_stats.get("threshold_crossing_segment_count", 0),
+                        "accepted_candidate_count": model.last_prediction_stats.get("accepted_candidate_count", 0),
+                        "raw_predicted_neuron_count": len(active),
+                        "raw_predicted_column_count": len({event.column for event in raw.events}),
+                        "weekday_predicted_column_count": counts["weekday"],
+                        "time_predicted_column_count": counts["time"],
+                        "passenger_predicted_column_count": counts["passenger"],
+                        "raw_event_count": len(raw.events),
+                        "passenger_candidate_count": passenger_candidate_count,
+                        "decoded_passenger": decoded_passenger,
+                        "actual_future_passenger": actual_future,
+                        "absolute_error": absolute_error,
+                        "absolute_percentage_error": ape,
+                        "prediction_runtime_seconds": predict_runtime,
+                        "decode_runtime_seconds": decode_runtime,
+                        "stopped_reason": "",
+                    }
+                )
             if not active:
-                return RolloutResult(None, tuple(raw_events), tuple(raw_columns))
+                if diagnostics:
+                    diagnostics[-1]["stopped_reason"] = "no_prediction_active_cells"
+                return RolloutResult(
+                    None,
+                    tuple(raw_events),
+                    tuple(raw_columns),
+                    tuple(diagnostics),
+                )
             # STATE MUTATION: 下面两行只推进临时检索状态；长期记忆中的
             # segment/synapse/weight/age 不会改变，并会在 finally 中恢复。
             model.previous_active_cells = active
             model.previous_winners = active.copy()
             prediction = raw
-        return RolloutResult(prediction, tuple(raw_events), tuple(raw_columns))
+        return RolloutResult(
+            prediction,
+            tuple(raw_events),
+            tuple(raw_columns),
+            tuple(diagnostics),
+        )
     finally:
         # DEBUG WATCH: before/after transient restore。比较 restore 前后的
         # previous_active_cells、last_prediction_candidates、RNG state，确认
@@ -325,47 +790,145 @@ def run_strict_stream(
     limit: int,
     event_hook: Callable[[str, int], None] | None = None,
     print_fingerprint: bool = True,
+    density_trace_path: Path | None = None,
+    density_summary_path: Path | None = None,
+    interval_every: int = 0,
+    checkpoint_path: Path | None = None,
+    checkpoint_at_index: int | None = None,
+    checkpoint_every: int = 0,
+    resume_checkpoint: Path | None = None,
+    stop_after_index: int | None = None,
+    debug_record_index: int | None = None,
+    debug_output_json: Path | None = None,
 ) -> dict[str, object]:
     """Run one original or perturbed stream under the strict Fig.9 protocol."""
 
     if len(records) <= config.horizon:
         raise ValueError("Not enough records for the requested horizon.")
-    encoder = build_fig9_encoder(config)
+    if resume_checkpoint is not None:
+        checkpoint = load_strict_checkpoint(resume_checkpoint)
+        encoder = checkpoint["encoder"]  # type: ignore[assignment]
+        model = checkpoint["model"]  # type: ignore[assignment]
+        fingerprint = checkpoint["fingerprint"]  # type: ignore[assignment]
+        start_index = int(checkpoint["next_index"])
+        predictions = list(checkpoint["predictions"])  # type: ignore[arg-type]
+        targets = list(checkpoint["targets"])  # type: ignore[arg-type]
+        rows = list(checkpoint["rows"])  # type: ignore[arg-type]
+        recent_errors = deque(
+            checkpoint["recent_errors"],  # type: ignore[arg-type]
+            maxlen=config.rolling_window,
+        )
+        missing = int(checkpoint["missing"])
+        raw_event_counts = list(checkpoint["raw_event_counts"])  # type: ignore[arg-type]
+        raw_column_counts = list(checkpoint["raw_column_counts"])  # type: ignore[arg-type]
+        density_rows = list(checkpoint["density_rows"])  # type: ignore[arg-type]
+        checkpoint_data_hash = checkpoint.get("data_file_sha256")
+        current_data_hash = file_sha256(data_path)
+        if checkpoint_data_hash != current_data_hash:
+            prefix_end = int(checkpoint.get("prefix_end_index", start_index))
+            checkpoint_prefix_hash = checkpoint.get("common_prefix_hash")
+            current_prefix_hash = records_prefix_sha256(records, prefix_end)
+            if checkpoint_prefix_hash != current_prefix_hash:
+                raise ValueError(
+                    "checkpoint data is incompatible with this stream before resume index"
+                )
+    else:
+        encoder = build_fig9_encoder(config)
+        model = build_strict_model(encoder, config)
+        fingerprint = protocol_fingerprint(
+            data_path=data_path,
+            records=records,
+            stream_label=stream_label,
+            config=config,
+            limit=limit,
+        )
+        start_index = 0
+        predictions = []
+        targets = []
+        rows = []
+        recent_errors = deque(maxlen=config.rolling_window)
+        missing = 0
+        raw_event_counts = []
+        raw_column_counts = []
+        density_rows = []
     passenger_encoder = encoder.encoders[2]
-    model = build_strict_model(encoder, config)
-    fingerprint = protocol_fingerprint(
-        data_path=data_path,
-        records=records,
-        stream_label=stream_label,
-        config=config,
-        limit=limit,
-    )
     validate_strict_fingerprint(fingerprint)
     if print_fingerprint:
         print(json.dumps(fingerprint, indent=2, sort_keys=True))
 
     start_time = time.perf_counter()
-    predictions: list[float] = []
-    targets: list[float] = []
-    rows: list[dict[str, object]] = []
-    recent_errors: deque[float] = deque(maxlen=config.rolling_window)
     target_scale = sum(abs(record.value) for record in records) / len(records)
-    missing = 0
-    raw_event_counts: list[int] = []
-    raw_column_counts: list[int] = []
+    interval_rows: list[dict[str, object]] = []
+    interval_start_time = start_time
+    interval_start_index = start_index
+    debug_payload: dict[str, object] | None = None
 
-    for index, record in enumerate(records[:-config.horizon]):
+    for index in range(start_index, len(records) - config.horizon):
+        record = records[index]
         code = encoder.encode(record_values(record))
+        rollout_diagnostics: tuple[dict[str, object], ...] = ()
         if index >= config.warmup:
             target_record = records[index + config.horizon]
+            debug_enabled = debug_record_index is not None and index == debug_record_index
+            before_rollout_fingerprint = (
+                transient_fingerprint(model) if debug_enabled else ""
+            )
+            observe_segments_before = segment_count(model) if debug_enabled else 0
+            observe_synapses_before = synapse_count(model) if debug_enabled else 0
             # STRICT PROTOCOL: 先预测，再 observe 当前真实记录。这样第 index
             # 条记录的真实 passenger_count 不会泄漏到它自己的 horizon 预测里。
             # DEBUG WATCH: before each record prediction。重点看 index、
             # input_timestamp、target_timestamp、previous_active_cells。
             event_hook and event_hook("predict", index)
-            rollout = rollout_raw_autonomous(model, config.horizon)
+            rollout = rollout_raw_autonomous(
+                model,
+                config.horizon,
+                config=(
+                    config
+                    if density_trace_path or density_summary_path or debug_enabled
+                    else None
+                ),
+                passenger_encoder=(
+                    passenger_encoder
+                    if density_trace_path or density_summary_path or debug_enabled
+                    else None
+                ),  # type: ignore[arg-type]
+                record_index=index,
+                timestamp=record.timestamp,
+                future_records=records[index + 1 : index + config.horizon + 1],
+            )
+            if debug_enabled:
+                debug_payload = {
+                    "diagnostic_label": "strict Fig.9 manual debug record",
+                    "record_index": index,
+                    "input_record": {
+                        "timestamp": record.timestamp.isoformat(sep=" "),
+                        "weekday": record_values(record)[0],
+                        "half_hour_slot": record_values(record)[1],
+                        "passenger_count": record.value,
+                    },
+                    "target_record": {
+                        "timestamp": target_record.timestamp.isoformat(sep=" "),
+                        "passenger_count": target_record.value,
+                    },
+                    "prediction_before_observe_state": {
+                        "previous_active_cell_count": len(model.previous_active_cells),
+                        "previous_winner_count": len(model.previous_winners),
+                        "last_prediction_candidate_columns": len(model.last_prediction_candidates),
+                        "transient_fingerprint_before_rollout": before_rollout_fingerprint,
+                    },
+                    "rollout_steps": list(rollout.diagnostics),
+                    "transient_fingerprint_after_rollout_restore": transient_fingerprint(model),
+                    "observe_before": {
+                        "segment_count": observe_segments_before,
+                        "synapse_count": observe_synapses_before,
+                    },
+                }
             raw_event_counts.extend(rollout.raw_event_counts)
             raw_column_counts.extend(rollout.raw_column_counts)
+            rollout_diagnostics = rollout.diagnostics
+            if density_trace_path or density_summary_path:
+                density_rows.extend(rollout.diagnostics)
             prediction_value: float | str = ""
             absolute_error_value: float | str = ""
             normalized_error_value: float | str = ""
@@ -376,7 +939,9 @@ def run_strict_stream(
                 try:
                     # DEBUG WATCH: before/after passenger decode。decode_likelihood
                     # 只把 raw SSTD 活动转成数值，不能反向污染 model 状态。
+                    decode_started = time.perf_counter()
                     prediction = passenger_encoder.decode_likelihood(rollout.code)  # type: ignore[attr-defined]
+                    decode_runtime = time.perf_counter() - decode_started
                 except ValueError:
                     missing += 1
                 else:
@@ -388,6 +953,15 @@ def run_strict_stream(
                     absolute_error_value = error
                     normalized_error_value = error / target_scale if target_scale else ""
                     rolling_value = reference_rolling_mape(recent_errors, target_scale)
+                    if density_rows:
+                        density_rows[-1]["decoded_passenger"] = prediction
+                        density_rows[-1]["actual_future_passenger"] = target_record.value
+                        density_rows[-1]["absolute_percentage_error"] = (
+                            error / abs(target_record.value)
+                            if target_record.value
+                            else ""
+                        )
+                        density_rows[-1]["decode_runtime_seconds"] = decode_runtime
             rows.append(
                 {
                     "input_index": index + 1,
@@ -405,7 +979,94 @@ def run_strict_stream(
         event_hook and event_hook("observe", index)
         # STATE MUTATION: 这里才把真实当前 record 写入长期记忆，触发三种
         # learning scenario、weight/age/segment 变化。预测阶段不能学习。
+        observe_started = time.perf_counter()
         learn_actual_code(model, code)
+        observe_runtime = time.perf_counter() - observe_started
+        if debug_payload is not None and debug_payload.get("record_index") == index:
+            debug_payload["observe_after"] = {
+                "segment_count": segment_count(model),
+                "synapse_count": synapse_count(model),
+                "winner_count": len(model.previous_winners),
+                "observe_runtime_seconds": observe_runtime,
+                "scenario_counts": {
+                    "scenario1": model.last_observe_stats.get("scenario1", 0),
+                    "scenario2": model.last_observe_stats.get("scenario2", 0),
+                    "scenario3": model.last_observe_stats.get("scenario3", 0),
+                },
+            }
+        if rollout_diagnostics:
+            for row in density_rows[-len(rollout_diagnostics) :]:
+                row["observe_runtime"] = observe_runtime
+        if interval_every > 0 and (index + 1) % interval_every == 0:
+            now = time.perf_counter()
+            recent_density = [
+                row
+                for row in density_rows
+                if row["record_index"] != ""
+                and interval_start_index <= int(row["record_index"]) <= index
+            ]
+            interval_rows.append(
+                {
+                    "ending_record_index": index + 1,
+                    "mape": mape(predictions, targets),
+                    "coverage": (
+                        len(predictions) / (len(predictions) + missing)
+                        if len(predictions) + missing
+                        else 0.0
+                    ),
+                    "mean_raw_columns": (
+                        sum(raw_column_counts) / len(raw_column_counts)
+                        if raw_column_counts
+                        else 0.0
+                    ),
+                    "step_density_mean": (
+                        sum(
+                            float(row["raw_predicted_column_count"])
+                            for row in recent_density
+                        )
+                        / len(recent_density)
+                        if recent_density
+                        else 0.0
+                    ),
+                    "segment_count": segment_count(model),
+                    "runtime_seconds": now - interval_start_time,
+                    "runtime_per_record": (
+                        (now - interval_start_time)
+                        / max(1, index + 1 - interval_start_index)
+                    ),
+                }
+            )
+            interval_start_time = now
+            interval_start_index = index + 1
+        if (
+            checkpoint_path is not None
+            and (
+                (checkpoint_at_index is not None and index + 1 == checkpoint_at_index)
+                or (checkpoint_every > 0 and (index + 1) % checkpoint_every == 0)
+            )
+        ):
+            save_strict_checkpoint(
+                checkpoint_path,
+                encoder=encoder,
+                model=model,
+                fingerprint=fingerprint,
+                config=config,
+                stream_label=stream_label,
+                data_path=data_path,
+                records=records,
+                limit=limit,
+                next_index=index + 1,
+                predictions=predictions,
+                targets=targets,
+                rows=rows,
+                recent_errors=recent_errors,
+                missing=missing,
+                raw_event_counts=raw_event_counts,
+                raw_column_counts=raw_column_counts,
+                density_rows=density_rows,
+            )
+        if stop_after_index is not None and index + 1 >= stop_after_index:
+            break
 
     attempted = len(rows)
     elapsed = time.perf_counter() - start_time
@@ -435,6 +1096,18 @@ def run_strict_stream(
         "autonomous_rollout_steps": config.horizon,
         "uses_compensation": False,
     }
+    if density_rows:
+        density_summary = summarize_density(density_rows)
+        summary["density_summary_path"] = str(
+            density_summary_path
+            or output_dir / f"{stream_label}_density_summary.json"
+        )
+        summary["density_trace_path"] = str(
+            density_trace_path
+            or output_dir / f"{stream_label}_density_trace.csv"
+        )
+    if interval_rows:
+        summary["interval_rows"] = interval_rows
 
     output_dir.mkdir(parents=True, exist_ok=True)
     write_predictions(output_dir / f"{stream_label}_predictions.csv", rows)
@@ -446,6 +1119,26 @@ def run_strict_stream(
         json.dumps(fingerprint, indent=2, sort_keys=True),
         encoding="utf-8",
     )
+    if density_rows:
+        write_density_trace(
+            density_trace_path or output_dir / f"{stream_label}_density_trace.csv",
+            density_rows,
+        )
+        write_json(
+            density_summary_path
+            or output_dir / f"{stream_label}_density_summary.json",
+            density_summary,
+        )
+    if interval_rows:
+        write_predictions(
+            output_dir / f"{stream_label}_interval_summary.csv",
+            interval_rows,
+        )
+    if debug_payload is not None:
+        write_json(
+            debug_output_json or output_dir / f"{stream_label}_debug_record.json",
+            debug_payload,
+        )
     plot_name = (
         "fig9_b_original_mape.png"
         if stream_label == "original"
@@ -500,6 +1193,24 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--warmup", type=int, default=5904)
     parser.add_argument("--output-dir", default="results/fig9_strict")
+    parser.add_argument("--density-trace", action="store_true")
+    parser.add_argument("--density-trace-csv", default="")
+    parser.add_argument("--density-summary-json", default="")
+    parser.add_argument("--interval-every", type=int, default=0)
+    parser.add_argument("--profile", action="store_true")
+    parser.add_argument("--profile-output", default="")
+    parser.add_argument("--profile-dir", default="results/fig9_strict/profiling")
+    parser.add_argument("--checkpoint-path", default="")
+    parser.add_argument("--checkpoint-every", type=int, default=0)
+    parser.add_argument("--checkpoint-at-index", type=int, default=0)
+    parser.add_argument("--resume-from", default="")
+    parser.add_argument("--resume-checkpoint", default="")
+    parser.add_argument("--stop-after-record", type=int, default=0)
+    parser.add_argument("--stop-after-index", type=int, default=0)
+    parser.add_argument("--debug-record-index", type=int, default=-1)
+    parser.add_argument("--debug-output-json", default="")
+    parser.add_argument("--april-branch", action="store_true")
+    parser.add_argument("--branch-records", type=int, default=2016)
     parser.add_argument(
         "--streams",
         nargs="+",
@@ -509,10 +1220,72 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main() -> None:
-    args = parse_args()
+def run_april_branch(args: argparse.Namespace, config: Fig9StrictConfig) -> None:
+    output_dir = Path(args.output_dir)
+    original_records = read_records(Path(args.data), args.limit)
+    perturbed_records = read_records(Path(args.perturbed_data), args.limit)
+    split_index = find_timestamp_split(original_records)
+    checkpoint = output_dir / "april1_shared_prefix.pkl"
+    prefix_summary = run_strict_stream(
+        records=original_records,
+        data_path=Path(args.data),
+        stream_label="shared_prefix_original",
+        output_dir=output_dir / "april_branch_prefix",
+        config=config,
+        limit=args.limit,
+        print_fingerprint=False,
+        checkpoint_path=checkpoint,
+        checkpoint_at_index=split_index,
+        stop_after_index=split_index,
+    )
+    stop_after = min(split_index + args.branch_records, len(original_records) - config.horizon)
+    original_summary = run_strict_stream(
+        records=original_records,
+        data_path=Path(args.data),
+        stream_label="original_branch",
+        output_dir=output_dir / "april_branch_original",
+        config=config,
+        limit=args.limit,
+        print_fingerprint=False,
+        resume_checkpoint=checkpoint,
+        stop_after_index=stop_after,
+        density_trace_path=output_dir / "april_branch_original_density.csv",
+        density_summary_path=output_dir / "april_branch_original_density.json",
+        interval_every=args.interval_every,
+    )
+    perturbed_summary = run_strict_stream(
+        records=perturbed_records,
+        data_path=Path(args.perturbed_data),
+        stream_label="perturbed_branch",
+        output_dir=output_dir / "april_branch_perturbed",
+        config=config,
+        limit=args.limit,
+        print_fingerprint=False,
+        resume_checkpoint=checkpoint,
+        stop_after_index=stop_after,
+        density_trace_path=output_dir / "april_branch_perturbed_density.csv",
+        density_summary_path=output_dir / "april_branch_perturbed_density.json",
+        interval_every=args.interval_every,
+    )
+    write_json(
+        output_dir / "april_branch_summary.json",
+        {
+            "split_index": split_index,
+            "split_timestamp": original_records[split_index].timestamp.isoformat(sep=" "),
+            "branch_records": stop_after - split_index,
+            "prefix_summary": prefix_summary,
+            "original_summary": original_summary,
+            "perturbed_summary": perturbed_summary,
+        },
+    )
+
+
+def run_main(args: argparse.Namespace) -> None:
     output_dir = Path(args.output_dir)
     config = Fig9StrictConfig(warmup=args.warmup)
+    if args.april_branch:
+        run_april_branch(args, config)
+        return
     runtime: dict[str, object] = {
         "started_at": datetime.now().isoformat(sep=" ", timespec="seconds"),
         "limit": args.limit,
@@ -530,6 +1303,52 @@ def main() -> None:
             output_dir=output_dir,
             config=config,
             limit=args.limit,
+            density_trace_path=(
+                Path(args.density_trace_csv)
+                if args.density_trace_csv and len(args.streams) == 1
+                else (
+                    output_dir / f"{stream}_density_trace.csv"
+                    if args.density_trace or args.density_trace_csv
+                    else None
+                )
+            ),
+            density_summary_path=(
+                Path(args.density_summary_json)
+                if args.density_summary_json and len(args.streams) == 1
+                else (
+                    output_dir / f"{stream}_density_summary.json"
+                    if args.density_trace or args.density_summary_json
+                    else None
+                )
+            ),
+            interval_every=args.interval_every,
+            checkpoint_path=Path(args.checkpoint_path) if args.checkpoint_path else None,
+            checkpoint_at_index=(
+                args.checkpoint_at_index
+                if args.checkpoint_at_index > 0
+                else None
+            ),
+            checkpoint_every=args.checkpoint_every,
+            resume_checkpoint=(
+                Path(args.resume_from or args.resume_checkpoint)
+                if (args.resume_from or args.resume_checkpoint)
+                else None
+            ),
+            stop_after_index=(
+                args.stop_after_record
+                if args.stop_after_record > 0
+                else (
+                    args.stop_after_index if args.stop_after_index > 0 else None
+                )
+            ),
+            debug_record_index=(
+                args.debug_record_index
+                if args.debug_record_index >= 0
+                else None
+            ),
+            debug_output_json=(
+                Path(args.debug_output_json) if args.debug_output_json else None
+            ),
         )
     if {"original", "perturbed"}.issubset(args.streams):
         runtime["pre_change_comparison"] = compare_pre_change_predictions(
@@ -550,6 +1369,33 @@ def main() -> None:
                 source.read_text(encoding="utf-8"),
                 encoding="utf-8",
             )
+
+
+def main() -> None:
+    args = parse_args()
+    if not args.profile:
+        run_main(args)
+        return
+    profile_path = (
+        Path(args.profile_output)
+        if args.profile_output
+        else Path(args.profile_dir) / "fig9_strict_profile.txt"
+    )
+    profile_path.parent.mkdir(parents=True, exist_ok=True)
+    profiler = cProfile.Profile()
+    profiler.enable()
+    try:
+        run_main(args)
+    finally:
+        profiler.disable()
+    profiler.dump_stats(str(profile_path.with_suffix(".pstats")))
+    stream = io.StringIO()
+    stats = pstats.Stats(profiler, stream=stream).strip_dirs().sort_stats("cumtime")
+    stats.print_stats(40)
+    profile_path.write_text(
+        stream.getvalue(),
+        encoding="utf-8",
+    )
 
 
 if __name__ == "__main__":
