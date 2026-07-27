@@ -1,3 +1,10 @@
+"""树突 PSP 连续动力学的纯计算组件。
+
+这里定义双指数 spike response、峰值和树突电位计算。函数不修改模型状态，
+也不使用 RNG。strict reproduction 依赖当前公式和浮点累加顺序，结构重构
+不得改成近似积分或重排求和。
+"""
+
 from __future__ import annotations
 
 import math

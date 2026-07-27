@@ -1,3 +1,10 @@
+"""论文 SSTD 编码和解码实现。
+
+离散、连续、周期和多字段编码器都输出按脉冲时间排序的 SymbolCode。编码器
+负责符号到 column/time event 的映射，不负责推进 SequentialMemory 状态；
+解码只读取预测代码，不应把解码值重新作为 proximal input。
+"""
+
 from __future__ import annotations
 
 import math

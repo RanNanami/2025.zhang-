@@ -1,3 +1,11 @@
+"""Fig.9 的历史实现和多个实验仍在复用的数据/指标 helper。
+
+当前 strict 入口会从本模块读取 TaxiRecord、数据加载和评价函数；同时，本
+模块还保留 compensated、future-context 等 historical/diagnostic 选项。
+在这些共享 helper 被抽取前不能删除本文件，也不能让 historical 选项成为
+strict 默认路径。
+"""
+
 from __future__ import annotations
 
 import argparse

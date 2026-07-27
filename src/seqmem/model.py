@@ -1,3 +1,11 @@
+"""序列记忆网络的核心数据结构、预测、学习与状态推进。
+
+本模块目前也是旧 checkpoint 的 pickle 类路径。重构时可以抽取纯 helper，
+但在兼容迁移完成前，不能移动 Synapse、Segment、Neuron、MemoryParams 或
+SequentialMemory 的定义。strict 路径对 RNG 调用顺序、浮点累加顺序和候选
+排序敏感，相关循环不能仅为缩短代码而改写。
+"""
+
 from __future__ import annotations
 
 import random

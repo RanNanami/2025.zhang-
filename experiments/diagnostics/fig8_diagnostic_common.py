@@ -1,3 +1,10 @@
+"""Fig.8 多轮诊断共用的训练、只读评估和统计工具。
+
+这些 helper 服务 response-scale、Scenario 1、prediction competition 和
+branch coherence 等 nonpaper diagnostics。diagnostic 开关不得改变模型默认
+参数；evaluate_diagnostic 必须恢复 transient state 和 RNG，不能污染训练。
+"""
+
 from __future__ import annotations
 
 import gzip
