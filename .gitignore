@@ -55,6 +55,8 @@ results/fig9_strict/refactor_*/
 results/fig9_strict/competitive_smoke_*/
 results/fig9_diagnostics/competitive_inhibition_*/raw/
 results/fig9_diagnostics/competitive_inhibition_*/s*/
+results/fig9_diagnostics/competitive_250_*/
+results/fig9_diagnostics/competitive_oracle_250_*/
 results/fig9_strict/resume_*/
 results/fig9_strict/smoke_*/
 results/fig9_strict/phase2_250_density*/
