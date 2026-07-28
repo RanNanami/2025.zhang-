@@ -879,6 +879,8 @@ def rollout_raw_autonomous(
                     inhibition_strength=competition.inhibition_strength,
                     inhibition_tau=competition.inhibition_tau,
                     simultaneous_tolerance=competition.simultaneous_tolerance,
+                    simultaneous_policy=competition.simultaneous_policy,
+                    simultaneous_bin_width=competition.simultaneous_bin_width,
                 )
                 propagated = emitted_prediction_code(raw, competition_result)
                 competition_runtime = time.perf_counter() - competition_started
@@ -952,6 +954,11 @@ def rollout_raw_autonomous(
                     decision.accumulated_inhibition
                     for decision in competition_decisions
                 ]
+                competition_batches = (
+                    competition_result.batches
+                    if competition_result is not None
+                    else ()
+                )
                 emitted_times = (
                     [
                         item.candidate.time
@@ -980,6 +987,46 @@ def rollout_raw_autonomous(
                         "passenger_predicted_column_count": raw_counts["passenger"],
                         "raw_event_count": len(raw.events),
                         "competition_mode": competition.mode,
+                        "simultaneous_policy": competition.simultaneous_policy,
+                        "simultaneous_bin_width": competition.simultaneous_bin_width,
+                        "batch_index": " ".join(
+                            str(batch.batch_index)
+                            for batch in competition_batches
+                        ),
+                        "batch_start_time": " ".join(
+                            f"{batch.batch_start_time:.12g}"
+                            for batch in competition_batches
+                        ),
+                        "batch_end_time": " ".join(
+                            f"{batch.batch_end_time:.12g}"
+                            for batch in competition_batches
+                        ),
+                        "batch_candidate_count": " ".join(
+                            str(batch.candidate_count)
+                            for batch in competition_batches
+                        ),
+                        "batch_emitted_count": " ".join(
+                            str(batch.emitted_count)
+                            for batch in competition_batches
+                        ),
+                        "earlier_batch_inhibition": (
+                            sum(
+                                decision.earlier_batch_inhibition
+                                for decision in competition_decisions
+                            )
+                            / len(competition_decisions)
+                            if competition_decisions
+                            else 0.0
+                        ),
+                        "same_batch_inhibition": (
+                            sum(
+                                decision.same_batch_inhibition
+                                for decision in competition_decisions
+                            )
+                            / len(competition_decisions)
+                            if competition_decisions
+                            else 0.0
+                        ),
                         "emitted_neuron_count": len(active),
                         "emitted_column_count": (
                             len({event.column for event in propagated.events})
@@ -1470,6 +1517,8 @@ def run_strict_stream(
                 "inhibition_strength": competition.inhibition_strength,
                 "inhibition_tau": competition.inhibition_tau,
                 "simultaneous_tolerance": competition.simultaneous_tolerance,
+                "simultaneous_policy": competition.simultaneous_policy,
+                "simultaneous_bin_width": competition.simultaneous_bin_width,
             }
         )
     if density_rows:
@@ -1532,6 +1581,9 @@ def run_strict_stream(
                 "diagnostic_only": True,
                 "competition_is_local_choice": True,
                 **asdict(competition),
+                "same_batch_candidates_inhibit_each_other": (
+                    competition.simultaneous_policy == "sequential"
+                ),
                 "threshold": model.params.dendrite_threshold,
                 "score_source": "PredictionCandidate.score",
                 "candidate_source": (
@@ -1625,6 +1677,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--inhibition-strength", type=float, default=0.1)
     parser.add_argument("--inhibition-tau", type=float, default=0.02)
     parser.add_argument("--simultaneous-tolerance", type=float, default=0.0)
+    parser.add_argument(
+        "--simultaneous-policy",
+        choices=("sequential", "batched"),
+        default="sequential",
+    )
+    parser.add_argument(
+        "--simultaneous-bin-width",
+        type=float,
+        default=0.005,
+    )
     parser.add_argument(
         "--oracle-candidate-diagnostic",
         action="store_true",
@@ -1731,6 +1793,8 @@ def run_main(args: argparse.Namespace) -> None:
         inhibition_strength=args.inhibition_strength,
         inhibition_tau=args.inhibition_tau,
         simultaneous_tolerance=args.simultaneous_tolerance,
+        simultaneous_policy=args.simultaneous_policy,
+        simultaneous_bin_width=args.simultaneous_bin_width,
     )
     competition.validate()
     if args.april_branch:

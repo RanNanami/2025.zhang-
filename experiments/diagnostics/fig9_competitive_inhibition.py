@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import math
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Mapping, Sequence
 
@@ -29,6 +29,8 @@ class CompetitionSettings:
     inhibition_strength: float = 0.0
     inhibition_tau: float = 0.02
     simultaneous_tolerance: float = 0.0
+    simultaneous_policy: str = "sequential"
+    simultaneous_bin_width: float = 0.005
 
     @property
     def enabled(self) -> bool:
@@ -43,6 +45,12 @@ class CompetitionSettings:
             raise ValueError("inhibition_tau must be positive")
         if self.simultaneous_tolerance < 0.0:
             raise ValueError("simultaneous_tolerance must be nonnegative")
+        if self.simultaneous_policy not in {"sequential", "batched"}:
+            raise ValueError(
+                f"unsupported simultaneous policy: {self.simultaneous_policy}"
+            )
+        if self.simultaneous_bin_width <= 0.0:
+            raise ValueError("simultaneous_bin_width must be positive")
 
 
 @dataclass(frozen=True)
@@ -72,6 +80,24 @@ class CompetitionDecision:
     emitted: bool
     reason: str
     winning_predecessor_ids: tuple[str, ...]
+    batch_index: int = 0
+    batch_start_time: float = 0.0
+    batch_end_time: float = 0.0
+    batch_candidate_count: int = 1
+    batch_emitted_count: int = 0
+    earlier_batch_inhibition: float = 0.0
+    same_batch_inhibition: float = 0.0
+
+
+@dataclass(frozen=True)
+class CompetitionBatch:
+    """Aggregate metadata for one deterministic diagnostic time bucket."""
+
+    batch_index: int
+    batch_start_time: float
+    batch_end_time: float
+    candidate_count: int
+    emitted_count: int
 
 
 @dataclass(frozen=True)
@@ -84,6 +110,9 @@ class CompetitionResult:
     raw_candidate_count: int
     raw_column_count: int
     emitted_column_count: int
+    simultaneous_policy: str = "sequential"
+    simultaneous_bin_width: float = 0.005
+    batches: tuple[CompetitionBatch, ...] = ()
 
 
 def candidates_for_prediction(
@@ -126,6 +155,8 @@ def compete_prediction_candidates(
     inhibition_strength: float,
     inhibition_tau: float,
     simultaneous_tolerance: float,
+    simultaneous_policy: str = "sequential",
+    simultaneous_bin_width: float = 0.005,
 ) -> CompetitionResult:
     """Apply event-driven inhibition from previously emitted other columns.
 
@@ -144,6 +175,64 @@ def compete_prediction_candidates(
         raise ValueError("inhibition_tau must be positive")
     if simultaneous_tolerance < 0.0:
         raise ValueError("simultaneous_tolerance must be nonnegative")
+    if simultaneous_policy not in {"sequential", "batched"}:
+        raise ValueError(
+            f"unsupported simultaneous policy: {simultaneous_policy}"
+        )
+    if simultaneous_bin_width <= 0.0:
+        raise ValueError("simultaneous_bin_width must be positive")
+
+    if simultaneous_policy == "sequential":
+        decisions, emitted, inhibited = _compete_sequential(
+            candidates,
+            threshold=threshold,
+            inhibition_strength=inhibition_strength,
+            inhibition_tau=inhibition_tau,
+            simultaneous_tolerance=simultaneous_tolerance,
+            simultaneous_bin_width=simultaneous_bin_width,
+        )
+    else:
+        decisions, emitted, inhibited = _compete_batched(
+            candidates,
+            threshold=threshold,
+            inhibition_strength=inhibition_strength,
+            inhibition_tau=inhibition_tau,
+            simultaneous_bin_width=simultaneous_bin_width,
+        )
+
+    decisions, batches = _attach_batch_counts(
+        decisions,
+        simultaneous_bin_width=simultaneous_bin_width,
+    )
+    return CompetitionResult(
+        decisions=decisions,
+        emitted_candidates=emitted,
+        inhibited_candidates=inhibited,
+        raw_candidate_count=len(decisions),
+        raw_column_count=len(
+            {decision.candidate.column_index for decision in decisions}
+        ),
+        emitted_column_count=len({item.column_index for item in emitted}),
+        simultaneous_policy=simultaneous_policy,
+        simultaneous_bin_width=simultaneous_bin_width,
+        batches=batches,
+    )
+
+
+def _compete_sequential(
+    candidates: Sequence[CompetitionCandidate],
+    *,
+    threshold: float,
+    inhibition_strength: float,
+    inhibition_tau: float,
+    simultaneous_tolerance: float,
+    simultaneous_bin_width: float,
+) -> tuple[
+    tuple[CompetitionDecision, ...],
+    tuple[CompetitionCandidate, ...],
+    tuple[CompetitionCandidate, ...],
+]:
+    """Preserve the original immediate-emission competition exactly."""
 
     ordered = sorted(
         candidates,
@@ -161,6 +250,12 @@ def compete_prediction_candidates(
     for item in ordered:
         predecessor_ids: list[str] = []
         inhibition = 0.0
+        earlier_batch_inhibition = 0.0
+        same_batch_inhibition = 0.0
+        item_batch = _batch_index(
+            item.candidate.time,
+            simultaneous_bin_width,
+        )
         for predecessor in emitted:
             if predecessor.column_index == item.column_index:
                 continue
@@ -168,9 +263,20 @@ def compete_prediction_candidates(
             if delta < -simultaneous_tolerance:
                 continue
             effective_delta = 0.0 if delta <= simultaneous_tolerance else delta
-            inhibition += inhibition_strength * math.exp(
+            contribution = inhibition_strength * math.exp(
                 -effective_delta / inhibition_tau
             )
+            inhibition += contribution
+            if (
+                _batch_index(
+                    predecessor.candidate.time,
+                    simultaneous_bin_width,
+                )
+                == item_batch
+            ):
+                same_batch_inhibition += contribution
+            else:
+                earlier_batch_inhibition += contribution
             predecessor_ids.append(predecessor.candidate_id)
 
         effective_score = item.candidate.score - inhibition
@@ -190,17 +296,181 @@ def compete_prediction_candidates(
                 emitted=does_emit,
                 reason=reason,
                 winning_predecessor_ids=tuple(predecessor_ids),
+                batch_index=item_batch,
+                batch_start_time=_batch_start(
+                    item_batch,
+                    simultaneous_bin_width,
+                ),
+                batch_end_time=_batch_end(
+                    item_batch,
+                    simultaneous_bin_width,
+                ),
+                earlier_batch_inhibition=earlier_batch_inhibition,
+                same_batch_inhibition=same_batch_inhibition,
             )
         )
 
-    return CompetitionResult(
-        decisions=tuple(decisions),
-        emitted_candidates=tuple(emitted),
-        inhibited_candidates=tuple(inhibited),
-        raw_candidate_count=len(ordered),
-        raw_column_count=len({item.column_index for item in ordered}),
-        emitted_column_count=len({item.column_index for item in emitted}),
+    return tuple(decisions), tuple(emitted), tuple(inhibited)
+
+
+def _compete_batched(
+    candidates: Sequence[CompetitionCandidate],
+    *,
+    threshold: float,
+    inhibition_strength: float,
+    inhibition_tau: float,
+    simultaneous_bin_width: float,
+) -> tuple[
+    tuple[CompetitionDecision, ...],
+    tuple[CompetitionCandidate, ...],
+    tuple[CompetitionCandidate, ...],
+]:
+    """Decide one time bucket before exposing its winners to later buckets."""
+
+    ordered = sorted(
+        candidates,
+        key=lambda item: (
+            _batch_index(item.candidate.time, simultaneous_bin_width),
+            item.candidate.time,
+            item.column_index,
+            item.candidate.neuron_index,
+            item.original_order,
+        ),
     )
+    emitted: list[CompetitionCandidate] = []
+    inhibited: list[CompetitionCandidate] = []
+    decisions: list[CompetitionDecision] = []
+    cursor = 0
+    while cursor < len(ordered):
+        batch_index = _batch_index(
+            ordered[cursor].candidate.time,
+            simultaneous_bin_width,
+        )
+        end = cursor + 1
+        while (
+            end < len(ordered)
+            and _batch_index(
+                ordered[end].candidate.time,
+                simultaneous_bin_width,
+            )
+            == batch_index
+        ):
+            end += 1
+
+        batch_decisions: list[CompetitionDecision] = []
+        for item in ordered[cursor:end]:
+            predecessor_ids: list[str] = []
+            inhibition = 0.0
+            for predecessor in emitted:
+                if predecessor.column_index == item.column_index:
+                    continue
+                delta = item.candidate.time - predecessor.candidate.time
+                if delta < 0.0:
+                    continue
+                contribution = inhibition_strength * math.exp(
+                    -delta / inhibition_tau
+                )
+                inhibition += contribution
+                predecessor_ids.append(predecessor.candidate_id)
+
+            effective_score = item.candidate.score - inhibition
+            does_emit = effective_score >= threshold
+            batch_decisions.append(
+                CompetitionDecision(
+                    candidate=item,
+                    original_score=item.candidate.score,
+                    accumulated_inhibition=inhibition,
+                    effective_score=effective_score,
+                    emitted=does_emit,
+                    reason=(
+                        "effective_score_at_or_above_threshold"
+                        if does_emit
+                        else "effective_score_below_threshold"
+                    ),
+                    winning_predecessor_ids=tuple(predecessor_ids),
+                    batch_index=batch_index,
+                    batch_start_time=_batch_start(
+                        batch_index,
+                        simultaneous_bin_width,
+                    ),
+                    batch_end_time=_batch_end(
+                        batch_index,
+                        simultaneous_bin_width,
+                    ),
+                    earlier_batch_inhibition=inhibition,
+                    same_batch_inhibition=0.0,
+                )
+            )
+
+        batch_emitted = [
+            decision.candidate
+            for decision in batch_decisions
+            if decision.emitted
+        ]
+        emitted.extend(batch_emitted)
+        inhibited.extend(
+            decision.candidate
+            for decision in batch_decisions
+            if not decision.emitted
+        )
+        decisions.extend(batch_decisions)
+        cursor = end
+
+    return tuple(decisions), tuple(emitted), tuple(inhibited)
+
+
+def _batch_index(predicted_time: float, bin_width: float) -> int:
+    """Map time to a deterministic nearest-grid bucket."""
+
+    return round(predicted_time / bin_width)
+
+
+def _batch_start(batch_index: int, bin_width: float) -> float:
+    return (batch_index - 0.5) * bin_width
+
+
+def _batch_end(batch_index: int, bin_width: float) -> float:
+    return (batch_index + 0.5) * bin_width
+
+
+def _attach_batch_counts(
+    decisions: Sequence[CompetitionDecision],
+    *,
+    simultaneous_bin_width: float,
+) -> tuple[tuple[CompetitionDecision, ...], tuple[CompetitionBatch, ...]]:
+    grouped: dict[int, list[CompetitionDecision]] = {}
+    for decision in decisions:
+        grouped.setdefault(decision.batch_index, []).append(decision)
+
+    batches: list[CompetitionBatch] = []
+    updated: list[CompetitionDecision] = []
+    for batch_index in sorted(grouped):
+        members = grouped[batch_index]
+        emitted_count = sum(member.emitted for member in members)
+        batches.append(
+            CompetitionBatch(
+                batch_index=batch_index,
+                batch_start_time=_batch_start(
+                    batch_index,
+                    simultaneous_bin_width,
+                ),
+                batch_end_time=_batch_end(
+                    batch_index,
+                    simultaneous_bin_width,
+                ),
+                candidate_count=len(members),
+                emitted_count=emitted_count,
+            )
+        )
+        updated.extend(
+            replace(
+                member,
+                batch_candidate_count=len(members),
+                batch_emitted_count=emitted_count,
+            )
+            for member in members
+        )
+    return tuple(updated), tuple(batches)
 
 
 def emitted_prediction_code(
@@ -268,6 +538,24 @@ def summarize_competition(
         density_error_correlation = _correlation(paired_density)
         raw_total = sum(raw_columns)
         emitted_total = sum(emitted_columns)
+        batch_counts = [
+            _integer_sequence(row.get("batch_candidate_count", ""))
+            for row in selected
+        ]
+        emitted_batch_counts = [
+            _integer_sequence(row.get("batch_emitted_count", ""))
+            for row in selected
+        ]
+        flat_batch_counts = [
+            count for counts in batch_counts for count in counts
+        ]
+        flat_emitted_batch_counts = [
+            count for counts in emitted_batch_counts for count in counts
+        ]
+        total_batched_candidates = sum(flat_batch_counts)
+        same_batch_candidates = sum(
+            count for count in flat_batch_counts if count > 1
+        )
         step_summary.append(
             {
                 "horizon_step": step,
@@ -294,6 +582,32 @@ def summarize_competition(
                     else 0.0
                 ),
                 "density_error_correlation": density_error_correlation,
+                "batch_count_mean": (
+                    sum(len(counts) for counts in batch_counts) / len(selected)
+                    if selected
+                    else 0.0
+                ),
+                "candidates_per_batch_mean": (
+                    total_batched_candidates / len(flat_batch_counts)
+                    if flat_batch_counts
+                    else 0.0
+                ),
+                "emitted_per_batch_mean": (
+                    sum(flat_emitted_batch_counts)
+                    / len(flat_emitted_batch_counts)
+                    if flat_emitted_batch_counts
+                    else 0.0
+                ),
+                "same_batch_candidate_fraction": (
+                    same_batch_candidates / total_batched_candidates
+                    if total_batched_candidates
+                    else 0.0
+                ),
+                # These require paired ground-truth oracle traces and are
+                # populated by compare_fig9_competition_policies.py.
+                "target_candidates_sharing_batch_with_earlier_false": None,
+                "target_candidates_rescued_by_batched": None,
+                "false_candidates_additionally_emitted_by_batched": None,
                 "segment_count": segment_count,
                 "runtime_seconds": runtime_seconds,
             }
@@ -323,3 +637,9 @@ def _correlation(pairs: Sequence[tuple[float, float]]) -> float:
     if left_variance == 0.0 or right_variance == 0.0:
         return 0.0
     return numerator / math.sqrt(left_variance * right_variance)
+
+
+def _integer_sequence(value: object) -> list[int]:
+    if value in {"", None}:
+        return []
+    return [int(item) for item in str(value).split()]
