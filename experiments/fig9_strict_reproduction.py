@@ -46,6 +46,11 @@ from experiments.diagnostics.fig9_competitive_inhibition import (  # noqa: E402
     emitted_prediction_code,
     summarize_competition,
 )
+from experiments.diagnostics.fig9_oracle_candidate import (  # noqa: E402
+    FieldColumnRanges,
+    analyze_oracle_step,
+    summarize_oracle_rows,
+)
 from seqmem.encoding import (  # noqa: E402
     SSTDCompositeEncoder,
     SSTDPeriodicEncoder,
@@ -101,6 +106,7 @@ class RolloutResult:
     diagnostics: tuple[dict[str, object], ...] = ()
     emitted_event_counts: tuple[int, ...] = ()
     emitted_column_counts: tuple[int, ...] = ()
+    oracle_diagnostics: tuple[dict[str, object], ...] = ()
 
 
 @dataclass
@@ -693,6 +699,8 @@ def rollout_raw_autonomous(
     *,
     config: Fig9StrictConfig | None = None,
     competition_settings: CompetitionSettings | None = None,
+    oracle_candidate_diagnostic: bool = False,
+    oracle_encoder: SSTDCompositeEncoder | None = None,
     passenger_encoder: SSTDRealValueEncoder | None = None,
     record_index: int | None = None,
     timestamp: datetime | None = None,
@@ -711,12 +719,32 @@ def rollout_raw_autonomous(
     snapshot = model.snapshot_transient_state()
     competition = competition_settings or CompetitionSettings()
     competition.validate()
+    if oracle_candidate_diagnostic and not competition.enabled:
+        raise ValueError(
+            "oracle candidate diagnostics require competitive_raw mode"
+        )
+    if oracle_candidate_diagnostic and (
+        config is None or oracle_encoder is None or future_records is None
+    ):
+        raise ValueError(
+            "oracle diagnostics require config, oracle_encoder, and future_records"
+        )
+    oracle_ranges = (
+        FieldColumnRanges.from_sizes(
+            config.weekday_columns,
+            config.time_columns,
+            config.passenger_columns,
+        )
+        if oracle_candidate_diagnostic and config is not None
+        else None
+    )
     prediction: SymbolCode | None = None
     raw_events: list[int] = []
     raw_columns: list[int] = []
     emitted_events: list[int] = []
     emitted_columns: list[int] = []
     diagnostics: list[dict[str, object]] = []
+    oracle_diagnostics: list[dict[str, object]] = []
     try:
         for _step_index in range(steps):
             # DEBUG WATCH: horizon step start。此时 previous_active_cells
@@ -729,6 +757,42 @@ def rollout_raw_autonomous(
             raw = model.predict_code()
             predict_runtime = time.perf_counter() - predict_started
             if raw is None:
+                if (
+                    oracle_candidate_diagnostic
+                    and oracle_encoder is not None
+                    and oracle_ranges is not None
+                    and future_records is not None
+                    and _step_index < len(future_records)
+                ):
+                    target_record = future_records[_step_index]
+                    oracle_diagnostics.append(
+                        analyze_oracle_step(
+                            prediction_input_index=(
+                                record_index + 1
+                                if record_index is not None
+                                else 0
+                            ),
+                            input_timestamp=(
+                                timestamp.isoformat(sep=" ")
+                                if timestamp is not None
+                                else ""
+                            ),
+                            horizon_step=_step_index + 1,
+                            target_timestamp=target_record.timestamp.isoformat(
+                                sep=" "
+                            ),
+                            target_passenger=target_record.value,
+                            decoded_prediction="",
+                            absolute_error="",
+                            raw_prediction=None,
+                            emitted_prediction=None,
+                            competition_result=None,
+                            target_code=oracle_encoder.encode(
+                                record_values(target_record)
+                            ),
+                            ranges=oracle_ranges,
+                        )
+                    )
                 if config is not None:
                     diagnostics.append(
                         {
@@ -792,6 +856,7 @@ def rollout_raw_autonomous(
                     tuple(diagnostics),
                     tuple(emitted_events),
                     tuple(emitted_columns),
+                    tuple(oracle_diagnostics),
                 )
             # DEBUG WATCH: after predict_code。raw_event_counts/raw_column_counts
             # 是定位“预测列密度膨胀”的最直接指标。
@@ -966,6 +1031,42 @@ def rollout_raw_autonomous(
                         "stopped_reason": "",
                     }
                 )
+            if (
+                oracle_candidate_diagnostic
+                and oracle_encoder is not None
+                and oracle_ranges is not None
+                and future_records is not None
+                and _step_index < len(future_records)
+            ):
+                target_record = future_records[_step_index]
+                oracle_diagnostics.append(
+                    analyze_oracle_step(
+                        prediction_input_index=(
+                            record_index + 1
+                            if record_index is not None
+                            else 0
+                        ),
+                        input_timestamp=(
+                            timestamp.isoformat(sep=" ")
+                            if timestamp is not None
+                            else ""
+                        ),
+                        horizon_step=_step_index + 1,
+                        target_timestamp=target_record.timestamp.isoformat(
+                            sep=" "
+                        ),
+                        target_passenger=target_record.value,
+                        decoded_prediction=decoded_passenger,
+                        absolute_error=absolute_error,
+                        raw_prediction=raw,
+                        emitted_prediction=propagated,
+                        competition_result=competition_result,
+                        target_code=oracle_encoder.encode(
+                            record_values(target_record)
+                        ),
+                        ranges=oracle_ranges,
+                    )
+                )
             if not active:
                 if diagnostics:
                     diagnostics[-1]["stopped_reason"] = "no_prediction_active_cells"
@@ -976,6 +1077,7 @@ def rollout_raw_autonomous(
                     tuple(diagnostics),
                     tuple(emitted_events),
                     tuple(emitted_columns),
+                    tuple(oracle_diagnostics),
                 )
             # STATE MUTATION: 下面两行只推进临时检索状态；长期记忆中的
             # segment/synapse/weight/age 不会改变，并会在 finally 中恢复。
@@ -989,6 +1091,7 @@ def rollout_raw_autonomous(
             tuple(diagnostics),
             tuple(emitted_events),
             tuple(emitted_columns),
+            tuple(oracle_diagnostics),
         )
     finally:
         # DEBUG WATCH: before/after transient restore。比较 restore 前后的
@@ -1027,11 +1130,16 @@ def run_strict_stream(
     debug_record_index: int | None = None,
     debug_output_json: Path | None = None,
     competition_settings: CompetitionSettings | None = None,
+    oracle_candidate_diagnostic: bool = False,
 ) -> dict[str, object]:
     """Run one original or perturbed stream under the strict Fig.9 protocol."""
 
     competition = competition_settings or CompetitionSettings()
     competition.validate()
+    if oracle_candidate_diagnostic and not competition.enabled:
+        raise ValueError(
+            "oracle candidate diagnostics require competitive_raw mode"
+        )
     if len(records) <= config.horizon:
         raise ValueError("Not enough records for the requested horizon.")
     if resume_checkpoint is not None:
@@ -1081,6 +1189,10 @@ def run_strict_stream(
         raw_column_counts = []
         density_rows = []
     passenger_encoder = encoder.encoders[2]
+    oracle_encoder = (
+        build_fig9_encoder(config) if oracle_candidate_diagnostic else None
+    )
+    oracle_rows: list[dict[str, object]] = []
     validate_strict_fingerprint(fingerprint)
     if print_fingerprint:
         print(json.dumps(fingerprint, indent=2, sort_keys=True))
@@ -1113,6 +1225,8 @@ def run_strict_stream(
                 model,
                 config.horizon,
                 competition_settings=competition,
+                oracle_candidate_diagnostic=oracle_candidate_diagnostic,
+                oracle_encoder=oracle_encoder,
                 config=(
                     config
                     if (
@@ -1167,6 +1281,8 @@ def run_strict_stream(
             raw_event_counts.extend(rollout.raw_event_counts)
             raw_column_counts.extend(rollout.raw_column_counts)
             rollout_diagnostics = rollout.diagnostics
+            if oracle_candidate_diagnostic:
+                oracle_rows.extend(rollout.oracle_diagnostics)
             if density_trace_path or density_summary_path or competition.enabled:
                 density_rows.extend(rollout.diagnostics)
             prediction_value: float | str = ""
@@ -1356,6 +1472,19 @@ def run_strict_stream(
                 "simultaneous_tolerance": competition.simultaneous_tolerance,
             }
         )
+    if oracle_candidate_diagnostic:
+        summary.update(
+            {
+                "uses_ground_truth_for_analysis_only": True,
+                "ground_truth_does_not_affect_prediction": True,
+                "oracle_candidate_trace_path": str(
+                    output_dir / "oracle_candidate_trace.csv"
+                ),
+                "oracle_candidate_summary_path": str(
+                    output_dir / "oracle_candidate_summary.json"
+                ),
+            }
+        )
     if density_rows:
         density_summary = summarize_density(density_rows)
         summary["density_summary_path"] = str(
@@ -1423,6 +1552,15 @@ def run_strict_stream(
                 ),
                 "strict_protocol_sha256": stable_object_sha256(fingerprint),
             },
+        )
+    if oracle_candidate_diagnostic:
+        write_predictions(
+            output_dir / "oracle_candidate_trace.csv",
+            oracle_rows,
+        )
+        write_json(
+            output_dir / "oracle_candidate_summary.json",
+            summarize_oracle_rows(oracle_rows, horizon=config.horizon),
         )
     if interval_rows:
         write_predictions(
@@ -1500,6 +1638,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--inhibition-strength", type=float, default=0.1)
     parser.add_argument("--inhibition-tau", type=float, default=0.02)
     parser.add_argument("--simultaneous-tolerance", type=float, default=0.0)
+    parser.add_argument(
+        "--oracle-candidate-diagnostic",
+        action="store_true",
+        help="Analyze true target candidates after competition; never affects prediction.",
+    )
     parser.add_argument("--interval-every", type=int, default=0)
     parser.add_argument("--profile", action="store_true")
     parser.add_argument("--profile-output", default="")
@@ -1628,6 +1771,13 @@ def run_main(args: argparse.Namespace) -> None:
                 "competition": asdict(competition),
             }
         )
+    if args.oracle_candidate_diagnostic:
+        runtime.update(
+            {
+                "uses_ground_truth_for_analysis_only": True,
+                "ground_truth_does_not_affect_prediction": True,
+            }
+        )
     summaries: dict[str, object] = {}
     for stream in args.streams:
         data_path = Path(args.data if stream == "original" else args.perturbed_data)
@@ -1686,6 +1836,7 @@ def run_main(args: argparse.Namespace) -> None:
                 Path(args.debug_output_json) if args.debug_output_json else None
             ),
             competition_settings=competition,
+            oracle_candidate_diagnostic=args.oracle_candidate_diagnostic,
         )
     if {"original", "perturbed"}.issubset(args.streams):
         runtime["pre_change_comparison"] = compare_pre_change_predictions(
