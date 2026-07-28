@@ -10,6 +10,7 @@ from pathlib import Path
 
 from experiments.diagnostics.analyze_fig9_candidate_score_separability import (
     aggregate_columns,
+    analyze,
     average_precision,
     bootstrap_by_rollout,
     bootstrap_rollout_metric_means,
@@ -410,6 +411,39 @@ class Fig9CandidateSeparabilityTraceTests(unittest.TestCase):
                 ),
                 candidate_separability_trace=True,
             )
+
+    def test_end_to_end_analysis_writes_all_required_outputs(self) -> None:
+        output = self.root / "analysis"
+        summary = analyze(
+            (
+                ("sequential", self.root / "sequential" / "on"),
+                ("batched", self.root / "batched" / "on"),
+            ),
+            output_dir=output,
+            bootstrap_samples=5,
+            bootstrap_seed=0,
+        )
+        expected = {
+            "candidate_score_rows.csv",
+            "column_score_rows.csv",
+            "score_distribution_summary.csv",
+            "separability_metrics.csv",
+            "threshold_curves.csv",
+            "recall_budget_summary.csv",
+            "batch_separability_summary.csv",
+            "field_scale_summary.csv",
+            "horizon_degradation_summary.csv",
+            "bootstrap_confidence_intervals.csv",
+            "candidate_score_separability_summary.json",
+            "CANDIDATE_SCORE_SEPARABILITY_REPORT.md",
+        }
+
+        self.assertEqual(
+            expected,
+            {path.name for path in output.iterdir()},
+        )
+        self.assertTrue(summary["offline_analysis_only"])
+        self.assertEqual(summary["bootstrap_unit"], "rollout input_index")
 
 
 if __name__ == "__main__":
