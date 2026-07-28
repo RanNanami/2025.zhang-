@@ -128,6 +128,49 @@ def analyze_oracle_step(
     false_emitted = [
         decision for decision in false_decisions if decision.emitted
     ]
+    target_best = _best_score_decision(target_decisions)
+    false_best = _best_score_decision(false_decisions)
+    target_same_batch_order_suppressed = [
+        decision
+        for decision in target_decisions
+        if (
+            not decision.emitted
+            and decision.same_batch_inhibition > 0.0
+            and (
+                decision.effective_score
+                + decision.same_batch_inhibition
+                >= 1.0
+            )
+        )
+    ]
+    target_earlier_batch_suppressed = [
+        decision
+        for decision in target_decisions
+        if (
+            not decision.emitted
+            and decision.earlier_batch_inhibition > 0.0
+        )
+    ]
+    target_sharing_batch_with_earlier_false = [
+        decision
+        for decision in target_decisions
+        if any(
+            false.batch_index == decision.batch_index
+            and (
+                false.candidate.candidate.time,
+                false.candidate.column_index,
+                false.candidate.candidate.neuron_index,
+                false.candidate.original_order,
+            )
+            < (
+                decision.candidate.candidate.time,
+                decision.candidate.column_index,
+                decision.candidate.candidate.neuron_index,
+                decision.candidate.original_order,
+            )
+            for false in false_decisions
+        )
+    ]
     provenance = _provenance_metrics(target_emitted, false_emitted)
 
     target_total_recall = _recall(raw_hits["all"], target["all"])
@@ -215,7 +258,30 @@ def analyze_oracle_step(
             "target_suppression_ratio": target_suppression_ratio,
             "emitted_false_column_count": len(emitted_false_columns),
             "emitted_false_column_ratio": emitted_false_ratio,
+            "emitted_false_columns": _columns_text(emitted_false_columns),
             "raw_false_column_count": len(raw_false_columns),
+            "emitted_target_total_columns": _columns_text(
+                emitted_hits["all"]
+            ),
+            "target_best_candidate_batch_index": (
+                target_best.batch_index
+                if target_best is not None
+                else ""
+            ),
+            "false_best_candidate_batch_index": (
+                false_best.batch_index
+                if false_best is not None
+                else ""
+            ),
+            "target_suppressed_only_due_to_same_batch_order": len(
+                target_same_batch_order_suppressed
+            ),
+            "target_suppressed_by_earlier_batch": len(
+                target_earlier_batch_suppressed
+            ),
+            "target_candidates_sharing_batch_with_earlier_false": len(
+                target_sharing_batch_with_earlier_false
+            ),
             "target_candidate_count": len(target_decisions),
             "target_candidate_score_mean": _mean(
                 [decision.original_score for decision in target_decisions]
@@ -464,6 +530,21 @@ def _target_score_ranks(
         for rank, decision in enumerate(ordered, start=1)
         if decision.candidate.column_index in target_columns  # type: ignore[attr-defined]
     ]
+
+
+def _best_score_decision(decisions: Sequence[object]) -> object | None:
+    if not decisions:
+        return None
+    return min(
+        decisions,
+        key=lambda decision: (
+            -decision.original_score,  # type: ignore[attr-defined]
+            decision.candidate.candidate.time,  # type: ignore[attr-defined]
+            decision.candidate.column_index,  # type: ignore[attr-defined]
+            decision.candidate.candidate.neuron_index,  # type: ignore[attr-defined]
+            decision.candidate.original_order,  # type: ignore[attr-defined]
+        ),
+    )
 
 
 def _provenance_metrics(
