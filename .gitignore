@@ -52,6 +52,7 @@ results/fig9_strict/ab_*/
 results/fig9_strict/debug_*/
 results/fig9_strict/diagnostic_*/
 results/fig9_strict/refactor_*/
+results/fig9_strict/competitive_smoke_*/
 results/fig9_strict/resume_*/
 results/fig9_strict/smoke_*/
 results/fig9_strict/phase2_250_density*/

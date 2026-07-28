@@ -16,6 +16,30 @@ from seqmem.model import PredictionCandidate
 
 
 @dataclass(frozen=True)
+class CompetitionSettings:
+    """Nonpaper rollout settings kept outside the strict model config."""
+
+    mode: str = "off"
+    inhibition_strength: float = 0.0
+    inhibition_tau: float = 0.02
+    simultaneous_tolerance: float = 0.0
+
+    @property
+    def enabled(self) -> bool:
+        return self.mode == "competitive_raw"
+
+    def validate(self) -> None:
+        if self.mode not in {"off", "competitive_raw"}:
+            raise ValueError(f"unsupported competition mode: {self.mode}")
+        if self.inhibition_strength < 0.0:
+            raise ValueError("inhibition_strength must be nonnegative")
+        if self.inhibition_tau <= 0.0:
+            raise ValueError("inhibition_tau must be positive")
+        if self.simultaneous_tolerance < 0.0:
+            raise ValueError("simultaneous_tolerance must be nonnegative")
+
+
+@dataclass(frozen=True)
 class CompetitionCandidate:
     """A prediction candidate paired with its mini-column and stable order."""
 
@@ -199,3 +223,97 @@ def emitted_prediction_code(
             for item in result.emitted_candidates
         )
     )
+
+
+def summarize_competition(
+    rows: Sequence[Mapping[str, object]],
+    *,
+    horizon: int,
+    attempted_rollouts: int,
+    segment_count: int,
+    runtime_seconds: float,
+) -> dict[str, object]:
+    """Summarize candidate suppression and prediction quality by horizon."""
+
+    step_summary: list[dict[str, object]] = []
+    for step in range(1, horizon + 1):
+        selected = [row for row in rows if int(row["horizon_step"]) == step]
+        raw_columns = [
+            float(row["raw_predicted_column_count"]) for row in selected
+        ]
+        emitted_columns = [
+            float(row["emitted_column_count"]) for row in selected
+        ]
+        decoded = [
+            row for row in selected if row.get("decoded_passenger", "") != ""
+        ]
+        absolute_errors = [float(row["absolute_error"]) for row in decoded]
+        targets = [
+            abs(float(row["actual_future_passenger"])) for row in decoded
+        ]
+        paired_density = [
+            (
+                float(row["emitted_column_count"]),
+                float(row["absolute_percentage_error"]),
+            )
+            for row in decoded
+            if row.get("absolute_percentage_error", "") != ""
+        ]
+        density_error_correlation = _correlation(paired_density)
+        raw_total = sum(raw_columns)
+        emitted_total = sum(emitted_columns)
+        step_summary.append(
+            {
+                "horizon_step": step,
+                "rows": len(selected),
+                "raw_column_mean": (
+                    raw_total / len(raw_columns) if raw_columns else 0.0
+                ),
+                "emitted_column_mean": (
+                    emitted_total / len(emitted_columns)
+                    if emitted_columns
+                    else 0.0
+                ),
+                "suppression_ratio": (
+                    1.0 - emitted_total / raw_total if raw_total else 0.0
+                ),
+                "coverage": (
+                    len(decoded) / attempted_rollouts
+                    if attempted_rollouts
+                    else 0.0
+                ),
+                "mape": (
+                    sum(absolute_errors) / sum(targets)
+                    if absolute_errors and sum(targets)
+                    else 0.0
+                ),
+                "density_error_correlation": density_error_correlation,
+                "segment_count": segment_count,
+                "runtime_seconds": runtime_seconds,
+            }
+        )
+    return {
+        "diagnostic_only": True,
+        "competition_is_local_choice": True,
+        "attempted_rollouts": attempted_rollouts,
+        "trace_rows": len(rows),
+        "step_summary": step_summary,
+    }
+
+
+def _correlation(pairs: Sequence[tuple[float, float]]) -> float:
+    if len(pairs) < 2:
+        return 0.0
+    left = [pair[0] for pair in pairs]
+    right = [pair[1] for pair in pairs]
+    left_mean = sum(left) / len(left)
+    right_mean = sum(right) / len(right)
+    numerator = sum(
+        (x - left_mean) * (y - right_mean)
+        for x, y in zip(left, right)
+    )
+    left_variance = sum((value - left_mean) ** 2 for value in left)
+    right_variance = sum((value - right_mean) ** 2 for value in right)
+    if left_variance == 0.0 or right_variance == 0.0:
+        return 0.0
+    return numerator / math.sqrt(left_variance * right_variance)

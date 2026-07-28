@@ -38,6 +38,14 @@ from experiments.fig9 import (  # noqa: E402
     reference_rolling_mape,
     write_predictions,
 )
+from experiments.diagnostics.fig9_competitive_inhibition import (  # noqa: E402
+    CompetitionResult,
+    CompetitionSettings,
+    candidates_for_prediction,
+    compete_prediction_candidates,
+    emitted_prediction_code,
+    summarize_competition,
+)
 from seqmem.encoding import (  # noqa: E402
     SSTDCompositeEncoder,
     SSTDPeriodicEncoder,
@@ -91,6 +99,8 @@ class RolloutResult:
     raw_event_counts: tuple[int, ...]
     raw_column_counts: tuple[int, ...]
     diagnostics: tuple[dict[str, object], ...] = ()
+    emitted_event_counts: tuple[int, ...] = ()
+    emitted_column_counts: tuple[int, ...] = ()
 
 
 @dataclass
@@ -682,6 +692,7 @@ def rollout_raw_autonomous(
     steps: int,
     *,
     config: Fig9StrictConfig | None = None,
+    competition_settings: CompetitionSettings | None = None,
     passenger_encoder: SSTDRealValueEncoder | None = None,
     record_index: int | None = None,
     timestamp: datetime | None = None,
@@ -698,9 +709,13 @@ def rollout_raw_autonomous(
     # DEBUG WATCH: 在这里下断点可观察每个 horizon step 的 raw.events、
     # raw columns 数量和 prediction_active_cells(raw) 是否突然爆炸。
     snapshot = model.snapshot_transient_state()
+    competition = competition_settings or CompetitionSettings()
+    competition.validate()
     prediction: SymbolCode | None = None
     raw_events: list[int] = []
     raw_columns: list[int] = []
+    emitted_events: list[int] = []
+    emitted_columns: list[int] = []
     diagnostics: list[dict[str, object]] = []
     try:
         for _step_index in range(steps):
@@ -734,6 +749,20 @@ def rollout_raw_autonomous(
                             "time_predicted_column_count": 0,
                             "passenger_predicted_column_count": 0,
                             "raw_event_count": 0,
+                            "competition_mode": competition.mode,
+                            "emitted_neuron_count": 0,
+                            "emitted_column_count": 0,
+                            "inhibited_candidate_count": 0,
+                            "mean_original_score": 0.0,
+                            "mean_effective_score": 0.0,
+                            "mean_accumulated_inhibition": 0.0,
+                            "maximum_inhibition": 0.0,
+                            "first_emitted_time": "",
+                            "last_emitted_time": "",
+                            "weekday_emitted_column_count": 0,
+                            "time_emitted_column_count": 0,
+                            "passenger_emitted_column_count": 0,
+                            "competition_runtime_seconds": 0.0,
                             "passenger_candidate_count": 0,
                             "decoded_passenger": "",
                             "actual_future_passenger": "",
@@ -749,12 +778,47 @@ def rollout_raw_autonomous(
                     tuple(raw_events),
                     tuple(raw_columns),
                     tuple(diagnostics),
+                    tuple(emitted_events),
+                    tuple(emitted_columns),
                 )
             # DEBUG WATCH: after predict_code。raw_event_counts/raw_column_counts
             # 是定位“预测列密度膨胀”的最直接指标。
             raw_events.append(len(raw.events))
             raw_columns.append(len({event.column for event in raw.events}))
-            active = model.prediction_active_cells(raw)
+            propagated = raw
+            raw_active = model.prediction_active_cells(raw)
+            competition_result: CompetitionResult | None = None
+            competition_runtime = 0.0
+            if competition.enabled:
+                competition_started = time.perf_counter()
+                competition_candidates = candidates_for_prediction(
+                    raw,
+                    model.last_prediction_candidates,
+                    timing_tolerance=model.params.timing_tolerance,
+                )
+                competition_result = compete_prediction_candidates(
+                    competition_candidates,
+                    threshold=model.params.dendrite_threshold,
+                    inhibition_strength=competition.inhibition_strength,
+                    inhibition_tau=competition.inhibition_tau,
+                    simultaneous_tolerance=competition.simultaneous_tolerance,
+                )
+                propagated = emitted_prediction_code(raw, competition_result)
+                competition_runtime = time.perf_counter() - competition_started
+            if propagated is None:
+                emitted_events.append(0)
+                emitted_columns.append(0)
+                active = {}
+            else:
+                emitted_events.append(len(propagated.events))
+                emitted_columns.append(
+                    len({event.column for event in propagated.events})
+                )
+                active = (
+                    model.prediction_active_cells(propagated)
+                    if competition.enabled
+                    else raw_active
+                )
             decode_runtime = 0.0
             decoded_passenger: float | str = ""
             passenger_candidate_count: int | str = ""
@@ -765,26 +829,56 @@ def rollout_raw_autonomous(
                 config is not None
                 and passenger_encoder is not None
             ):
-                decode_started = time.perf_counter()
-                try:
-                    decoded, candidate_count = passenger_decode_details(
-                        passenger_encoder,
-                        raw,
-                        model.params.timing_tolerance,
-                    )
-                except ValueError:
-                    decoded_passenger = ""
-                    passenger_candidate_count = 0
+                if propagated is not None:
+                    decode_started = time.perf_counter()
+                    try:
+                        decoded, candidate_count = passenger_decode_details(
+                            passenger_encoder,
+                            propagated,
+                            model.params.timing_tolerance,
+                        )
+                    except ValueError:
+                        decoded_passenger = ""
+                        passenger_candidate_count = 0
+                    else:
+                        decoded_passenger = decoded
+                        passenger_candidate_count = candidate_count
+                        if (
+                            future_records is not None
+                            and _step_index < len(future_records)
+                        ):
+                            actual_future = future_records[_step_index].value
+                            if actual_future:
+                                absolute_error = abs(decoded - actual_future)
+                                ape = absolute_error / abs(actual_future)
+                    decode_runtime = time.perf_counter() - decode_started
                 else:
-                    decoded_passenger = decoded
-                    passenger_candidate_count = candidate_count
-                    if future_records is not None and _step_index < len(future_records):
-                        actual_future = future_records[_step_index].value
-                        if actual_future:
-                            absolute_error = abs(decoded - actual_future)
-                            ape = absolute_error / abs(actual_future)
-                decode_runtime = time.perf_counter() - decode_started
-                counts = field_column_counts(raw, config)
+                    passenger_candidate_count = 0
+                raw_counts = field_column_counts(raw, config)
+                emitted_counts = field_column_counts(propagated, config)
+                competition_decisions = (
+                    competition_result.decisions
+                    if competition_result is not None
+                    else ()
+                )
+                original_scores = [
+                    decision.original_score for decision in competition_decisions
+                ]
+                effective_scores = [
+                    decision.effective_score for decision in competition_decisions
+                ]
+                inhibitions = [
+                    decision.accumulated_inhibition
+                    for decision in competition_decisions
+                ]
+                emitted_times = (
+                    [
+                        item.candidate.time
+                        for item in competition_result.emitted_candidates
+                    ]
+                    if competition_result is not None
+                    else [event.time for event in raw.events]
+                )
                 diagnostics.append(
                     {
                         "record_index": record_index if record_index is not None else "",
@@ -798,12 +892,52 @@ def rollout_raw_autonomous(
                         "candidate_segment_count": model.last_prediction_stats.get("candidate_segment_count", 0),
                         "threshold_crossing_segment_count": model.last_prediction_stats.get("threshold_crossing_segment_count", 0),
                         "accepted_candidate_count": model.last_prediction_stats.get("accepted_candidate_count", 0),
-                        "raw_predicted_neuron_count": len(active),
+                        "raw_predicted_neuron_count": len(raw_active),
                         "raw_predicted_column_count": len({event.column for event in raw.events}),
-                        "weekday_predicted_column_count": counts["weekday"],
-                        "time_predicted_column_count": counts["time"],
-                        "passenger_predicted_column_count": counts["passenger"],
+                        "weekday_predicted_column_count": raw_counts["weekday"],
+                        "time_predicted_column_count": raw_counts["time"],
+                        "passenger_predicted_column_count": raw_counts["passenger"],
                         "raw_event_count": len(raw.events),
+                        "competition_mode": competition.mode,
+                        "emitted_neuron_count": len(active),
+                        "emitted_column_count": (
+                            len({event.column for event in propagated.events})
+                            if propagated is not None
+                            else 0
+                        ),
+                        "inhibited_candidate_count": (
+                            len(competition_result.inhibited_candidates)
+                            if competition_result is not None
+                            else 0
+                        ),
+                        "mean_original_score": (
+                            sum(original_scores) / len(original_scores)
+                            if original_scores
+                            else 0.0
+                        ),
+                        "mean_effective_score": (
+                            sum(effective_scores) / len(effective_scores)
+                            if effective_scores
+                            else 0.0
+                        ),
+                        "mean_accumulated_inhibition": (
+                            sum(inhibitions) / len(inhibitions)
+                            if inhibitions
+                            else 0.0
+                        ),
+                        "maximum_inhibition": (
+                            max(inhibitions) if inhibitions else 0.0
+                        ),
+                        "first_emitted_time": (
+                            min(emitted_times) if emitted_times else ""
+                        ),
+                        "last_emitted_time": (
+                            max(emitted_times) if emitted_times else ""
+                        ),
+                        "weekday_emitted_column_count": emitted_counts["weekday"],
+                        "time_emitted_column_count": emitted_counts["time"],
+                        "passenger_emitted_column_count": emitted_counts["passenger"],
+                        "competition_runtime_seconds": competition_runtime,
                         "passenger_candidate_count": passenger_candidate_count,
                         "decoded_passenger": decoded_passenger,
                         "actual_future_passenger": actual_future,
@@ -822,17 +956,21 @@ def rollout_raw_autonomous(
                     tuple(raw_events),
                     tuple(raw_columns),
                     tuple(diagnostics),
+                    tuple(emitted_events),
+                    tuple(emitted_columns),
                 )
             # STATE MUTATION: 下面两行只推进临时检索状态；长期记忆中的
             # segment/synapse/weight/age 不会改变，并会在 finally 中恢复。
             model.previous_active_cells = active
             model.previous_winners = active.copy()
-            prediction = raw
+            prediction = propagated
         return RolloutResult(
             prediction,
             tuple(raw_events),
             tuple(raw_columns),
             tuple(diagnostics),
+            tuple(emitted_events),
+            tuple(emitted_columns),
         )
     finally:
         # DEBUG WATCH: before/after transient restore。比较 restore 前后的
@@ -870,9 +1008,12 @@ def run_strict_stream(
     stop_after_index: int | None = None,
     debug_record_index: int | None = None,
     debug_output_json: Path | None = None,
+    competition_settings: CompetitionSettings | None = None,
 ) -> dict[str, object]:
     """Run one original or perturbed stream under the strict Fig.9 protocol."""
 
+    competition = competition_settings or CompetitionSettings()
+    competition.validate()
     if len(records) <= config.horizon:
         raise ValueError("Not enough records for the requested horizon.")
     if resume_checkpoint is not None:
@@ -953,14 +1094,25 @@ def run_strict_stream(
             rollout = rollout_raw_autonomous(
                 model,
                 config.horizon,
+                competition_settings=competition,
                 config=(
                     config
-                    if density_trace_path or density_summary_path or debug_enabled
+                    if (
+                        density_trace_path
+                        or density_summary_path
+                        or debug_enabled
+                        or competition.enabled
+                    )
                     else None
                 ),
                 passenger_encoder=(
                     passenger_encoder
-                    if density_trace_path or density_summary_path or debug_enabled
+                    if (
+                        density_trace_path
+                        or density_summary_path
+                        or debug_enabled
+                        or competition.enabled
+                    )
                     else None
                 ),  # type: ignore[arg-type]
                 record_index=index,
@@ -997,7 +1149,7 @@ def run_strict_stream(
             raw_event_counts.extend(rollout.raw_event_counts)
             raw_column_counts.extend(rollout.raw_column_counts)
             rollout_diagnostics = rollout.diagnostics
-            if density_trace_path or density_summary_path:
+            if density_trace_path or density_summary_path or competition.enabled:
                 density_rows.extend(rollout.diagnostics)
             prediction_value: float | str = ""
             absolute_error_value: float | str = ""
@@ -1032,20 +1184,30 @@ def run_strict_stream(
                             else ""
                         )
                         density_rows[-1]["decode_runtime_seconds"] = decode_runtime
-            rows.append(
-                {
-                    "input_index": index + 1,
-                    "input_timestamp": record.timestamp.isoformat(sep=" "),
-                    "target_timestamp": target_record.timestamp.isoformat(sep=" "),
-                    "target": target_record.value,
-                    "prediction": prediction_value,
-                    "absolute_error": absolute_error_value,
-                    "normalized_absolute_error": normalized_error_value,
-                    "rolling_mape": rolling_value,
-                    "raw_rollout_event_counts": " ".join(map(str, rollout.raw_event_counts)),
-                    "raw_rollout_column_counts": " ".join(map(str, rollout.raw_column_counts)),
-                }
-            )
+            prediction_row: dict[str, object] = {
+                "input_index": index + 1,
+                "input_timestamp": record.timestamp.isoformat(sep=" "),
+                "target_timestamp": target_record.timestamp.isoformat(sep=" "),
+                "target": target_record.value,
+                "prediction": prediction_value,
+                "absolute_error": absolute_error_value,
+                "normalized_absolute_error": normalized_error_value,
+                "rolling_mape": rolling_value,
+                "raw_rollout_event_counts": " ".join(
+                    map(str, rollout.raw_event_counts)
+                ),
+                "raw_rollout_column_counts": " ".join(
+                    map(str, rollout.raw_column_counts)
+                ),
+            }
+            if competition.enabled:
+                prediction_row["emitted_rollout_event_counts"] = " ".join(
+                    map(str, rollout.emitted_event_counts)
+                )
+                prediction_row["emitted_rollout_column_counts"] = " ".join(
+                    map(str, rollout.emitted_column_counts)
+                )
+            rows.append(prediction_row)
         event_hook and event_hook("observe", index)
         # STATE MUTATION: 这里才把真实当前 record 写入长期记忆，触发三种
         # learning scenario、weight/age/segment 变化。预测阶段不能学习。
@@ -1172,6 +1334,17 @@ def run_strict_stream(
         "autonomous_rollout_steps": config.horizon,
         "uses_compensation": False,
     }
+    if competition.enabled:
+        summary.update(
+            {
+                "diagnostic_only": True,
+                "competition_is_local_choice": True,
+                "competition_mode": competition.mode,
+                "inhibition_strength": competition.inhibition_strength,
+                "inhibition_tau": competition.inhibition_tau,
+                "simultaneous_tolerance": competition.simultaneous_tolerance,
+            }
+        )
     if density_rows:
         density_summary = summarize_density(density_rows)
         summary["density_summary_path"] = str(
@@ -1181,6 +1354,21 @@ def run_strict_stream(
         summary["density_trace_path"] = str(
             density_trace_path
             or output_dir / f"{stream_label}_density_trace.csv"
+        )
+    competition_summary: dict[str, object] | None = None
+    if competition.enabled:
+        competition_summary = summarize_competition(
+            density_rows,
+            horizon=config.horizon,
+            attempted_rollouts=attempted,
+            segment_count=segment_count(model),
+            runtime_seconds=elapsed,
+        )
+        summary["competition_trace_path"] = str(
+            output_dir / "competition_trace.csv"
+        )
+        summary["competition_summary_path"] = str(
+            output_dir / "competition_summary.json"
         )
     if interval_rows:
         summary["interval_rows"] = interval_rows
@@ -1204,6 +1392,26 @@ def run_strict_stream(
             density_summary_path
             or output_dir / f"{stream_label}_density_summary.json",
             density_summary,
+        )
+    if competition.enabled and competition_summary is not None:
+        write_predictions(output_dir / "competition_trace.csv", density_rows)
+        write_json(
+            output_dir / "competition_summary.json",
+            competition_summary,
+        )
+        write_json(
+            output_dir / "competition_protocol.json",
+            {
+                "diagnostic_only": True,
+                "competition_is_local_choice": True,
+                **asdict(competition),
+                "threshold": model.params.dendrite_threshold,
+                "score_source": "PredictionCandidate.score",
+                "candidate_source": (
+                    "same predict_code call via last_prediction_candidates"
+                ),
+                "strict_protocol_sha256": stable_object_sha256(fingerprint),
+            },
         )
     if interval_rows:
         write_predictions(
@@ -1272,6 +1480,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--density-trace", action="store_true")
     parser.add_argument("--density-trace-csv", default="")
     parser.add_argument("--density-summary-json", default="")
+    parser.add_argument(
+        "--competition-mode",
+        choices=("off", "competitive_raw"),
+        default="off",
+        help="Nonpaper diagnostic competition applied only during rollout.",
+    )
+    parser.add_argument("--inhibition-strength", type=float, default=0.1)
+    parser.add_argument("--inhibition-tau", type=float, default=0.02)
+    parser.add_argument("--simultaneous-tolerance", type=float, default=0.0)
     parser.add_argument("--interval-every", type=int, default=0)
     parser.add_argument("--profile", action="store_true")
     parser.add_argument("--profile-output", default="")
@@ -1368,7 +1585,18 @@ def run_main(args: argparse.Namespace) -> None:
         warmup=args.warmup,
         continuous_prediction_impl=args.continuous_impl,
     )
+    competition = CompetitionSettings(
+        mode=args.competition_mode,
+        inhibition_strength=args.inhibition_strength,
+        inhibition_tau=args.inhibition_tau,
+        simultaneous_tolerance=args.simultaneous_tolerance,
+    )
+    competition.validate()
     if args.april_branch:
+        if competition.enabled:
+            raise ValueError(
+                "competitive_raw is not supported by the April branch runner"
+            )
         run_april_branch(args, config)
         return
     runtime: dict[str, object] = {
@@ -1381,6 +1609,14 @@ def run_main(args: argparse.Namespace) -> None:
             config.continuous_prediction_impl
         ),
     }
+    if competition.enabled:
+        runtime.update(
+            {
+                "diagnostic_only": True,
+                "competition_is_local_choice": True,
+                "competition": asdict(competition),
+            }
+        )
     summaries: dict[str, object] = {}
     for stream in args.streams:
         data_path = Path(args.data if stream == "original" else args.perturbed_data)
@@ -1438,6 +1674,7 @@ def run_main(args: argparse.Namespace) -> None:
             debug_output_json=(
                 Path(args.debug_output_json) if args.debug_output_json else None
             ),
+            competition_settings=competition,
         )
     if {"original", "perturbed"}.issubset(args.streams):
         runtime["pre_change_comparison"] = compare_pre_change_predictions(
