@@ -222,7 +222,31 @@ class Fig9OracleCandidateTests(unittest.TestCase):
         self.assertTrue(
             oracle_summary["ground_truth_does_not_affect_prediction"]
         )
-        self.assertTrue(run_summary["uses_ground_truth_for_analysis_only"])
+        self.assertNotIn("uses_ground_truth_for_analysis_only", run_summary)
+        with (
+            self.root / "on" / "oracle_candidate_trace.csv"
+        ).open("r", encoding="utf-8", newline="") as handle:
+            first_row = next(csv.DictReader(handle))
+        self.assertEqual(first_row["diagnostic_only"], "True")
+        self.assertEqual(
+            first_row["uses_ground_truth_for_analysis_only"], "True"
+        )
+        self.assertEqual(
+            first_row["ground_truth_does_not_affect_prediction"], "True"
+        )
+        off_names = {
+            path.name for path in (self.root / "off").iterdir()
+        }
+        on_names = {
+            path.name for path in (self.root / "on").iterdir()
+        }
+        self.assertEqual(
+            on_names - off_names,
+            {
+                "oracle_candidate_trace.csv",
+                "oracle_candidate_summary.json",
+            },
+        )
 
     def test_strict_protocol_contains_no_oracle_marker(self) -> None:
         protocol = json.loads(

@@ -172,6 +172,9 @@ def analyze_oracle_step(
     )
 
     row: dict[str, object] = {
+        "diagnostic_only": True,
+        "uses_ground_truth_for_analysis_only": True,
+        "ground_truth_does_not_affect_prediction": True,
         "prediction_input_index": prediction_input_index,
         "input_timestamp": input_timestamp,
         "horizon_step": horizon_step,

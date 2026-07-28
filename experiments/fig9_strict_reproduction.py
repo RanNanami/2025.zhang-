@@ -1472,19 +1472,6 @@ def run_strict_stream(
                 "simultaneous_tolerance": competition.simultaneous_tolerance,
             }
         )
-    if oracle_candidate_diagnostic:
-        summary.update(
-            {
-                "uses_ground_truth_for_analysis_only": True,
-                "ground_truth_does_not_affect_prediction": True,
-                "oracle_candidate_trace_path": str(
-                    output_dir / "oracle_candidate_trace.csv"
-                ),
-                "oracle_candidate_summary_path": str(
-                    output_dir / "oracle_candidate_summary.json"
-                ),
-            }
-        )
     if density_rows:
         density_summary = summarize_density(density_rows)
         summary["density_summary_path"] = str(
@@ -1769,13 +1756,6 @@ def run_main(args: argparse.Namespace) -> None:
                 "diagnostic_only": True,
                 "competition_is_local_choice": True,
                 "competition": asdict(competition),
-            }
-        )
-    if args.oracle_candidate_diagnostic:
-        runtime.update(
-            {
-                "uses_ground_truth_for_analysis_only": True,
-                "ground_truth_does_not_affect_prediction": True,
             }
         )
     summaries: dict[str, object] = {}
