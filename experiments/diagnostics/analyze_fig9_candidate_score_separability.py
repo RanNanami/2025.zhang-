@@ -13,7 +13,6 @@ import json
 import math
 import random
 import statistics
-import subprocess
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -231,28 +230,44 @@ def threshold_sweep(
         return []
     positives = sum(bool(row["is_target_column"]) for row in rows)
     negatives = len(rows) - positives
-    output: list[dict[str, object]] = []
-    for threshold in sorted(
-        {float(row[score_field]) for row in rows},
+    ordered = sorted(
+        rows,
+        key=lambda row: float(row[score_field]),
         reverse=True,
-    ):
-        retained = [
-            row for row in rows if float(row[score_field]) >= threshold
-        ]
-        true_count = sum(bool(row["is_target_column"]) for row in retained)
-        false_count = len(retained) - true_count
+    )
+    output: list[dict[str, object]] = []
+    true_count = 0
+    false_count = 0
+    cursor = 0
+    while cursor < len(ordered):
+        threshold = float(ordered[cursor][score_field])
+        end = cursor
+        while (
+            end < len(ordered)
+            and float(ordered[end][score_field]) == threshold
+        ):
+            if bool(ordered[end]["is_target_column"]):
+                true_count += 1
+            else:
+                false_count += 1
+            end += 1
+        retained_count = true_count + false_count
         output.append(
             {
                 "threshold": threshold,
                 "target_recall": _ratio(true_count, positives),
-                "precision": _ratio(true_count, len(retained)),
+                "precision": _ratio(true_count, retained_count),
                 "false_positive_rate": _ratio(false_count, negatives),
-                "false_emitted_ratio": _ratio(false_count, len(retained)),
+                "false_emitted_ratio": _ratio(
+                    false_count,
+                    retained_count,
+                ),
                 "true_target_columns_retained": true_count,
                 "false_columns_retained": false_count,
-                "total_columns_retained": len(retained),
+                "total_columns_retained": retained_count,
             }
         )
+        cursor = end
     return output
 
 
@@ -389,6 +404,10 @@ def analyze(
             {
                 "policy": policy,
                 "input_directory": str(directory.resolve()),
+                "git_commit_sha": protocol.get(
+                    "git_commit_sha",
+                    "unavailable",
+                ),
                 "candidate_trace_sha256": _sha256(trace_path),
                 "competition_trace_sha256": _sha256(competition_path),
                 "oracle_trace_sha256": _sha256(oracle_path),
@@ -434,7 +453,10 @@ def analyze(
 
     summary = {
         **ANALYSIS_MARKERS,
-        "git_commit": _git_commit(),
+        "git_commit": _common_manifest_value(
+            input_manifest,
+            "git_commit_sha",
+        ),
         "inputs": input_manifest,
         "protocol_field_ranges": protocol_ranges,
         "candidate_aggregation_rule": (
@@ -1511,16 +1533,12 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _git_commit() -> str:
-    try:
-        return subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout.strip()
-    except (OSError, subprocess.CalledProcessError):
-        return "unavailable"
+def _common_manifest_value(
+    rows: Sequence[Mapping[str, object]],
+    field: str,
+) -> object:
+    values = {row.get(field, "unavailable") for row in rows}
+    return next(iter(values)) if len(values) == 1 else "mixed"
 
 
 def _boolean(value: object) -> bool:

@@ -124,6 +124,21 @@ class Fig9CandidateSeparabilityMetricTests(unittest.TestCase):
         self.assertEqual(recalls, sorted(recalls))
         self.assertEqual(retained, sorted(retained))
 
+    def test_threshold_sweep_keeps_tied_scores_together(self) -> None:
+        rows = [
+            self._column(1, 2.0, True),
+            self._column(2, 2.0, False),
+            self._column(3, 1.0, True),
+        ]
+
+        sweep = threshold_sweep(rows, "max_original_score")
+
+        self.assertEqual(len(sweep), 2)
+        self.assertEqual(sweep[0]["threshold"], 2.0)
+        self.assertEqual(sweep[0]["true_target_columns_retained"], 1)
+        self.assertEqual(sweep[0]["false_columns_retained"], 1)
+        self.assertEqual(sweep[0]["total_columns_retained"], 2)
+
     def test_fixed_budget_recall(self) -> None:
         rows = [
             self._column(1, 3.0, True),
