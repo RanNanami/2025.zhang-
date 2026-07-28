@@ -814,6 +814,23 @@ def rollout_raw_autonomous(
                             "passenger_predicted_column_count": 0,
                             "raw_event_count": 0,
                             "competition_mode": competition.mode,
+                            **(
+                                {
+                                    "diagnostic_only": True,
+                                    "competition_is_local_choice": True,
+                                    "simultaneous_policy": competition.simultaneous_policy,
+                                    "simultaneous_bin_width": competition.simultaneous_bin_width,
+                                    "batch_index": "",
+                                    "batch_start_time": "",
+                                    "batch_end_time": "",
+                                    "batch_candidate_count": "",
+                                    "batch_emitted_count": "",
+                                    "earlier_batch_inhibition": 0.0,
+                                    "same_batch_inhibition": 0.0,
+                                }
+                                if competition.enabled
+                                else {}
+                            ),
                             "emitted_neuron_count": 0,
                             "emitted_column_count": 0,
                             "inhibited_candidate_count": 0,
@@ -987,45 +1004,53 @@ def rollout_raw_autonomous(
                         "passenger_predicted_column_count": raw_counts["passenger"],
                         "raw_event_count": len(raw.events),
                         "competition_mode": competition.mode,
-                        "simultaneous_policy": competition.simultaneous_policy,
-                        "simultaneous_bin_width": competition.simultaneous_bin_width,
-                        "batch_index": " ".join(
-                            str(batch.batch_index)
-                            for batch in competition_batches
-                        ),
-                        "batch_start_time": " ".join(
-                            f"{batch.batch_start_time:.12g}"
-                            for batch in competition_batches
-                        ),
-                        "batch_end_time": " ".join(
-                            f"{batch.batch_end_time:.12g}"
-                            for batch in competition_batches
-                        ),
-                        "batch_candidate_count": " ".join(
-                            str(batch.candidate_count)
-                            for batch in competition_batches
-                        ),
-                        "batch_emitted_count": " ".join(
-                            str(batch.emitted_count)
-                            for batch in competition_batches
-                        ),
-                        "earlier_batch_inhibition": (
-                            sum(
-                                decision.earlier_batch_inhibition
-                                for decision in competition_decisions
-                            )
-                            / len(competition_decisions)
-                            if competition_decisions
-                            else 0.0
-                        ),
-                        "same_batch_inhibition": (
-                            sum(
-                                decision.same_batch_inhibition
-                                for decision in competition_decisions
-                            )
-                            / len(competition_decisions)
-                            if competition_decisions
-                            else 0.0
+                        **(
+                            {
+                                "diagnostic_only": True,
+                                "competition_is_local_choice": True,
+                                "simultaneous_policy": competition.simultaneous_policy,
+                                "simultaneous_bin_width": competition.simultaneous_bin_width,
+                                "batch_index": " ".join(
+                                    str(batch.batch_index)
+                                    for batch in competition_batches
+                                ),
+                                "batch_start_time": " ".join(
+                                    f"{batch.batch_start_time:.12g}"
+                                    for batch in competition_batches
+                                ),
+                                "batch_end_time": " ".join(
+                                    f"{batch.batch_end_time:.12g}"
+                                    for batch in competition_batches
+                                ),
+                                "batch_candidate_count": " ".join(
+                                    str(batch.candidate_count)
+                                    for batch in competition_batches
+                                ),
+                                "batch_emitted_count": " ".join(
+                                    str(batch.emitted_count)
+                                    for batch in competition_batches
+                                ),
+                                "earlier_batch_inhibition": (
+                                    sum(
+                                        decision.earlier_batch_inhibition
+                                        for decision in competition_decisions
+                                    )
+                                    / len(competition_decisions)
+                                    if competition_decisions
+                                    else 0.0
+                                ),
+                                "same_batch_inhibition": (
+                                    sum(
+                                        decision.same_batch_inhibition
+                                        for decision in competition_decisions
+                                    )
+                                    / len(competition_decisions)
+                                    if competition_decisions
+                                    else 0.0
+                                ),
+                            }
+                            if competition.enabled
+                            else {}
                         ),
                         "emitted_neuron_count": len(active),
                         "emitted_column_count": (
@@ -1540,6 +1565,33 @@ def run_strict_stream(
             segment_count=segment_count(model),
             runtime_seconds=elapsed,
         )
+        competition_summary.update(
+            {
+                "simultaneous_policy": competition.simultaneous_policy,
+                "simultaneous_bin_width": competition.simultaneous_bin_width,
+                "same_batch_candidates_inhibit_each_other": (
+                    competition.simultaneous_policy == "sequential"
+                ),
+            }
+        )
+        if oracle_candidate_diagnostic:
+            for step_payload in competition_summary["step_summary"]:
+                step = int(step_payload["horizon_step"])
+                oracle_step = [
+                    row
+                    for row in oracle_rows
+                    if int(row["horizon_step"]) == step
+                ]
+                step_payload[
+                    "target_candidates_sharing_batch_with_earlier_false"
+                ] = sum(
+                    int(
+                        row[
+                            "target_candidates_sharing_batch_with_earlier_false"
+                        ]
+                    )
+                    for row in oracle_step
+                )
         summary["competition_trace_path"] = str(
             output_dir / "competition_trace.csv"
         )

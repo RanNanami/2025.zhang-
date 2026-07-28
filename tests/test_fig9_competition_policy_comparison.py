@@ -100,6 +100,19 @@ class Fig9CompetitionPolicyComparisonTests(unittest.TestCase):
         self.assertIn("diagnostic_only", csv_text)
         self.assertIn('"diagnostic_only": true', json_text)
 
+    def test_historical_trace_without_appended_columns_is_readable(self) -> None:
+        sequential = [self._row(1, 1, targets="1", false="8")]
+        batched = [self._row(1, 1, targets="1", false="8")]
+        for row in (sequential[0], batched[0]):
+            row.pop("emitted_target_total_columns")
+            row.pop("emitted_false_columns")
+
+        rows, summary = compare_policy_rows(sequential, batched)
+
+        self.assertEqual(rows[0]["target_rescued_by_batching"], 0)
+        self.assertEqual(rows[0]["false_rescued_by_batching"], 0)
+        self.assertEqual(summary["aligned_rows"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

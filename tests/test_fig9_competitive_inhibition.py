@@ -540,6 +540,64 @@ class Fig9CompetitiveInhibitionTests(unittest.TestCase):
             self.assertTrue(payload["diagnostic_only"])
             self.assertTrue(payload["competition_is_local_choice"])
 
+    def test_batched_trace_and_protocol_record_policy(self) -> None:
+        records = self._records(14)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            data_path = root / "tiny.csv"
+            data_path.write_text(
+                "timestamp,passenger_count\n",
+                encoding="utf-8",
+            )
+            run_strict_stream(
+                records=records,
+                data_path=data_path,
+                stream_label="original",
+                output_dir=root,
+                config=Fig9StrictConfig(warmup=6),
+                limit=0,
+                print_fingerprint=False,
+                competition_settings=CompetitionSettings(
+                    mode="competitive_raw",
+                    inhibition_strength=0.1,
+                    simultaneous_policy="batched",
+                    simultaneous_bin_width=0.005,
+                ),
+            )
+            protocol = json.loads(
+                (root / "competition_protocol.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            summary = json.loads(
+                (root / "competition_summary.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            import csv
+
+            with (root / "competition_trace.csv").open(
+                "r", encoding="utf-8", newline=""
+            ) as handle:
+                row = next(csv.DictReader(handle))
+
+        self.assertEqual(protocol["simultaneous_policy"], "batched")
+        self.assertEqual(protocol["simultaneous_bin_width"], 0.005)
+        self.assertFalse(
+            protocol["same_batch_candidates_inhibit_each_other"]
+        )
+        self.assertEqual(summary["simultaneous_policy"], "batched")
+        for field in (
+            "batch_index",
+            "batch_start_time",
+            "batch_end_time",
+            "batch_candidate_count",
+            "batch_emitted_count",
+            "earlier_batch_inhibition",
+            "same_batch_inhibition",
+        ):
+            self.assertIn(field, row)
+
 
 if __name__ == "__main__":
     unittest.main()
