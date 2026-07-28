@@ -51,6 +51,9 @@ from experiments.diagnostics.fig9_oracle_candidate import (  # noqa: E402
     analyze_oracle_step,
     summarize_oracle_rows,
 )
+from experiments.diagnostics.fig9_candidate_score_trace import (  # noqa: E402
+    candidate_score_trace_rows,
+)
 from seqmem.encoding import (  # noqa: E402
     SSTDCompositeEncoder,
     SSTDPeriodicEncoder,
@@ -107,6 +110,7 @@ class RolloutResult:
     emitted_event_counts: tuple[int, ...] = ()
     emitted_column_counts: tuple[int, ...] = ()
     oracle_diagnostics: tuple[dict[str, object], ...] = ()
+    candidate_score_diagnostics: tuple[dict[str, object], ...] = ()
 
 
 @dataclass
@@ -700,6 +704,7 @@ def rollout_raw_autonomous(
     config: Fig9StrictConfig | None = None,
     competition_settings: CompetitionSettings | None = None,
     oracle_candidate_diagnostic: bool = False,
+    candidate_separability_trace: bool = False,
     oracle_encoder: SSTDCompositeEncoder | None = None,
     passenger_encoder: SSTDRealValueEncoder | None = None,
     record_index: int | None = None,
@@ -723,6 +728,10 @@ def rollout_raw_autonomous(
         raise ValueError(
             "oracle candidate diagnostics require competitive_raw mode"
         )
+    if candidate_separability_trace and not oracle_candidate_diagnostic:
+        raise ValueError(
+            "candidate separability trace requires oracle candidate diagnostics"
+        )
     if oracle_candidate_diagnostic and (
         config is None or oracle_encoder is None or future_records is None
     ):
@@ -745,6 +754,7 @@ def rollout_raw_autonomous(
     emitted_columns: list[int] = []
     diagnostics: list[dict[str, object]] = []
     oracle_diagnostics: list[dict[str, object]] = []
+    candidate_score_diagnostics: list[dict[str, object]] = []
     try:
         for _step_index in range(steps):
             # DEBUG WATCH: horizon step start。此时 previous_active_cells
@@ -874,6 +884,7 @@ def rollout_raw_autonomous(
                     tuple(emitted_events),
                     tuple(emitted_columns),
                     tuple(oracle_diagnostics),
+                    tuple(candidate_score_diagnostics),
                 )
             # DEBUG WATCH: after predict_code。raw_event_counts/raw_column_counts
             # 是定位“预测列密度膨胀”的最直接指标。
@@ -1111,6 +1122,9 @@ def rollout_raw_autonomous(
                 and _step_index < len(future_records)
             ):
                 target_record = future_records[_step_index]
+                target_code = oracle_encoder.encode(
+                    record_values(target_record)
+                )
                 oracle_diagnostics.append(
                     analyze_oracle_step(
                         prediction_input_index=(
@@ -1133,12 +1147,31 @@ def rollout_raw_autonomous(
                         raw_prediction=raw,
                         emitted_prediction=propagated,
                         competition_result=competition_result,
-                        target_code=oracle_encoder.encode(
-                            record_values(target_record)
-                        ),
+                        target_code=target_code,
                         ranges=oracle_ranges,
                     )
                 )
+                if (
+                    candidate_separability_trace
+                    and competition_result is not None
+                ):
+                    candidate_score_diagnostics.extend(
+                        candidate_score_trace_rows(
+                            policy=competition.simultaneous_policy,
+                            input_index=(
+                                record_index + 1
+                                if record_index is not None
+                                else 0
+                            ),
+                            target_timestamp=target_record.timestamp.isoformat(
+                                sep=" "
+                            ),
+                            horizon_step=_step_index + 1,
+                            competition_result=competition_result,
+                            target_code=target_code,
+                            ranges=oracle_ranges,
+                        )
+                    )
             if not active:
                 if diagnostics:
                     diagnostics[-1]["stopped_reason"] = "no_prediction_active_cells"
@@ -1150,6 +1183,7 @@ def rollout_raw_autonomous(
                     tuple(emitted_events),
                     tuple(emitted_columns),
                     tuple(oracle_diagnostics),
+                    tuple(candidate_score_diagnostics),
                 )
             # STATE MUTATION: 下面两行只推进临时检索状态；长期记忆中的
             # segment/synapse/weight/age 不会改变，并会在 finally 中恢复。
@@ -1164,6 +1198,7 @@ def rollout_raw_autonomous(
             tuple(emitted_events),
             tuple(emitted_columns),
             tuple(oracle_diagnostics),
+            tuple(candidate_score_diagnostics),
         )
     finally:
         # DEBUG WATCH: before/after transient restore。比较 restore 前后的
@@ -1203,6 +1238,7 @@ def run_strict_stream(
     debug_output_json: Path | None = None,
     competition_settings: CompetitionSettings | None = None,
     oracle_candidate_diagnostic: bool = False,
+    candidate_separability_trace: bool = False,
 ) -> dict[str, object]:
     """Run one original or perturbed stream under the strict Fig.9 protocol."""
 
@@ -1211,6 +1247,10 @@ def run_strict_stream(
     if oracle_candidate_diagnostic and not competition.enabled:
         raise ValueError(
             "oracle candidate diagnostics require competitive_raw mode"
+        )
+    if candidate_separability_trace and not oracle_candidate_diagnostic:
+        raise ValueError(
+            "candidate separability trace requires oracle candidate diagnostics"
         )
     if len(records) <= config.horizon:
         raise ValueError("Not enough records for the requested horizon.")
@@ -1265,6 +1305,7 @@ def run_strict_stream(
         build_fig9_encoder(config) if oracle_candidate_diagnostic else None
     )
     oracle_rows: list[dict[str, object]] = []
+    candidate_score_rows: list[dict[str, object]] = []
     validate_strict_fingerprint(fingerprint)
     if print_fingerprint:
         print(json.dumps(fingerprint, indent=2, sort_keys=True))
@@ -1298,6 +1339,7 @@ def run_strict_stream(
                 config.horizon,
                 competition_settings=competition,
                 oracle_candidate_diagnostic=oracle_candidate_diagnostic,
+                candidate_separability_trace=candidate_separability_trace,
                 oracle_encoder=oracle_encoder,
                 config=(
                     config
@@ -1355,6 +1397,10 @@ def run_strict_stream(
             rollout_diagnostics = rollout.diagnostics
             if oracle_candidate_diagnostic:
                 oracle_rows.extend(rollout.oracle_diagnostics)
+            if candidate_separability_trace:
+                candidate_score_rows.extend(
+                    rollout.candidate_score_diagnostics
+                )
             if density_trace_path or density_summary_path or competition.enabled:
                 density_rows.extend(rollout.diagnostics)
             prediction_value: float | str = ""
@@ -1653,6 +1699,11 @@ def run_strict_stream(
             output_dir / "oracle_candidate_summary.json",
             summarize_oracle_rows(oracle_rows, horizon=config.horizon),
         )
+    if candidate_separability_trace:
+        write_predictions(
+            output_dir / "candidate_separability_trace.csv",
+            candidate_score_rows,
+        )
     if interval_rows:
         write_predictions(
             output_dir / f"{stream_label}_interval_summary.csv",
@@ -1743,6 +1794,11 @@ def parse_args() -> argparse.Namespace:
         "--oracle-candidate-diagnostic",
         action="store_true",
         help="Analyze true target candidates after competition; never affects prediction.",
+    )
+    parser.add_argument(
+        "--candidate-separability-trace",
+        action="store_true",
+        help="Write candidate labels for offline analysis; requires oracle diagnostics.",
     )
     parser.add_argument("--interval-every", type=int, default=0)
     parser.add_argument("--profile", action="store_true")
@@ -1933,6 +1989,7 @@ def run_main(args: argparse.Namespace) -> None:
             ),
             competition_settings=competition,
             oracle_candidate_diagnostic=args.oracle_candidate_diagnostic,
+            candidate_separability_trace=args.candidate_separability_trace,
         )
     if {"original", "perturbed"}.issubset(args.streams):
         runtime["pre_change_comparison"] = compare_pre_change_predictions(
