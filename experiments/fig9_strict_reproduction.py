@@ -28,7 +28,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 
-from experiments.fig9_paper_snn import (  # noqa: E402
+from experiments.fig9 import (  # noqa: E402
     TaxiRecord,
     learn_actual_code,
     mape,

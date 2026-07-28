@@ -20,6 +20,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 
 from experiments.fig9.data import TaxiRecord, read_records, record_values
+from experiments.fig9.learning import learn_actual_code
 from experiments.fig9.metrics import error_ratio, mape, reference_rolling_mape
 from experiments.fig9.outputs import plot_adaptation, write_predictions
 from seqmem.encoding import (
@@ -248,15 +249,6 @@ def rollout(
         model.previous_winners = previous_winners
         model.last_prediction_candidates = last_prediction_candidates
         model._learning_rng.setstate(learning_rng_state)
-
-
-def learn_actual_code(model: SequentialMemory, code: SymbolCode) -> None:
-    """Advance predictions before applying the paper's three learning cases."""
-
-    # STRICT PROTOCOL: prediction-before-observe。先让 distal context 产生
-    # last_prediction_candidates，再用真实 code 决定 Scenario 1/2/3 学习分支。
-    model.predict_code()
-    model.observe_code(code, learn=True)
 
 
 def run(args: argparse.Namespace) -> None:

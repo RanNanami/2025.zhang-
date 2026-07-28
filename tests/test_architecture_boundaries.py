@@ -52,14 +52,16 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                     )
                 )
 
-    def test_strict_entrypoint_does_not_import_historical_package(self) -> None:
-        """strict 入口不能依赖未来隔离出的 historical 包。"""
+    def test_strict_entrypoint_only_uses_stable_fig9_helpers(self) -> None:
+        """strict 入口不能依赖混合历史模块或 historical 包。"""
 
         path = ROOT / "experiments" / "fig9_strict_reproduction.py"
         modules = imported_modules(path)
         self.assertFalse(
             any(
-                module == "experiments.historical"
+                module == "experiments.fig9_paper_snn"
+                or module == "fig9_paper_snn"
+                or module == "experiments.historical"
                 or module.startswith("experiments.historical.")
                 for module in modules
             )
