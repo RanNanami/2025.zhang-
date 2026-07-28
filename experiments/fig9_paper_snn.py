@@ -9,7 +9,6 @@ strict 默认路径。
 from __future__ import annotations
 
 import argparse
-import csv
 import sys
 from collections import deque
 from datetime import datetime
@@ -22,6 +21,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from experiments.fig9.data import TaxiRecord, read_records, record_values
 from experiments.fig9.metrics import error_ratio, mape, reference_rolling_mape
+from experiments.fig9.outputs import plot_adaptation, write_predictions
 from seqmem.encoding import (
     SSTDCompositeEncoder,
     SSTDPeriodicEncoder,
@@ -30,50 +30,6 @@ from seqmem.encoding import (
     SymbolCode,
 )
 from seqmem.model import MemoryParams, SequentialMemory
-
-
-def write_predictions(path: Path, rows: list[dict[str, object]]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    if not rows:
-        return
-    with path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
-        writer.writeheader()
-        writer.writerows(rows)
-
-
-def plot_adaptation(
-    path: Path,
-    rows: list[dict[str, object]],
-    plot_start: datetime,
-) -> bool:
-    try:
-        import matplotlib.pyplot as plt
-    except ImportError:
-        return False
-
-    selected = [
-        row
-        for row in rows
-        if row["rolling_mape"] != ""
-        and datetime.fromisoformat(str(row["target_timestamp"])) >= plot_start
-    ]
-    if not selected:
-        return False
-    x = [datetime.fromisoformat(str(row["target_timestamp"])) for row in selected]
-    y = [float(row["rolling_mape"]) for row in selected]
-    figure, axis = plt.subplots(figsize=(10, 4.8))
-    axis.plot(x, y, linewidth=1.2, label="DS memory")
-    axis.axvline(datetime(2015, 4, 1), color="tab:orange", linestyle="--", label="perturbation")
-    axis.set(xlabel="Target time", ylabel="MAPE over last 400 predictions")
-    axis.grid(alpha=0.25)
-    axis.legend()
-    figure.autofmt_xdate()
-    figure.tight_layout()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    figure.savefig(path, dpi=180)
-    plt.close(figure)
-    return True
 
 
 def project_sparse_prediction(
