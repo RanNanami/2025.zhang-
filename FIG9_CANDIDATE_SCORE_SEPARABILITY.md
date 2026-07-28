@@ -3,155 +3,150 @@
 ## Scope
 
 This is a nonpaper, offline-only diagnostic on
-`experiment/fig9-competitive-inhibition`. Ground truth is used only to label
-completed candidates. It never affects prediction, competition, decoding,
+`experiment/fig9-competitive-inhibition`. Ground truth labels candidates only
+after prediction. They do not affect prediction, competition, decoding,
 learning, RNG, or checkpoint state.
 
-The existing 250-record sequential and batched outputs were audited first.
-Their `competition_trace.csv` and `oracle_candidate_trace.csv` files contain
-only rollout-step aggregates. They do not contain candidate column, neuron,
-predicted time, original score, inhibition, effective score, and emitted state
-on the same row. Candidate-level 250 analysis therefore cannot be reconstructed
-from those historical files.
+The formal analysis uses the user-run 250-record outputs in:
 
-A new opt-in `--candidate-separability-trace` was added. It is disabled by
-default and requires `--oracle-candidate-diagnostic`. The 250-record experiment
-was not rerun by Codex.
+`results/fig9_diagnostics/candidate_score_separability_250_20260728_222514/`
 
-## Aggregation
+The sequential and batched prediction SHA256 values exactly match their
+pre-existing 250-record runs:
+
+- Sequential: `3DD597607BEF41E657615C19938B38F15622710A1D80C08AEB206921549D7AC6`
+- Batched: `8E015313FF5CEB968419C7CA63CD2936BD22A63EA60205E66A63D87B0F290A8C`
+
+Both policies also have identical final model and RNG fingerprints. The trace
+is therefore read-only. A separate 50-record on/off test reached the same
+conclusion.
+
+## Method
 
 - Candidate level: one saved `CompetitionDecision` is one sample.
-- Column level: choose the candidate with maximum `original_score`; ties use
-  `candidate_original_index`, then neuron index. Scores are not averaged.
+- Column level: select maximum `original_score`; ties use
+  `candidate_original_index`, then neuron. Scores are not averaged.
 - Field offsets come from protocol encoder sizes: weekday `[0, 30)`, time
   `[30, 88)`, passenger `[88, 570)`.
-- Bootstrap unit: one rollout start (`input_index`), not one candidate.
+- Bootstrap unit: one rollout start (`input_index`), with 1,000 samples and
+  seed 0.
+- Step 1 candidate pools match for all 45 rollouts. Steps 2-5 are policy-level
+  comparisons after recurrent trajectory divergence.
+- Candidate-to-segment provenance is unavailable in this trace.
 
-In the 50-record trace each competition candidate mapped to one distinct raw
-event column, so candidate and column row counts were both 43,210. The
-aggregation still handles duplicate columns and is covered by tests.
+The analysis contains 123,788 candidate rows and 123,788 column rows. The
+one-to-one counts mean no duplicate candidate columns occurred in these runs,
+although duplicate-column aggregation is implemented and tested.
 
-## Read-Only Verification
+## Prediction Results
 
-| Policy | Trace rows | Predictions SHA on/off equal | Model equal | RNG equal |
-|---|---:|---|---|---|
-| Sequential | 21,473 | Yes | Yes | Yes |
-| Batched | 21,737 | Yes | Yes | Yes |
+| Policy | MAPE | Final rolling MAPE | Coverage |
+|---|---:|---:|---:|
+| Sequential | 0.608449 | 0.541128 | 1.0 |
+| Batched | 0.485179 | 0.431497 | 1.0 |
 
-Sequential predictions SHA:
-`EB34EB343E57C267BA49AD4742CA9887DA78794B95D8EDD70EF5FE01F432A241`.
+Batched competition is better than sequential competition on this run, but
+this diagnostic does not compare it against a new strict/raw run.
 
-Batched predictions SHA:
-`50036D50769C8C22F16AB0465F58BBCE3F21DE8B6BE9E0AE5B0BC5695D373257`.
+## Total Separability
 
-Checkpoint format remains `fig9-strict-v1`, and stable competition-trace fields
-are unchanged by the trace switch.
-
-## Total Column Separability
-
-PR-AUC is shown as `original / effective`. Positive prevalence is the random
-ranking baseline.
+Column-level PR-AUC is shown as `original / effective`. Prevalence is the
+random-ranking baseline.
 
 | Policy | Step | Prevalence | PR-AUC |
 |---|---:|---:|---:|
-| Sequential | 1 | 0.098 | 0.118 / 0.130 |
-| Sequential | 2 | 0.157 | 0.601 / 0.614 |
-| Sequential | 3 | 0.104 | 0.413 / 0.479 |
-| Sequential | 4 | 0.105 | 0.586 / 0.617 |
-| Sequential | 5 | 0.088 | 0.532 / 0.560 |
-| Batched | 1 | 0.098 | 0.118 / 0.117 |
-| Batched | 2 | 0.107 | 0.396 / 0.416 |
-| Batched | 3 | 0.116 | 0.281 / 0.289 |
-| Batched | 4 | 0.103 | 0.472 / 0.481 |
-| Batched | 5 | 0.090 | 0.456 / 0.464 |
+| Sequential | 1 | 0.092 | 0.149 / 0.152 |
+| Sequential | 2 | 0.123 | 0.345 / 0.357 |
+| Sequential | 3 | 0.086 | 0.117 / 0.139 |
+| Sequential | 4 | 0.080 | 0.137 / 0.147 |
+| Sequential | 5 | 0.081 | 0.128 / 0.140 |
+| Batched | 1 | 0.092 | 0.149 / 0.148 |
+| Batched | 2 | 0.099 | 0.214 / 0.218 |
+| Batched | 3 | 0.088 | 0.159 / 0.165 |
+| Batched | 4 | 0.089 | 0.137 / 0.141 |
+| Batched | 5 | 0.079 | 0.143 / 0.146 |
 
-These total values are inflated by field identity. Nearly every predicted
-weekday candidate is a target candidate, so total PR-AUC does not demonstrate
-that passenger branches are separable.
+Total PR-AUC mixes fields with very different target prevalence and is not
+evidence that passenger branches are separable.
 
-## Passenger Separability
+## Field Separability
 
-| Policy | Step | Prevalence | Original PR-AUC | Effective PR-AUC |
-|---|---:|---:|---:|---:|
-| Sequential | 1 | 0.047 | 0.080 | 0.079 |
-| Sequential | 2 | 0.071 | 0.078 | 0.077 |
-| Sequential | 3 | 0.039 | 0.059 | 0.061 |
-| Sequential | 4 | 0.039 | 0.051 | 0.060 |
-| Sequential | 5 | 0.034 | 0.040 | 0.042 |
-| Batched | 1 | 0.047 | 0.080 | 0.072 |
-| Batched | 2 | 0.047 | 0.050 | 0.050 |
-| Batched | 3 | 0.048 | 0.047 | 0.047 |
-| Batched | 4 | 0.040 | 0.033 | 0.036 |
-| Batched | 5 | 0.036 | 0.065 | 0.067 |
+Original-score PR-AUC by field:
 
-Step 1 contains modest passenger information, but it is not strong. Batched
-Steps 2-4 are approximately prevalence-level. Effective score is not
-consistently worse than original score, so inhibition is not the sole cause of
-poor passenger ranking.
+| Policy | Field | Step 1 | Step 2 | Step 3 | Step 4 | Step 5 |
+|---|---|---:|---:|---:|---:|---:|
+| Sequential | Weekday | 0.585 | 0.738 | 0.372 | 0.400 | 0.381 |
+| Sequential | Time | 0.253 | 0.288 | 0.183 | 0.174 | 0.158 |
+| Sequential | Passenger | 0.045 | 0.040 | 0.036 | 0.031 | 0.033 |
+| Batched | Weekday | 0.585 | 0.590 | 0.486 | 0.417 | 0.432 |
+| Batched | Time | 0.253 | 0.267 | 0.201 | 0.170 | 0.152 |
+| Batched | Passenger | 0.045 | 0.040 | 0.043 | 0.039 | 0.056 |
 
-Time-field original-score PR-AUC is also only moderate:
+Passenger prevalence ranges from 0.032 to 0.047. Its original-score PR-AUC is
+at or close to prevalence from Step 1 onward. Effective score and the simple
+`score + predicted_time` two-dimensional diagnostic do not consistently
+improve it. Predicted time alone is somewhat informative only at Step 1
+(passenger PR-AUC 0.065), and remains far too weak for sparse retrieval.
 
-- Sequential Steps 1-5: `0.251, 0.237, 0.271, 0.171, 0.131`.
-- Batched Steps 1-5: `0.251, 0.163, 0.172, 0.107, 0.107`.
-
-Offline field z-score and percentile normalization do not consistently improve
-separability. They often reduce total PR-AUC after Step 1. This does not support
-installing a field-normalized score in the actual model.
+Offline field z-score and percentile normalization mostly reduce total
+PR-AUC, so the result does not support installing field normalization in the
+model.
 
 ## Threshold Feasibility
 
-The following are pooled false-column counts across 25 rollout starts for
-`original_score`.
+Pooled false-column counts required by `original_score`:
 
-| Policy | Step | False columns at recall 0.5 | False columns at recall 0.7 |
+| Policy | Step | False at recall 0.5 | False at recall 0.7 |
 |---|---:|---:|---:|
-| Sequential | 1 | 2,253 | 3,372 |
-| Sequential | 2 | 235 | 1,081 |
-| Sequential | 3 | 760 | 2,160 |
-| Sequential | 4 | 187 | 1,189 |
-| Sequential | 5 | 356 | 1,457 |
-| Batched | 1 | 2,253 | 3,372 |
-| Batched | 2 | 1,145 | 2,212 |
-| Batched | 3 | 1,442 | 2,210 |
-| Batched | 4 | 777 | 1,932 |
-| Batched | 5 | 823 | 2,155 |
+| Sequential | 1 | 5,759 | 7,769 |
+| Sequential | 2 | 2,586 | 5,016 |
+| Sequential | 3 | 6,752 | 9,391 |
+| Sequential | 4 | 6,682 | 9,587 |
+| Sequential | 5 | 6,091 | 9,000 |
+| Batched | 1 | 5,759 | 7,769 |
+| Batched | 2 | 4,416 | 6,646 |
+| Batched | 3 | 5,012 | 7,805 |
+| Batched | 4 | 5,314 | 7,841 |
+| Batched | 5 | 5,012 | 7,926 |
 
-At Step 1, retaining 50% of target columns also retains about 90 false columns
-per rollout; retaining 70% retains about 135. High recall therefore requires a
-large false context even before recurrent trajectories diverge.
+At Step 1 this is about 124 false columns per rollout at target recall 0.5
+(95% bootstrap CI 113-135), or 172 at recall 0.7 (CI 159-185). No scalar
+threshold provides both high target recall and sparse false activity.
 
 ## Batch Competition
 
-The fraction of candidates in multi-candidate batches is:
+| Step | Candidates per batch | In multi-candidate batches | Mixed target/false | Target top-1 | Target top-3 | False outranks all targets |
+|---:|---:|---:|---:|---:|---:|---:|
+| 1 | 4.79 | 0.935 | 0.259 | 0.306 | 0.639 | 0.689 |
+| 2 | 4.65 | 0.937 | 0.292 | 0.315 | 0.622 | 0.671 |
+| 3 | 5.25 | 0.943 | 0.278 | 0.259 | 0.605 | 0.728 |
+| 4 | 5.36 | 0.947 | 0.292 | 0.248 | 0.596 | 0.743 |
+| 5 | 6.49 | 0.960 | 0.291 | 0.267 | 0.551 | 0.724 |
 
-`0.951, 0.928, 0.950, 0.961, 0.976` for Steps 1-5.
+Batching removes sequential order bias, but in mixed batches a false candidate
+outranks every target in 67-74% of cases. Only 22-30% of mixed batches are
+separable by an original-score threshold.
 
-Among mixed target/false batches:
+## Conclusion
 
-- target is top-1: `0.432, 0.338, 0.363, 0.622, 0.632`;
-- target is top-3: `0.705, 0.669, 0.688, 0.756, 0.732`;
-- a false candidate outranks all targets:
-  `0.543, 0.662, 0.632, 0.374, 0.364`.
+The formal 250-record evidence supports case B/C/F from the diagnostic plan:
 
-Batching removes order bias, but many mixed batches still cannot be resolved
-reliably by original score.
+1. Step 1 passenger score is already effectively inseparable, so recurrent
+   context mixing is not the original cause.
+2. `effective_score` does not consistently destroy a strong
+   `original_score` ordering; both are weak for the passenger field.
+3. Batched competition improves MAPE relative to sequential competition, but
+   further scalar WTA or global-threshold tuning cannot provide sparse,
+   high-recall context.
+4. Field normalization and the tested score/time combination do not repair
+   the ranking.
+5. The next useful diagnostic is candidate-to-segment provenance and recurrent
+   branch coherence, including whether candidates share the causal source
+   segment and neuron identity expected for the active branch.
 
-## Trajectory Interpretation
+This is a diagnostic result, not a paper reproduction claim. No oracle
+threshold, normalization, or ground-truth label is applied to prediction.
 
-Sequential and batched Step-1 candidate pools match for all 25 rollout starts.
-For Steps 2-5 the matching rate is zero because emitted context has already
-changed. Later differences are policy-level trajectory differences, not a
-fixed-pool re-ranking result.
+Detailed generated outputs are under:
 
-The 50-record evidence supports these conclusions:
-
-1. Score has limited information at Step 1, especially for passenger columns.
-2. Effective score does not consistently destroy a strong original ordering;
-   often neither score is sufficiently discriminative.
-3. Field normalization alone does not repair the ranking.
-4. A better within-batch WTA may recover some targets, but a scalar score cannot
-   simultaneously preserve high target recall and sparse false activity.
-5. The next high-value diagnostic is read-only candidate-to-segment provenance
-   and recurrent branch coherence, rather than further global threshold tuning.
-
-These are smoke-test findings, not formal 250-record conclusions.
+`results/fig9_diagnostics/candidate_score_separability_250_20260728_222514/analysis/`
