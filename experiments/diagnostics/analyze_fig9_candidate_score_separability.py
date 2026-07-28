@@ -14,9 +14,14 @@ import math
 import random
 import statistics
 import subprocess
+import sys
 from collections import defaultdict
 from pathlib import Path
 from typing import Callable, Iterable, Mapping, Sequence
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "src"))
 
 from experiments.diagnostics.fig9_candidate_score_trace import (
     TRACE_FIELDS,
@@ -297,6 +302,38 @@ def bootstrap_by_rollout(
     return estimates
 
 
+def bootstrap_rollout_metric_means(
+    rows: Sequence[Mapping[str, object]],
+    *,
+    samples: int,
+    seed: int,
+    metric: Callable[[Sequence[Mapping[str, object]]], float | None],
+) -> list[float]:
+    """Bootstrap the mean of metrics computed on complete rollout units."""
+
+    by_rollout: dict[int, list[Mapping[str, object]]] = defaultdict(list)
+    for row in rows:
+        by_rollout[int(row["input_index"])].append(row)
+    rollout_values = [
+        value
+        for key in sorted(by_rollout)
+        for value in [metric(by_rollout[key])]
+        if value is not None and math.isfinite(value)
+    ]
+    if not rollout_values or samples <= 0:
+        return []
+    rng = random.Random(seed)
+    return [
+        _mean(
+            [
+                rollout_values[rng.randrange(len(rollout_values))]
+                for _ in rollout_values
+            ]
+        )
+        for _ in range(samples)
+    ]
+
+
 def compare_policy_candidate_pools(
     sequential_rows: Sequence[Mapping[str, object]],
     batched_rows: Sequence[Mapping[str, object]],
@@ -339,6 +376,8 @@ def analyze(
     protocol_ranges: dict[str, dict[str, tuple[int, int]]] = {}
     for policy, directory in policy_inputs:
         trace_path = directory / "candidate_separability_trace.csv"
+        competition_path = directory / "competition_trace.csv"
+        oracle_path = directory / "oracle_candidate_trace.csv"
         protocol_path = directory / "original_protocol.json"
         predictions_path = directory / "original_predictions.csv"
         protocol = json.loads(protocol_path.read_text(encoding="utf-8"))
@@ -351,6 +390,8 @@ def analyze(
                 "policy": policy,
                 "input_directory": str(directory.resolve()),
                 "candidate_trace_sha256": _sha256(trace_path),
+                "competition_trace_sha256": _sha256(competition_path),
+                "oracle_trace_sha256": _sha256(oracle_path),
                 "predictions_sha256": _sha256(predictions_path),
                 "protocol_sha256": _sha256(protocol_path),
             }
@@ -777,6 +818,14 @@ def _batch_tables(
             row for row in output if int(row["horizon_step"]) == step
         ]
         mixed = [row for row in selected if row["mixed_target_false"]]
+        multi_candidate_total = sum(
+            int(row["candidate_count"])
+            for row in selected
+            if int(row["candidate_count"]) > 1
+        )
+        candidate_total = sum(
+            int(row["candidate_count"]) for row in selected
+        )
         output.append(
             {
                 **ANALYSIS_MARKERS,
@@ -795,7 +844,7 @@ def _batch_tables(
                 "false_best_score": "",
                 "target_best_score_rank": "",
                 "highest_score_is_target": _rate(
-                    selected, "highest_score_is_target"
+                    mixed, "highest_score_is_target"
                 ),
                 "target_false_score_margin": "",
                 "mixed_target_false": _ratio(len(mixed), len(selected)),
@@ -808,6 +857,10 @@ def _batch_tables(
                 "score_can_separate": _rate(mixed, "score_can_separate"),
                 "complete_score_overlap": _rate(
                     mixed, "complete_score_overlap"
+                ),
+                "multi_candidate_batch_candidate_fraction": _ratio(
+                    multi_candidate_total,
+                    candidate_total,
                 ),
             }
         )
@@ -1023,7 +1076,7 @@ def _bootstrap_tables(
                 for offset, (metric_name, (source, function)) in enumerate(
                     metrics.items()
                 ):
-                    estimates = bootstrap_by_rollout(
+                    estimates = bootstrap_rollout_metric_means(
                         source,
                         samples=samples,
                         seed=seed + step * 100 + offset,
@@ -1383,6 +1436,8 @@ def _render_report(summary: Mapping[str, object]) -> str:
                 f"- Policy: `{item['policy']}`",  # type: ignore[index]
                 f"- Directory: `{item['input_directory']}`",  # type: ignore[index]
                 f"- Candidate trace SHA256: `{item['candidate_trace_sha256']}`",  # type: ignore[index]
+                f"- Competition trace SHA256: `{item['competition_trace_sha256']}`",  # type: ignore[index]
+                f"- Oracle trace SHA256: `{item['oracle_trace_sha256']}`",  # type: ignore[index]
                 f"- Predictions SHA256: `{item['predictions_sha256']}`",  # type: ignore[index]
                 f"- Protocol SHA256: `{item['protocol_sha256']}`",  # type: ignore[index]
                 "",
@@ -1409,10 +1464,12 @@ def _render_report(summary: Mapping[str, object]) -> str:
     )
     for row in summary["headline_metrics"]:  # type: ignore[index]
         lines.append(
-            "| {policy} | {horizon_step} | {field} | {indicator} | "
-            "{pr_auc} | {positive_prevalence} | {roc_auc} | "
-            "{false_columns_at_recall_0.5} | "
-            "{false_columns_at_recall_0.7} |".format(**row)  # type: ignore[arg-type]
+            f"| {row['policy']} | {row['horizon_step']} | "
+            f"{row['field']} | {row['indicator']} | "
+            f"{row['pr_auc']} | {row['positive_prevalence']} | "
+            f"{row['roc_auc']} | "
+            f"{row['false_columns_at_recall_0.5']} | "
+            f"{row['false_columns_at_recall_0.7']} |"
         )
     lines.extend(
         [
@@ -1533,12 +1590,28 @@ def main() -> None:
                 "single-trace mode requires --policy-label, --protocol, "
                 "and --predictions"
             )
-        synthetic = Path(args.output_dir) / "_single_input"
-        synthetic.mkdir(parents=True, exist_ok=True)
-        raise ValueError(
-            "single-file mode is intentionally unsupported for provenance "
-            "safety; provide --sequential-dir or --batched-dir"
-        )
+        candidate_path = Path(args.candidate_trace).resolve()
+        directory = candidate_path.parent
+        expected = {
+            "candidate trace": directory / "candidate_separability_trace.csv",
+            "protocol": directory / "original_protocol.json",
+            "predictions": directory / "original_predictions.csv",
+        }
+        supplied = {
+            "candidate trace": candidate_path,
+            "protocol": Path(args.protocol).resolve(),
+            "predictions": Path(args.predictions).resolve(),
+        }
+        for label, expected_path in expected.items():
+            if supplied[label] != expected_path.resolve():
+                raise ValueError(
+                    f"{label} must use the standard output filename "
+                    f"{expected_path.name} in one result directory"
+                )
+        for optional in (args.competition_trace, args.oracle_trace):
+            if optional and not Path(optional).is_file():
+                raise ValueError(f"input file does not exist: {optional}")
+        policy_inputs.append((args.policy_label, directory))
     if not policy_inputs:
         raise ValueError("provide --sequential-dir and/or --batched-dir")
     summary = analyze(
