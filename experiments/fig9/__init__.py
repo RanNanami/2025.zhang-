@@ -5,9 +5,13 @@ strict 入口只应从这个包读取数据、指标、输出和学习 helper。
 """
 
 from .data import TaxiRecord, read_records, record_values
+from .metrics import error_ratio, mape, reference_rolling_mape
 
 __all__ = [
     "TaxiRecord",
+    "error_ratio",
+    "mape",
     "read_records",
     "record_values",
+    "reference_rolling_mape",
 ]

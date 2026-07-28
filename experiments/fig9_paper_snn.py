@@ -12,7 +12,6 @@ import argparse
 import csv
 import sys
 from collections import deque
-from collections.abc import Iterable
 from datetime import datetime
 from itertools import product
 from pathlib import Path
@@ -22,6 +21,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 
 from experiments.fig9.data import TaxiRecord, read_records, record_values
+from experiments.fig9.metrics import error_ratio, mape, reference_rolling_mape
 from seqmem.encoding import (
     SSTDCompositeEncoder,
     SSTDPeriodicEncoder,
@@ -30,31 +30,6 @@ from seqmem.encoding import (
     SymbolCode,
 )
 from seqmem.model import MemoryParams, SequentialMemory
-
-
-def error_ratio(errors: Iterable[float], targets: Iterable[float]) -> float:
-    absolute_error = sum(errors)
-    target_scale = sum(abs(target) for target in targets)
-    return absolute_error / target_scale if target_scale else 0.0
-
-
-def mape(predictions: list[float], targets: list[float]) -> float:
-    """Return the mean-error/mean-target normalization used by reference [58]."""
-
-    absolute_error = sum(
-        abs(prediction - target)
-        for prediction, target in zip(predictions, targets)
-    )
-    return error_ratio((absolute_error,), targets)
-
-
-def reference_rolling_mape(errors: Iterable[float], target_scale: float) -> float:
-    """Return the rolling metric used by the plotting code in reference [58]."""
-
-    values = list(errors)
-    if not values or target_scale == 0.0:
-        return 0.0
-    return sum(values) / len(values) / target_scale
 
 
 def write_predictions(path: Path, rows: list[dict[str, object]]) -> None:
