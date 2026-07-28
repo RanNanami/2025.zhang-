@@ -64,6 +64,24 @@ class Fig9CompetitiveInhibitionTests(unittest.TestCase):
             simultaneous_tolerance=0.0,
         )
 
+    def _compete_batched(
+        self,
+        candidates: list[CompetitionCandidate],
+        *,
+        strength: float = 0.1,
+        tau: float = 0.02,
+        bin_width: float = 0.005,
+    ):
+        return compete_prediction_candidates(
+            candidates,
+            threshold=1.0,
+            inhibition_strength=strength,
+            inhibition_tau=tau,
+            simultaneous_tolerance=0.0,
+            simultaneous_policy="batched",
+            simultaneous_bin_width=bin_width,
+        )
+
     def _records(self, count: int = 18) -> list[TaxiRecord]:
         start = datetime(2014, 7, 1)
         return [
@@ -86,6 +104,12 @@ class Fig9CompetitiveInhibitionTests(unittest.TestCase):
         )
 
         self.assertEqual(off, raw)
+
+    def test_default_simultaneous_policy_is_sequential(self) -> None:
+        settings = CompetitionSettings()
+
+        self.assertEqual(settings.simultaneous_policy, "sequential")
+        self.assertEqual(settings.simultaneous_bin_width, 0.005)
 
     def test_zero_strength_returns_raw_code_verbatim(self) -> None:
         raw = SymbolCode(
@@ -161,6 +185,134 @@ class Fig9CompetitiveInhibitionTests(unittest.TestCase):
         self.assertEqual(first, repeated)
         self.assertEqual(first, shuffled)
 
+    def test_batched_is_independent_of_input_order(self) -> None:
+        candidates = [
+            self._candidate(4, 2, 1.2, 0.006, 2),
+            self._candidate(1, 3, 1.1, 0.001, 0),
+            self._candidate(2, 1, 1.3, 0.006, 1),
+        ]
+
+        first = self._compete_batched(candidates)
+        shuffled = self._compete_batched(
+            [candidates[2], candidates[0], candidates[1]]
+        )
+
+        self.assertEqual(first, shuffled)
+
+    def test_same_batch_candidates_do_not_inhibit_each_other(self) -> None:
+        first = self._candidate(0, 0, 1.05, 0.000, 0)
+        second = self._candidate(1, 0, 1.05, 0.001, 1)
+
+        result = self._compete_batched([first, second], strength=1.0)
+
+        self.assertEqual(result.emitted_candidates, (first, second))
+        self.assertTrue(
+            all(
+                decision.accumulated_inhibition == 0.0
+                for decision in result.decisions
+            )
+        )
+        self.assertTrue(
+            all(
+                decision.same_batch_inhibition == 0.0
+                for decision in result.decisions
+            )
+        )
+
+    def test_earlier_batch_inhibits_later_batch(self) -> None:
+        early = self._candidate(0, 0, 1.2, 0.000, 0)
+        late = self._candidate(1, 0, 1.05, 0.006, 1)
+
+        result = self._compete_batched([late, early], strength=0.1)
+
+        self.assertEqual(result.emitted_candidates, (early,))
+        self.assertEqual(result.inhibited_candidates, (late,))
+        self.assertGreater(
+            result.decisions[1].earlier_batch_inhibition,
+            0.0,
+        )
+
+    def test_same_column_is_excluded_across_batches(self) -> None:
+        early = self._candidate(3, 0, 1.1, 0.000, 0)
+        late = self._candidate(3, 1, 1.01, 0.006, 1)
+
+        result = self._compete_batched([early, late], strength=1.0)
+
+        self.assertEqual(result.emitted_candidates, (early, late))
+        self.assertEqual(result.decisions[1].accumulated_inhibition, 0.0)
+
+    def test_zero_strength_batched_returns_raw_code_verbatim(self) -> None:
+        raw = SymbolCode(
+            events=(
+                SpikeEvent(column=5, time=0.006),
+                SpikeEvent(column=2, time=0.000),
+            )
+        )
+        mapping = {
+            5: [self._candidate(5, 1, 1.2, 0.006, 0).candidate],
+            2: [self._candidate(2, 0, 1.1, 0.000, 1).candidate],
+        }
+        candidates = candidates_for_prediction(
+            raw,
+            mapping,
+            timing_tolerance=0.03,
+        )
+
+        result = self._compete_batched(list(candidates), strength=0.0)
+
+        self.assertEqual(emitted_prediction_code(raw, result), raw)
+
+    def test_half_even_batch_boundaries_are_stable(self) -> None:
+        candidates = [
+            self._candidate(0, 0, 1.1, 0.0025, 0),
+            self._candidate(1, 0, 1.1, 0.0075, 1),
+            self._candidate(2, 0, 1.1, 0.0125, 2),
+        ]
+
+        result = self._compete_batched(candidates, strength=0.0)
+
+        self.assertEqual(
+            [decision.batch_index for decision in result.decisions],
+            [0, 2, 2],
+        )
+
+    def test_equal_times_share_one_batch(self) -> None:
+        candidates = [
+            self._candidate(0, 0, 1.1, 0.010, 0),
+            self._candidate(1, 0, 1.1, 0.010, 1),
+        ]
+
+        result = self._compete_batched(candidates)
+
+        self.assertEqual(len(result.batches), 1)
+        self.assertEqual(result.batches[0].candidate_count, 2)
+        self.assertEqual(result.batches[0].emitted_count, 2)
+
+    def test_tiny_time_difference_in_same_bucket_has_same_outcome(self) -> None:
+        candidates = [
+            self._candidate(0, 0, 1.05, 0.0100000, 0),
+            self._candidate(1, 0, 1.05, 0.0100001, 1),
+        ]
+
+        result = self._compete_batched(candidates, strength=1.0)
+
+        self.assertEqual(len(result.emitted_candidates), 2)
+        self.assertEqual(
+            {decision.batch_index for decision in result.decisions},
+            {2},
+        )
+
+    def test_neighboring_bucket_can_suppress(self) -> None:
+        candidates = [
+            self._candidate(0, 0, 1.2, 0.0024, 0),
+            self._candidate(1, 0, 1.01, 0.0026, 1),
+        ]
+
+        result = self._compete_batched(candidates, strength=0.1)
+
+        self.assertEqual(len(result.emitted_candidates), 1)
+        self.assertFalse(result.decisions[1].emitted)
+
     def test_early_winner_suppresses_nearby_weaker_candidate(self) -> None:
         early = self._candidate(0, 0, 1.2, 0.0, 0)
         weak = self._candidate(1, 0, 1.05, 0.0, 1)
@@ -219,6 +371,28 @@ class Fig9CompetitiveInhibitionTests(unittest.TestCase):
             competition_settings=CompetitionSettings(
                 mode="competitive_raw",
                 inhibition_strength=0.1,
+            ),
+        )
+
+        self.assertEqual(model_long_term_fingerprint(model), memory_before)
+        self.assertEqual(model_rng_fingerprint(model), rng_before)
+
+    def test_batched_is_read_only_for_model_and_rng(self) -> None:
+        config = Fig9StrictConfig(warmup=4)
+        encoder = build_fig9_encoder(config)
+        model = build_strict_model(encoder, config)
+        for record in self._records(12):
+            learn_actual_code(model, encoder.encode(record_values(record)))
+        memory_before = model_long_term_fingerprint(model)
+        rng_before = model_rng_fingerprint(model)
+
+        rollout_raw_autonomous(
+            model,
+            3,
+            competition_settings=CompetitionSettings(
+                mode="competitive_raw",
+                inhibition_strength=0.1,
+                simultaneous_policy="batched",
             ),
         )
 

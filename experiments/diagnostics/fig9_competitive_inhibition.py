@@ -10,6 +10,7 @@ from __future__ import annotations
 import math
 import sys
 from dataclasses import dataclass, replace
+from decimal import Decimal, ROUND_HALF_EVEN
 from pathlib import Path
 from typing import Mapping, Sequence
 
@@ -420,9 +421,15 @@ def _compete_batched(
 
 
 def _batch_index(predicted_time: float, bin_width: float) -> int:
-    """Map time to a deterministic nearest-grid bucket."""
+    """Map time to a deterministic nearest-grid bucket.
 
-    return round(predicted_time / bin_width)
+    Decimal conversion from the public float spelling prevents binary division
+    noise from moving an exact half-bin boundary. Ties use Python-compatible
+    half-even rounding.
+    """
+
+    ratio = Decimal(str(predicted_time)) / Decimal(str(bin_width))
+    return int(ratio.to_integral_value(rounding=ROUND_HALF_EVEN))
 
 
 def _batch_start(batch_index: int, bin_width: float) -> float:
