@@ -74,6 +74,25 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         importlib.import_module("experiments.diagnostics.fig8_diagnostic_common")
         self.assertEqual(asdict(MemoryParams()), before)
 
+    def test_legacy_fig9_module_reexports_stable_helpers(self) -> None:
+        """旧 import 路径必须转发到新的稳定实现，不能复制出第二份逻辑。"""
+
+        stable = importlib.import_module("experiments.fig9")
+        legacy = importlib.import_module("experiments.fig9_paper_snn")
+        for name in (
+            "TaxiRecord",
+            "read_records",
+            "record_values",
+            "error_ratio",
+            "mape",
+            "reference_rolling_mape",
+            "write_predictions",
+            "plot_adaptation",
+            "learn_actual_code",
+        ):
+            with self.subTest(name=name):
+                self.assertIs(getattr(legacy, name), getattr(stable, name))
+
     def test_pickle_class_module_paths_remain_stable(self) -> None:
         """旧 pickle checkpoint 依赖这些完整类路径。"""
 

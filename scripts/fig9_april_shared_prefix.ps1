@@ -11,7 +11,7 @@ $Log = Join-Path $OutDir "run.log"
 
 $env:PYTHONPATH = "$RepoRoot\src;$RepoRoot"
 $QuoteArg = { param([string]$Value) '"' + ($Value -replace '"', '\"') + '"' }
-$Split = & $Python -c "from pathlib import Path; from experiments.fig9_paper_snn import read_records; from experiments.fig9_strict_reproduction import find_timestamp_split; print(find_timestamp_split(read_records(Path('data/paper_nyc_taxi.csv'), 0)))"
+$Split = & $Python -c "from pathlib import Path; from experiments.fig9 import read_records; from experiments.fig9_strict_reproduction import find_timestamp_split; print(find_timestamp_split(read_records(Path('data/paper_nyc_taxi.csv'), 0)))"
 Write-Host "Timestamp split index: $Split"
 $Command = @($Python, "experiments\fig9_strict_reproduction.py", "--streams", "original", "--output-dir", $OutDir, "--checkpoint-path", $Checkpoint, "--checkpoint-at-index", $Split, "--stop-after-record", $Split)
 $CommandLine = (($Command | ForEach-Object { & $QuoteArg $_ }) -join " ") + " 2>&1"
