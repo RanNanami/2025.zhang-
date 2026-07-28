@@ -13,14 +13,15 @@ import csv
 import sys
 from collections import deque
 from collections.abc import Iterable
-from dataclasses import dataclass
 from datetime import datetime
 from itertools import product
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 
+from experiments.fig9.data import TaxiRecord, read_records, record_values
 from seqmem.encoding import (
     SSTDCompositeEncoder,
     SSTDPeriodicEncoder,
@@ -29,36 +30,6 @@ from seqmem.encoding import (
     SymbolCode,
 )
 from seqmem.model import MemoryParams, SequentialMemory
-
-
-@dataclass(frozen=True)
-class TaxiRecord:
-    timestamp: datetime
-    value: float
-
-
-def read_records(path: Path, limit: int) -> list[TaxiRecord]:
-    """Read the half-hourly taxi stream used by Fig.9-style experiments.
-
-    中文调试提示：每一行最终只留下 timestamp 和 passenger_count/value。
-    若 MAPE 异常，先检查这里读到的 date range 和行数是否和 strict protocol
-    输出一致。
-    """
-
-    records: list[TaxiRecord] = []
-    with path.open("r", encoding="utf-8", newline="") as handle:
-        for row in csv.DictReader(handle):
-            value_text = row.get("passenger_count") or row.get("value")
-            try:
-                timestamp = datetime.strptime(row["timestamp"], "%Y-%m-%d %H:%M:%S")
-                value = float(value_text)  # type: ignore[arg-type]
-            except (TypeError, ValueError):
-                # The [58] file begins with two NuPIC type/flag metadata rows.
-                continue
-            records.append(TaxiRecord(timestamp=timestamp, value=value))
-            if limit > 0 and len(records) >= limit:
-                break
-    return records
 
 
 def error_ratio(errors: Iterable[float], targets: Iterable[float]) -> float:
@@ -128,15 +99,6 @@ def plot_adaptation(
     figure.savefig(path, dpi=180)
     plt.close(figure)
     return True
-
-
-def record_values(record: TaxiRecord) -> tuple[float, float, float]:
-    """Convert one taxi record into weekday, half-hour slot, passenger value."""
-
-    # DEBUG WATCH: slot 范围应为 0..47；weekday 范围应为 0..6。
-    # passenger 原值交给 SSTDRealValueEncoder 截断到 [0, 40000]。
-    slot = record.timestamp.hour * 2 + record.timestamp.minute // 30
-    return float(record.timestamp.weekday()), float(slot), record.value
 
 
 def project_sparse_prediction(
