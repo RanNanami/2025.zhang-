@@ -8,11 +8,17 @@ returns a local propagation choice. It is not part of the strict paper path.
 from __future__ import annotations
 
 import math
+import sys
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Mapping, Sequence
 
-from seqmem.encoding import SpikeEvent, SymbolCode
-from seqmem.model import PredictionCandidate
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "src"))
+
+from seqmem.encoding import SpikeEvent, SymbolCode  # noqa: E402
+from seqmem.model import PredictionCandidate  # noqa: E402
 
 
 @dataclass(frozen=True)

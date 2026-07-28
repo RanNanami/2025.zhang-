@@ -765,11 +765,23 @@ def rollout_raw_autonomous(
                             "competition_runtime_seconds": 0.0,
                             "passenger_candidate_count": 0,
                             "decoded_passenger": "",
-                            "actual_future_passenger": "",
+                            "actual_future_passenger": (
+                                future_records[_step_index].value
+                                if future_records is not None
+                                and _step_index < len(future_records)
+                                else ""
+                            ),
+                            "target": (
+                                future_records[_step_index].value
+                                if future_records is not None
+                                and _step_index < len(future_records)
+                                else ""
+                            ),
                             "absolute_error": "",
                             "absolute_percentage_error": "",
                             "prediction_runtime_seconds": predict_runtime,
                             "decode_runtime_seconds": 0.0,
+                            "prediction_missing": True,
                             "stopped_reason": "no_raw_prediction",
                         }
                     )
@@ -822,7 +834,12 @@ def rollout_raw_autonomous(
             decode_runtime = 0.0
             decoded_passenger: float | str = ""
             passenger_candidate_count: int | str = ""
-            actual_future: float | str = ""
+            actual_future: float | str = (
+                future_records[_step_index].value
+                if future_records is not None
+                and _step_index < len(future_records)
+                else ""
+            )
             absolute_error: float | str = ""
             ape: float | str = ""
             if (
@@ -847,7 +864,6 @@ def rollout_raw_autonomous(
                             future_records is not None
                             and _step_index < len(future_records)
                         ):
-                            actual_future = future_records[_step_index].value
                             if actual_future:
                                 absolute_error = abs(decoded - actual_future)
                                 ape = absolute_error / abs(actual_future)
@@ -941,10 +957,12 @@ def rollout_raw_autonomous(
                         "passenger_candidate_count": passenger_candidate_count,
                         "decoded_passenger": decoded_passenger,
                         "actual_future_passenger": actual_future,
+                        "target": actual_future,
                         "absolute_error": absolute_error,
                         "absolute_percentage_error": ape,
                         "prediction_runtime_seconds": predict_runtime,
                         "decode_runtime_seconds": decode_runtime,
+                        "prediction_missing": propagated is None,
                         "stopped_reason": "",
                     }
                 )
