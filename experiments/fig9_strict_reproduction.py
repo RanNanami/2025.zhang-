@@ -1218,13 +1218,6 @@ def run_strict_stream(
                     map(str, rollout.raw_column_counts)
                 ),
             }
-            if competition.enabled:
-                prediction_row["emitted_rollout_event_counts"] = " ".join(
-                    map(str, rollout.emitted_event_counts)
-                )
-                prediction_row["emitted_rollout_column_counts"] = " ".join(
-                    map(str, rollout.emitted_column_counts)
-                )
             rows.append(prediction_row)
         event_hook and event_hook("observe", index)
         # STATE MUTATION: 这里才把真实当前 record 写入长期记忆，触发三种

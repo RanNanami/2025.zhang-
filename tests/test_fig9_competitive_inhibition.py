@@ -108,6 +108,45 @@ class Fig9CompetitiveInhibitionTests(unittest.TestCase):
         self.assertEqual(emitted_prediction_code(raw, result), raw)
         self.assertEqual(result.emitted_column_count, 2)
 
+    def test_zero_strength_predictions_csv_matches_raw_bytes(self) -> None:
+        records = self._records(14)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            data_path = root / "tiny.csv"
+            data_path.write_text("timestamp,passenger_count\n", encoding="utf-8")
+            common = {
+                "records": records,
+                "data_path": data_path,
+                "stream_label": "original",
+                "config": Fig9StrictConfig(warmup=6),
+                "limit": 0,
+                "print_fingerprint": False,
+            }
+            raw = run_strict_stream(
+                output_dir=root / "raw",
+                **common,
+            )
+            zero = run_strict_stream(
+                output_dir=root / "zero",
+                competition_settings=CompetitionSettings(
+                    mode="competitive_raw",
+                    inhibition_strength=0.0,
+                ),
+                **common,
+            )
+            raw_csv = (root / "raw" / "original_predictions.csv").read_bytes()
+            zero_csv = (root / "zero" / "original_predictions.csv").read_bytes()
+
+        self.assertEqual(zero_csv, raw_csv)
+        self.assertEqual(
+            zero["final_model_fingerprint"],
+            raw["final_model_fingerprint"],
+        )
+        self.assertEqual(
+            zero["final_rng_fingerprint"],
+            raw["final_rng_fingerprint"],
+        )
+
     def test_repeated_and_shuffled_inputs_are_deterministic(self) -> None:
         candidates = [
             self._candidate(4, 2, 1.2, 0.02, 2),
