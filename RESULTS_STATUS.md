@@ -162,17 +162,27 @@ been run.
 The future-observed teacher-forced winner diagnostic records the neuron and
 segment selected when each target record later enters the normal online
 observe path, then aligns that reference to earlier autonomous candidates
-offline. The reference never changes prediction or competition. Codex
-validation is limited to 20/50 records; formal 250-record results must be
-generated manually with `scripts/fig9_teacher_forced_identity_250.ps1`. No
-complete Fig.9 reproduction is claimed.
+offline. The reference never changes prediction or competition. The completed
+formal 250 trace is audited in
+`results/fig9_diagnostics/teacher_reference_scenario_audit_250/`.
 
-The allowed 50-record batched check found passenger target-column
-raw/candidate recall `0.543`, but future-observed winner-neuron candidate and
-emitted recall only `0.062/0.041`. Among emitted passenger target columns,
-`89.4%` used a different neuron from the future-observed reference. This is
-preliminary evidence that column-level recall overstates branch identity; the
-formal 250-record diagnostic has not been run.
+Scenario 3 winners are selected or created after observation and are therefore
+operational references, not valid pre-existing predictive identities. Among
+passenger pre-existing Scenario 1/2 neuron references, target-column candidate
+and emitted recall are `0.831891/0.213172`; reference-neuron crossing,
+candidate, and emitted recall are `0.478336/0.131716/0.045061`. Given an
+emitted correct passenger column, the pre-existing reference mismatch rate is
+`0.788618`, not the unconditional operational rate `0.936118`.
+
+Passenger Step 1 isolates initial selection from later rollout drift.
+Reference-neuron crossing is `0.833333`, but candidate and emitted recall fall
+to `0.150000/0.083333`. The crossing trace attributes most post-crossing loss
+to event and per-column selection. Offline local metrics improve identity
+Hit@1 only modestly (`0.498363` best versus `0.464091` for the existing
+selector), which points more strongly to branch representation ambiguity than
+to a single missing ranking key. The formal trace predates the detailed
+Scenario 3 reason hook, so its no-segment versus below-`L_match` split remains
+unresolved. No complete Fig.9 reproduction is claimed.
 
 ## Verification
 
