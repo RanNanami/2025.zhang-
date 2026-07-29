@@ -76,6 +76,14 @@ from experiments.diagnostics.fig9_teacher_forced_identity import (  # noqa: E402
     legacy_teacher_forced_rows,
     observe_scenario_rows,
 )
+from experiments.diagnostics.fig9_intracolumn_selector import (  # noqa: E402
+    DIAGNOSTIC_MARKERS as INTRACOLUMN_DIAGNOSTIC_MARKERS,
+    SELECTOR_VERSION as INTRACOLUMN_SELECTOR_VERSION,
+    mark_competition_outcomes,
+    selection_trace_rows,
+    summarize_selection_rows,
+    write_selection_trace,
+)
 from seqmem.encoding import (  # noqa: E402
     SSTDCompositeEncoder,
     SSTDPeriodicEncoder,
@@ -83,6 +91,8 @@ from seqmem.encoding import (  # noqa: E402
     SymbolCode,
 )
 from seqmem.model import (  # noqa: E402
+    INTRACOLUMN_SELECTION_POLICIES,
+    IntracolumnSelectionTrace,
     MemoryParams,
     ObservationTrace,
     PreselectionTrace,
@@ -146,6 +156,7 @@ class RolloutResult:
     preselection_segment_diagnostics: tuple[dict[str, object], ...] = ()
     preselection_group_diagnostics: tuple[dict[str, object], ...] = ()
     preselection_replacement_diagnostics: tuple[dict[str, object], ...] = ()
+    intracolumn_selection_diagnostics: tuple[dict[str, object], ...] = ()
 
 
 @dataclass
@@ -794,6 +805,8 @@ def rollout_raw_autonomous(
     record_index: int | None = None,
     timestamp: datetime | None = None,
     future_records: list[TaxiRecord] | None = None,
+    intracolumn_selection_policy: str = "existing",
+    intracolumn_selection_diagnostic: bool = False,
 ) -> RolloutResult:
     """Roll out future SSTD codes using only raw predictive neurons.
 
@@ -852,6 +865,12 @@ def rollout_raw_autonomous(
         raise ValueError(
             "oracle diagnostics require config, oracle_encoder, and future_records"
         )
+    if intracolumn_selection_policy not in INTRACOLUMN_SELECTION_POLICIES:
+        raise ValueError("unsupported intracolumn selection policy")
+    if intracolumn_selection_diagnostic and config is None:
+        raise ValueError(
+            "intracolumn selection diagnostics require the strict config"
+        )
     oracle_ranges = (
         FieldColumnRanges.from_sizes(
             config.weekday_columns,
@@ -876,6 +895,7 @@ def rollout_raw_autonomous(
     preselection_segment_diagnostics: list[dict[str, object]] = []
     preselection_group_diagnostics: list[dict[str, object]] = []
     preselection_replacement_diagnostics: list[dict[str, object]] = []
+    intracolumn_selection_diagnostics: list[dict[str, object]] = []
     registry_predicted_before = (
         branch_registry.current_predicted_sources.copy()
         if branch_registry is not None
@@ -888,6 +908,7 @@ def rollout_raw_autonomous(
     )
     try:
         for _step_index in range(steps):
+            step_intracolumn_rows: list[dict[str, object]] = []
             # DEBUG WATCH: horizon step start。此时 previous_active_cells
             # 来自上一轮 raw predictive neurons，而不是 decoded passenger。
             previous_active_count = len(model.previous_active_cells)
@@ -911,12 +932,43 @@ def rollout_raw_autonomous(
                 if preselection_segment_diagnostic
                 else None
             )
+            intracolumn_trace = (
+                IntracolumnSelectionTrace()
+                if intracolumn_selection_diagnostic
+                else None
+            )
             raw = model.predict_code(
                 trace=prediction_trace,
                 preselection_trace=preselection_trace,
+                intracolumn_selection_policy=intracolumn_selection_policy,
+                intracolumn_selection_trace=intracolumn_trace,
             )
             predict_runtime = time.perf_counter() - predict_started
+            if (
+                intracolumn_trace is not None
+                and config is not None
+                and oracle_ranges is not None
+            ):
+                step_intracolumn_rows = selection_trace_rows(
+                    trace=intracolumn_trace,
+                    policy=intracolumn_selection_policy,
+                    input_index=(
+                        record_index + 1
+                        if record_index is not None
+                        else 0
+                    ),
+                    input_timestamp=(
+                        timestamp.isoformat(sep=" ")
+                        if timestamp is not None
+                        else ""
+                    ),
+                    horizon_step=_step_index + 1,
+                    ranges=oracle_ranges,
+                )
             if raw is None:
+                intracolumn_selection_diagnostics.extend(
+                    step_intracolumn_rows
+                )
                 if (
                     oracle_candidate_diagnostic
                     and oracle_encoder is not None
@@ -1093,6 +1145,7 @@ def rollout_raw_autonomous(
                     tuple(preselection_segment_diagnostics),
                     tuple(preselection_group_diagnostics),
                     tuple(preselection_replacement_diagnostics),
+                    tuple(intracolumn_selection_diagnostics),
                 )
             # DEBUG WATCH: after predict_code。raw_event_counts/raw_column_counts
             # 是定位“预测列密度膨胀”的最直接指标。
@@ -1120,6 +1173,22 @@ def rollout_raw_autonomous(
                 )
                 propagated = emitted_prediction_code(raw, competition_result)
                 competition_runtime = time.perf_counter() - competition_started
+            emitted_column_ids = (
+                {
+                    decision.candidate.column_index
+                    for decision in competition_result.decisions
+                    if decision.emitted
+                }
+                if competition_result is not None
+                else {event.column for event in raw.events}
+            )
+            mark_competition_outcomes(
+                step_intracolumn_rows,
+                emitted_columns=emitted_column_ids,
+            )
+            intracolumn_selection_diagnostics.extend(
+                step_intracolumn_rows
+            )
             if propagated is None:
                 emitted_events.append(0)
                 emitted_columns.append(0)
@@ -1479,6 +1548,7 @@ def rollout_raw_autonomous(
                     tuple(preselection_segment_diagnostics),
                     tuple(preselection_group_diagnostics),
                     tuple(preselection_replacement_diagnostics),
+                    tuple(intracolumn_selection_diagnostics),
                 )
             # STATE MUTATION: 下面两行只推进临时检索状态；长期记忆中的
             # segment/synapse/weight/age 不会改变，并会在 finally 中恢复。
@@ -1503,6 +1573,7 @@ def rollout_raw_autonomous(
             tuple(preselection_segment_diagnostics),
             tuple(preselection_group_diagnostics),
             tuple(preselection_replacement_diagnostics),
+            tuple(intracolumn_selection_diagnostics),
         )
     finally:
         # DEBUG WATCH: before/after transient restore。比较 restore 前后的
@@ -1561,11 +1632,19 @@ def run_strict_stream(
     observe_scenario_level: str = "summary",
     reference_neuron_selection_diagnostic: bool = False,
     reference_neuron_selection_level: str = "summary",
+    intracolumn_selection_policy: str = "existing",
+    intracolumn_selection_diagnostic: bool = False,
 ) -> dict[str, object]:
     """Run one original or perturbed stream under the strict Fig.9 protocol."""
 
     competition = competition_settings or CompetitionSettings()
     competition.validate()
+    if intracolumn_selection_policy not in INTRACOLUMN_SELECTION_POLICIES:
+        raise ValueError("unsupported intracolumn selection policy")
+    if intracolumn_selection_diagnostic and not oracle_candidate_diagnostic:
+        raise ValueError(
+            "intracolumn selection diagnostics require oracle diagnostics"
+        )
     if oracle_candidate_diagnostic and not competition.enabled:
         raise ValueError(
             "oracle candidate diagnostics require competitive_raw mode"
@@ -1730,6 +1809,7 @@ def run_strict_stream(
     preselection_segment_rows: list[dict[str, object]] = []
     preselection_group_rows: list[dict[str, object]] = []
     preselection_replacement_rows: list[dict[str, object]] = []
+    intracolumn_selection_rows: list[dict[str, object]] = []
     teacher_forced_observation_rows: list[dict[str, object]] = []
     teacher_forced_ranges = (
         FieldColumnRanges.from_sizes(
@@ -1807,6 +1887,10 @@ def run_strict_stream(
                 record_index=index,
                 timestamp=record.timestamp,
                 future_records=records[index + 1 : index + config.horizon + 1],
+                intracolumn_selection_policy=intracolumn_selection_policy,
+                intracolumn_selection_diagnostic=(
+                    intracolumn_selection_diagnostic
+                ),
             )
             if debug_enabled:
                 debug_payload = {
@@ -1866,6 +1950,10 @@ def run_strict_stream(
                 )
                 preselection_replacement_rows.extend(
                     rollout.preselection_replacement_diagnostics
+                )
+            if intracolumn_selection_diagnostic:
+                intracolumn_selection_rows.extend(
+                    rollout.intracolumn_selection_diagnostics
                 )
             if density_trace_path or density_summary_path or competition.enabled:
                 density_rows.extend(rollout.diagnostics)
@@ -2225,6 +2313,35 @@ def run_strict_stream(
                 "score_source": "PredictionCandidate.score",
                 "candidate_source": (
                     "same predict_code call via last_prediction_candidates"
+                ),
+                "strict_protocol_sha256": stable_object_sha256(fingerprint),
+            },
+        )
+    if intracolumn_selection_diagnostic:
+        write_selection_trace(
+            output_dir / "intracolumn_selection_trace.csv",
+            intracolumn_selection_rows,
+        )
+        selection_summary = summarize_selection_rows(
+            intracolumn_selection_rows,
+            policy=intracolumn_selection_policy,
+        )
+        write_json(
+            output_dir / "intracolumn_selection_summary.json",
+            selection_summary,
+        )
+        write_json(
+            output_dir / "intracolumn_selection_protocol.json",
+            {
+                **INTRACOLUMN_DIAGNOSTIC_MARKERS,
+                "policy": intracolumn_selection_policy,
+                "selector_version": INTRACOLUMN_SELECTOR_VERSION,
+                "contributor_metric": "contributor_count",
+                "missing_metric_order": "after finite values",
+                "stable_tie_break": "original event-winner insertion order",
+                "candidate_source": (
+                    "same predict_code call, after event selection and before "
+                    "intercolumn competition"
                 ),
                 "strict_protocol_sha256": stable_object_sha256(fingerprint),
             },
@@ -2651,6 +2768,17 @@ def parse_args() -> argparse.Namespace:
         choices=tuple(sorted(REFERENCE_NEURON_SELECTION_LEVELS)),
         default="summary",
     )
+    parser.add_argument(
+        "--intracolumn-selection-policy",
+        choices=tuple(sorted(INTRACOLUMN_SELECTION_POLICIES)),
+        default="existing",
+        help="Nonpaper local-choice ablation; existing preserves strict behavior.",
+    )
+    parser.add_argument(
+        "--intracolumn-selection-diagnostic",
+        action="store_true",
+        help="Write the same-call per-column selector trace.",
+    )
     parser.add_argument("--interval-every", type=int, default=0)
     parser.add_argument("--profile", action="store_true")
     parser.add_argument("--profile-output", default="")
@@ -2871,6 +2999,10 @@ def run_main(args: argparse.Namespace) -> None:
             ),
             reference_neuron_selection_level=(
                 args.reference_neuron_selection_level
+            ),
+            intracolumn_selection_policy=args.intracolumn_selection_policy,
+            intracolumn_selection_diagnostic=(
+                args.intracolumn_selection_diagnostic
             ),
         )
     if {"original", "perturbed"}.issubset(args.streams):

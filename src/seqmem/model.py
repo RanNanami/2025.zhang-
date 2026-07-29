@@ -8,6 +8,9 @@ SequentialMemory 的定义。strict 路径对 RNG 调用顺序、浮点累加顺
 
 from __future__ import annotations
 
+import hashlib
+import json
+import math
 import random
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -143,6 +146,55 @@ class PredictionCandidate:
     peak_dendritic_potential: float | None = None
     threshold_margin: float | None = None
     predicted_soma_firing_time: float | None = None
+
+
+INTRACOLUMN_SELECTION_POLICIES = {
+    "existing",
+    "max_candidate_score",
+    "max_response_peak",
+    "max_contributor_count",
+    "context_then_score",
+}
+
+
+@dataclass(frozen=True)
+class IntracolumnCandidateTrace:
+    """One real event winner considered by the per-column selector."""
+
+    original_index: int
+    column: int
+    neuron_index: int
+    segment_index: int
+    segment_identity: int
+    predicted_time: float
+    candidate_score: float
+    response_peak: float | None
+    contributor_count: int
+    positive_contributor_count: int
+    current_context_jaccard: float
+
+
+@dataclass(frozen=True)
+class IntracolumnSelectionGroupTrace:
+    """Read-only outcome of selecting one event winner for one column."""
+
+    policy: str
+    column: int
+    candidates: tuple[IntracolumnCandidateTrace, ...]
+    selected_candidate_original_index: int
+    existing_policy_candidate_index: int
+    selector_primary_key: str
+    selector_secondary_keys: tuple[str, ...]
+    tie_count: int
+    tie_break_used: bool
+    candidate_pool_fingerprint: str
+
+
+@dataclass
+class IntracolumnSelectionTrace:
+    """Optional per-call trace; it never participates in model learning."""
+
+    groups: list[IntracolumnSelectionGroupTrace] = field(default_factory=list)
 
 
 @dataclass
@@ -571,10 +623,265 @@ class SequentialMemory:
         self._diagnostic_sentence_index = sentence_index
         self._diagnostic_transition_index = transition_index
 
+    @staticmethod
+    def _finite_or(value: object, fallback: float) -> float:
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            numeric = float(value)
+            if math.isfinite(numeric):
+                return numeric
+        return fallback
+
+    def _intracolumn_event_winner_metadata(
+        self,
+        *,
+        original_index: int,
+        column_id: int,
+        values: tuple[int, float, float, Segment],
+        prediction_metadata: dict[int, dict[str, object]],
+        active_source_ids: set[int],
+    ) -> IntracolumnCandidateTrace:
+        neuron_index, score, target_time, segment = values
+        metadata = prediction_metadata.get(id(segment), {})
+        contributions = tuple(
+            item
+            for item in metadata.get("crossing_synapse_contributions", ())
+            if isinstance(item, SynapsePSPContribution)
+        )
+        segment_sources = set(segment.synapses)
+        union = segment_sources | active_source_ids
+        context_jaccard = (
+            len(segment_sources & active_source_ids) / len(union)
+            if union
+            else 1.0
+        )
+        segment_index = next(
+            index
+            for index, candidate_segment in enumerate(
+                self.columns[column_id].neurons[neuron_index].segments
+            )
+            if candidate_segment is segment
+        )
+        peak = metadata.get("peak_dendritic_potential")
+        return IntracolumnCandidateTrace(
+            original_index=original_index,
+            column=column_id,
+            neuron_index=neuron_index,
+            segment_index=segment_index,
+            segment_identity=id(segment),
+            predicted_time=target_time,
+            candidate_score=score,
+            response_peak=(
+                float(peak)
+                if isinstance(peak, (int, float))
+                and not isinstance(peak, bool)
+                and math.isfinite(float(peak))
+                else None
+            ),
+            contributor_count=len(contributions),
+            positive_contributor_count=sum(
+                item.psp_contribution > 0.0 for item in contributions
+            ),
+            current_context_jaccard=context_jaccard,
+        )
+
+    def _intracolumn_policy_key(
+        self,
+        candidate: IntracolumnCandidateTrace,
+        policy: str,
+    ) -> tuple[float, ...]:
+        score = self._finite_or(candidate.candidate_score, float("-inf"))
+        peak = self._finite_or(candidate.response_peak, float("-inf"))
+        predicted_time = self._finite_or(
+            candidate.predicted_time, float("inf")
+        )
+        context = self._finite_or(
+            candidate.current_context_jaccard, float("-inf")
+        )
+        if policy == "existing":
+            return (predicted_time,)
+        if policy == "max_candidate_score":
+            return (-score, predicted_time)
+        if policy == "max_response_peak":
+            return (-peak, -score, predicted_time)
+        if policy == "max_contributor_count":
+            return (
+                -float(candidate.contributor_count),
+                -peak,
+                -score,
+                predicted_time,
+            )
+        if policy == "context_then_score":
+            return (-context, -score, predicted_time)
+        raise ValueError(f"unsupported alternative policy: {policy}")
+
+    def _select_intracolumn_event_winners(
+        self,
+        *,
+        best_by_event: dict[
+            tuple[int, float], tuple[int, float, float, Segment]
+        ],
+        policy: str,
+        prediction_metadata: dict[int, dict[str, object]],
+        active_sources: dict[int, float],
+        selection_trace: IntracolumnSelectionTrace | None,
+    ) -> list[tuple[int, tuple[int, float, float, Segment]]]:
+        """Select one real event winner per column without recomputing it."""
+
+        grouped: dict[
+            int, list[tuple[int, tuple[int, float, float, Segment]]]
+        ] = {}
+        for original_index, (
+            (column_id, _event_time),
+            values,
+        ) in enumerate(best_by_event.items()):
+            grouped.setdefault(column_id, []).append((original_index, values))
+
+        selected_events: list[
+            tuple[int, tuple[int, float, float, Segment]]
+        ] = []
+        active_source_ids = set(active_sources)
+        selector_keys = {
+            "existing": (
+                "predicted_time_asc",
+                ("stable_original_order",),
+            ),
+            "max_candidate_score": (
+                "candidate_score_desc",
+                ("predicted_time_asc", "stable_original_order"),
+            ),
+            "max_response_peak": (
+                "response_peak_desc",
+                (
+                    "candidate_score_desc",
+                    "predicted_time_asc",
+                    "stable_original_order",
+                ),
+            ),
+            "max_contributor_count": (
+                "contributor_count_desc",
+                (
+                    "response_peak_desc",
+                    "candidate_score_desc",
+                    "predicted_time_asc",
+                    "stable_original_order",
+                ),
+            ),
+            "context_then_score": (
+                "current_context_jaccard_desc",
+                (
+                    "candidate_score_desc",
+                    "predicted_time_asc",
+                    "stable_original_order",
+                ),
+            ),
+        }
+        primary_key, secondary_keys = selector_keys[policy]
+
+        for column_id, members in grouped.items():
+            candidate_traces = tuple(
+                self._intracolumn_event_winner_metadata(
+                    original_index=original_index,
+                    column_id=column_id,
+                    values=values,
+                    prediction_metadata=prediction_metadata,
+                    active_source_ids=active_source_ids,
+                )
+                for original_index, values in members
+            )
+            existing_candidate = min(
+                candidate_traces,
+                key=lambda candidate: candidate.predicted_time,
+            )
+            ranked = sorted(
+                candidate_traces,
+                key=lambda candidate: (
+                    *self._intracolumn_policy_key(candidate, policy),
+                    candidate.original_index,
+                ),
+            )
+            selected = ranked[0]
+            selected_values = next(
+                values
+                for original_index, values in members
+                if original_index == selected.original_index
+            )
+            selected_events.append((column_id, selected_values))
+
+            if selection_trace is not None:
+                selected_numeric_key = self._intracolumn_policy_key(
+                    selected, policy
+                )
+                tie_count = sum(
+                    self._intracolumn_policy_key(candidate, policy)
+                    == selected_numeric_key
+                    for candidate in candidate_traces
+                )
+                def stable_number(value: float | None) -> float | None:
+                    return (
+                        float(value)
+                        if value is not None and math.isfinite(float(value))
+                        else None
+                    )
+
+                fingerprint_payload = [
+                    {
+                        "original_index": candidate.original_index,
+                        "column": candidate.column,
+                        "neuron": candidate.neuron_index,
+                        "segment_index": candidate.segment_index,
+                        "predicted_time": stable_number(
+                            candidate.predicted_time
+                        ),
+                        "candidate_score": stable_number(
+                            candidate.candidate_score
+                        ),
+                        "response_peak": stable_number(
+                            candidate.response_peak
+                        ),
+                        "contributor_count": candidate.contributor_count,
+                        "positive_contributor_count": (
+                            candidate.positive_contributor_count
+                        ),
+                        "current_context_jaccard": stable_number(
+                            candidate.current_context_jaccard
+                        ),
+                    }
+                    for candidate in candidate_traces
+                ]
+                fingerprint = hashlib.sha256(
+                    json.dumps(
+                        fingerprint_payload,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                        allow_nan=False,
+                    ).encode("ascii")
+                ).hexdigest()
+                selection_trace.groups.append(
+                    IntracolumnSelectionGroupTrace(
+                        policy=policy,
+                        column=column_id,
+                        candidates=candidate_traces,
+                        selected_candidate_original_index=(
+                            selected.original_index
+                        ),
+                        existing_policy_candidate_index=(
+                            existing_candidate.original_index
+                        ),
+                        selector_primary_key=primary_key,
+                        selector_secondary_keys=secondary_keys,
+                        tie_count=tie_count,
+                        tie_break_used=tie_count > 1,
+                        candidate_pool_fingerprint=fingerprint,
+                    )
+                )
+        return selected_events
+
     def predict_code(
         self,
         trace: PredictionTrace | None = None,
         preselection_trace: PreselectionTrace | None = None,
+        intracolumn_selection_policy: str = "existing",
+        intracolumn_selection_trace: IntracolumnSelectionTrace | None = None,
     ) -> SymbolCode | None:
         """Return the next symbol code predicted from previous context cells.
 
@@ -593,6 +900,13 @@ class SequentialMemory:
         if preselection_trace is not None:
             preselection_trace.segments.clear()
             preselection_trace.replacements.clear()
+        if intracolumn_selection_trace is not None:
+            intracolumn_selection_trace.groups.clear()
+        if intracolumn_selection_policy not in INTRACOLUMN_SELECTION_POLICIES:
+            raise ValueError(
+                "intracolumn selection policy must be one of: "
+                + ", ".join(sorted(INTRACOLUMN_SELECTION_POLICIES))
+            )
         active_sources = self._active_sources()
         if not active_sources:
             self.last_prediction_stats = {
@@ -748,6 +1062,8 @@ class SequentialMemory:
                 capture_contributions = (
                     trace_item is not None
                     or preselection_item is not None
+                    or intracolumn_selection_policy != "existing"
+                    or intracolumn_selection_trace is not None
                     or self.params.capture_prediction_contributions
                     or self.params.scenario1_contribution_mode
                     != "arrival-window"
@@ -1050,7 +1366,10 @@ class SequentialMemory:
                         )
                     item.tie_break_used = tie_count > 1
 
-        if self.params.intracolumn_inhibition:
+        if (
+            self.params.intracolumn_inhibition
+            and intracolumn_selection_policy == "existing"
+        ):
             # PAPER-EXPLICIT: 同一 mini-column 最终只保留最早 firing 的预测事件，
             # 防止一个列内多个 neuron 同时代表同一个输入列。
             winner_by_column: dict[int, tuple[int, float, float, Segment]] = {}
@@ -1110,6 +1429,32 @@ class SequentialMemory:
                     item.winner_segment_identity = id(previous[3])
                     item.tie_break_used = values[2] == previous[2]
             selected_events = list(winner_by_column.items())
+            if intracolumn_selection_trace is not None:
+                # Trace the established result, but never use the helper's
+                # independently computed return value on the strict path.
+                traced_events = self._select_intracolumn_event_winners(
+                    best_by_event=best_by_event,
+                    policy="existing",
+                    prediction_metadata=prediction_metadata,
+                    active_sources=active_sources,
+                    selection_trace=intracolumn_selection_trace,
+                )
+                assert [
+                    (column, id(values[3])) for column, values in traced_events
+                ] == [
+                    (column, id(values[3])) for column, values in selected_events
+                ]
+        elif self.params.intracolumn_inhibition:
+            selected_events = self._select_intracolumn_event_winners(
+                best_by_event=best_by_event,
+                policy=intracolumn_selection_policy,
+                prediction_metadata=prediction_metadata,
+                active_sources=active_sources,
+                selection_trace=intracolumn_selection_trace,
+            )
+            assert {column for column, _values in selected_events} == {
+                column for column, _event_time in best_by_event
+            }
         else:
             selected_events = [
                 (column_id, values)
