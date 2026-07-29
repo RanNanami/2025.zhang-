@@ -1553,6 +1553,8 @@ def run_strict_stream(
     preselection_max_rows: int | None = None,
     teacher_forced_winner_diagnostic: bool = False,
     teacher_forced_winner_level: str = "summary",
+    observe_scenario_diagnostic: bool = False,
+    reference_neuron_selection_diagnostic: bool = False,
 ) -> dict[str, object]:
     """Run one original or perturbed stream under the strict Fig.9 protocol."""
 
@@ -1599,6 +1601,25 @@ def run_strict_stream(
     if teacher_forced_winner_diagnostic and not preselection_segment_diagnostic:
         raise ValueError(
             "teacher-forced winner diagnostics require preselection diagnostics"
+        )
+    if observe_scenario_diagnostic and not teacher_forced_winner_diagnostic:
+        raise ValueError(
+            "observe-scenario diagnostics require teacher-forced winners"
+        )
+    if (
+        reference_neuron_selection_diagnostic
+        and not teacher_forced_winner_diagnostic
+    ):
+        raise ValueError(
+            "reference-neuron selection diagnostics require "
+            "teacher-forced winners"
+        )
+    if (
+        reference_neuron_selection_diagnostic
+        and not preselection_segment_diagnostic
+    ):
+        raise ValueError(
+            "reference-neuron selection diagnostics require preselection trace"
         )
     if len(records) <= config.horizon:
         raise ValueError("Not enough records for the requested horizon.")
@@ -2414,6 +2435,22 @@ def run_strict_stream(
                 "strict_protocol_sha256": stable_object_sha256(fingerprint),
             },
         )
+        if observe_scenario_diagnostic:
+            write_diagnostic_csv(
+                output_dir / "observe_scenario_assignment_rows.csv",
+                teacher_forced_observation_rows,
+            )
+        if reference_neuron_selection_diagnostic:
+            write_json(
+                output_dir / "reference_neuron_selection_protocol.json",
+                {
+                    **TEACHER_FORCED_DIAGNOSTIC_MARKERS,
+                    "reference_neuron_selection_diagnostic": True,
+                    "target_column_is_oracle_conditioned_for_analysis": True,
+                    "not_a_deployable_prediction_result": True,
+                    "selection_behavior_changed": False,
+                },
+            )
     if interval_rows:
         write_predictions(
             output_dir / f"{stream_label}_interval_summary.csv",
@@ -2556,6 +2593,16 @@ def parse_args() -> argparse.Namespace:
         "--teacher-forced-winner-level",
         choices=tuple(sorted(TEACHER_FORCED_LEVELS)),
         default="summary",
+    )
+    parser.add_argument(
+        "--observe-scenario-diagnostic",
+        action="store_true",
+        help="Capture read-only Scenario 1/2/3 assignment locals.",
+    )
+    parser.add_argument(
+        "--reference-neuron-selection-diagnostic",
+        action="store_true",
+        help="Enable offline within-column reference-neuron analysis inputs.",
     )
     parser.add_argument("--interval-every", type=int, default=0)
     parser.add_argument("--profile", action="store_true")
@@ -2770,6 +2817,10 @@ def run_main(args: argparse.Namespace) -> None:
                 args.teacher_forced_winner_diagnostic
             ),
             teacher_forced_winner_level=args.teacher_forced_winner_level,
+            observe_scenario_diagnostic=args.observe_scenario_diagnostic,
+            reference_neuron_selection_diagnostic=(
+                args.reference_neuron_selection_diagnostic
+            ),
         )
     if {"original", "perturbed"}.issubset(args.streams):
         runtime["pre_change_comparison"] = compare_pre_change_predictions(

@@ -353,6 +353,28 @@ class ObservationEventTrace:
     selected_segment: Segment | None = None
     reinforced_segment: Segment | None = None
     created_segment: Segment | None = None
+    predicted_candidate_count_in_column: int = 0
+    timing_matched_prediction_count: int = 0
+    matching_segment_count: int = 0
+    best_matching_overlap: int = 0
+    best_matching_score: float = 0.0
+    best_matching_active_synapse_count: int = 0
+    existing_segment_count_in_column: int = 0
+    existing_segment_count_on_selected_neuron: int = 0
+    least_used_neuron_segment_count: int = 0
+    previous_winner_count: int = 0
+    previous_context_size: int = 0
+    scenario_assignment_reason: str = ""
+
+
+@dataclass
+class BestMatchingTrace:
+    """Values already computed by one _best_matching_neuron call."""
+
+    candidate_segment_count: int = 0
+    best_overlap: int = 0
+    best_score: float = 0.0
+    best_active_synapse_count: int = 0
 
 
 @dataclass
@@ -1632,9 +1654,29 @@ class SequentialMemory:
             reinforced_segment: Segment | None = None
             created_segment: Segment | None = None
             observe_scenario = ""
+            scenario_assignment_reason = ""
+            best_matching_trace = (
+                BestMatchingTrace()
+                if observation_trace is not None
+                else None
+            )
+            existing_segment_count_in_column = (
+                sum(len(neuron.segments) for neuron in column.neurons)
+                if observation_trace is not None
+                else 0
+            )
+            least_used_neuron_segment_count = (
+                min(len(neuron.segments) for neuron in column.neurons)
+                if observation_trace is not None
+                else 0
+            )
+            predicted_candidates_in_column = self.last_prediction_candidates.get(
+                column_id,
+                [],
+            )
             matching_predictions = [
                 candidate
-                for candidate in self.last_prediction_candidates.get(column_id, [])
+                for candidate in predicted_candidates_in_column
                 if abs(candidate.time - event.time) <= self.params.timing_tolerance
             ]
             predicted = (
@@ -1645,9 +1687,21 @@ class SequentialMemory:
             if predicted is None:
                 # Scenario 2/3 候选入口：真实输入没有被 last_prediction_candidates
                 # 准确预测时，尝试找同列里最匹配的已有 segment。
-                matched = self._best_matching_neuron(
-                    column_id, column, previous_active, event.time
-                )
+                if best_matching_trace is None:
+                    matched = self._best_matching_neuron(
+                        column_id,
+                        column,
+                        previous_active,
+                        event.time,
+                    )
+                else:
+                    matched = self._best_matching_neuron(
+                        column_id,
+                        column,
+                        previous_active,
+                        event.time,
+                        trace=best_matching_trace,
+                    )
             else:
                 matched = (
                     (predicted.neuron_index, predicted.segment)
@@ -1660,6 +1714,21 @@ class SequentialMemory:
                 # segment，就在 least-used neuron 上长一个新 segment。
                 scenario_counts["scenario3"] += 1
                 observe_scenario = "scenario3"
+                if predicted_candidates_in_column:
+                    scenario_assignment_reason = "PREDICTED_TIME_NOT_VALID"
+                elif existing_segment_count_in_column == 0:
+                    scenario_assignment_reason = "NO_EXISTING_SEGMENT"
+                elif (
+                    best_matching_trace is not None
+                    and best_matching_trace.candidate_segment_count == 0
+                ):
+                    scenario_assignment_reason = (
+                        "EXISTING_SEGMENTS_BELOW_L_MATCH"
+                    )
+                else:
+                    scenario_assignment_reason = (
+                        "MATCHING_SEGMENT_FOUND_BUT_NOT_ELIGIBLE"
+                    )
                 neuron_index = self._least_used_neuron_index(column)
                 if learn:
                     created_segment = self._grow_segment(
@@ -1678,6 +1747,7 @@ class SequentialMemory:
                     # PredictionCandidate，检查贡献突触如何被增强/减弱。
                     scenario_counts["scenario1"] += 1
                     observe_scenario = "scenario1"
+                    scenario_assignment_reason = "PREDICTIVE_CELL_MATCHED"
                     reinforced_segment = segment
                     self._reinforce_segment(
                         column_id,
@@ -1700,6 +1770,9 @@ class SequentialMemory:
                     # 与当前输入匹配的旧 segment；会强化并补长缺失突触。
                     scenario_counts["scenario2"] += 1
                     observe_scenario = "scenario2"
+                    scenario_assignment_reason = (
+                        "EXISTING_SEGMENT_REACHED_L_MATCH"
+                    )
                     reinforced_segment = segment
                     self._reinforce_segment(
                         column_id,
@@ -1717,6 +1790,9 @@ class SequentialMemory:
                     # L_match，转为新建 segment。
                     scenario_counts["scenario3"] += 1
                     observe_scenario = "scenario3"
+                    scenario_assignment_reason = (
+                        "EXISTING_SEGMENTS_BELOW_L_MATCH"
+                    )
                     neuron_index = self._least_used_neuron_index(column)
                     created_segment = self._grow_segment(
                         column_id, neuron_index, self.previous_winners, event.time
@@ -1737,6 +1813,44 @@ class SequentialMemory:
                         selected_segment=selected_segment,
                         reinforced_segment=reinforced_segment,
                         created_segment=created_segment,
+                        predicted_candidate_count_in_column=len(
+                            predicted_candidates_in_column
+                        ),
+                        timing_matched_prediction_count=len(
+                            matching_predictions
+                        ),
+                        matching_segment_count=(
+                            best_matching_trace.candidate_segment_count
+                            if best_matching_trace is not None
+                            else 0
+                        ),
+                        best_matching_overlap=(
+                            best_matching_trace.best_overlap
+                            if best_matching_trace is not None
+                            else 0
+                        ),
+                        best_matching_score=(
+                            best_matching_trace.best_score
+                            if best_matching_trace is not None
+                            else 0.0
+                        ),
+                        best_matching_active_synapse_count=(
+                            best_matching_trace.best_active_synapse_count
+                            if best_matching_trace is not None
+                            else 0
+                        ),
+                        existing_segment_count_in_column=(
+                            existing_segment_count_in_column
+                        ),
+                        existing_segment_count_on_selected_neuron=len(
+                            column.neurons[neuron_index].segments
+                        ) - (1 if created_segment is not None else 0),
+                        least_used_neuron_segment_count=(
+                            least_used_neuron_segment_count
+                        ),
+                        previous_winner_count=len(self.previous_winners),
+                        previous_context_size=len(previous_active),
+                        scenario_assignment_reason=scenario_assignment_reason,
                     )
                 )
             if was_predicted:
@@ -1855,6 +1969,8 @@ class SequentialMemory:
         column: MiniColumn,
         active_sources: dict[int, float],
         target_time: float,
+        *,
+        trace: BestMatchingTrace | None = None,
     ) -> tuple[int, Segment] | None:
         """Find the best old segment for an unpredicted proximal event.
 
@@ -1873,6 +1989,8 @@ class SequentialMemory:
             for target_column, neuron_index, segment in self._live_incoming(source):
                 if target_column == column_id and segment.active:
                     candidates[id(segment)] = (neuron_index, segment)
+        if trace is not None:
+            trace.candidate_segment_count = len(candidates)
 
         for neuron_index, segment in candidates.values():
             soma_time = self.params.cycle_period + target_time
@@ -1886,12 +2004,25 @@ class SequentialMemory:
                 best = (neuron_index, segment)
                 best_overlap = timed_overlap
                 best_score = score
+                if trace is not None:
+                    trace.best_active_synapse_count = sum(
+                        source in segment.synapses
+                        for source in active_sources
+                    )
             elif (
                 best is not None
                 and (timed_overlap, score) == (best_overlap, best_score)
                 and self._learning_rng.random() < 0.5
             ):
                 best = (neuron_index, segment)
+                if trace is not None:
+                    trace.best_active_synapse_count = sum(
+                        source in segment.synapses
+                        for source in active_sources
+                    )
+        if trace is not None:
+            trace.best_overlap = best_overlap
+            trace.best_score = best_score
         return best
 
     def _grow_segment(
