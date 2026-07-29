@@ -15,6 +15,17 @@ from experiments.diagnostics.analyze_fig9_teacher_forced_identity import (
     analyze,
     bootstrap_rows,
     classify_identity,
+    derive_reference_applicability,
+    scoped_metric_rows,
+)
+from experiments.diagnostics.analyze_fig9_observe_scenario_assignment import (
+    normalize_assignment_rows,
+    summarize_assignments,
+)
+from experiments.diagnostics.analyze_fig9_reference_neuron_selection import (
+    build_reference_funnel,
+    build_ranking_observations,
+    classify_reference_loss,
 )
 from experiments.diagnostics.fig9_competitive_inhibition import (
     CompetitionSettings,
@@ -22,6 +33,7 @@ from experiments.diagnostics.fig9_competitive_inhibition import (
 from experiments.diagnostics.fig9_teacher_forced_identity import (
     DIAGNOSTIC_MARKERS,
     build_teacher_forced_observation_rows,
+    reference_applicability_from_trace,
     stable_observation_reference_id,
     winner_set,
 )
@@ -31,6 +43,7 @@ from experiments.fig9_strict_reproduction import (
     load_strict_checkpoint,
     run_strict_stream,
 )
+from seqmem.model import ObservationEventTrace, Segment
 
 
 def _sha256(path: Path) -> str:
@@ -70,6 +83,9 @@ def _reference(
         "observed_winner_available": True,
         "observed_winner_neurons": neuron,
         "selected_segment_id": segment_id,
+        "reinforced_segment_id": (
+            segment_id if scenario in {"scenario1", "scenario2"} else ""
+        ),
         "created_segment_id": (
             segment_id if scenario == "scenario3" else ""
         ),
@@ -119,6 +135,245 @@ def _segment(
 
 
 class TeacherForcedIdentityUnitTests(unittest.TestCase):
+    def test_scenario1_reference_is_preexisting_predicted(self) -> None:
+        segment = Segment()
+        fields = reference_applicability_from_trace(
+            ObservationEventTrace(
+                1,
+                0.1,
+                2,
+                12,
+                "scenario1",
+                True,
+                selected_segment=segment,
+                reinforced_segment=segment,
+            )
+        )
+        self.assertEqual(
+            fields["reference_applicability"],
+            "PREEXISTING_PREDICTED_REFERENCE",
+        )
+        self.assertTrue(fields["neuron_reference_valid_before_observation"])
+        self.assertTrue(fields["segment_reference_valid_before_observation"])
+
+    def test_scenario2_reference_is_preexisting_matching_segment(self) -> None:
+        segment = Segment()
+        fields = reference_applicability_from_trace(
+            ObservationEventTrace(
+                1,
+                0.1,
+                2,
+                12,
+                "scenario2",
+                False,
+                selected_segment=segment,
+                reinforced_segment=segment,
+            )
+        )
+        self.assertEqual(
+            fields["reference_applicability"],
+            "PREEXISTING_MATCHING_SEGMENT_REFERENCE",
+        )
+        self.assertTrue(fields["exact_segment_match_applicable"])
+
+    def test_scenario3_created_segment_is_operational_only(self) -> None:
+        segment = Segment()
+        fields = reference_applicability_from_trace(
+            ObservationEventTrace(
+                1,
+                0.1,
+                2,
+                12,
+                "scenario3",
+                False,
+                selected_segment=segment,
+                created_segment=segment,
+            )
+        )
+        self.assertEqual(
+            fields["reference_applicability"],
+            "POST_OBSERVATION_CREATED_SEGMENT",
+        )
+        self.assertFalse(fields["neuron_reference_valid_before_observation"])
+        self.assertFalse(fields["exact_segment_match_applicable"])
+        self.assertTrue(fields["operational_winner_only"])
+
+    def test_old_trace_applicability_is_recovered_from_real_fields(self) -> None:
+        reference = _reference(scenario="scenario1")
+        reference["reinforced_segment_id"] = "teacher-segment"
+        fields = derive_reference_applicability(
+            reference,
+            expected_target_index=5,
+            maximum_observed_index=9,
+        )
+        self.assertEqual(
+            fields["reference_applicability"],
+            "PREEXISTING_PREDICTED_REFERENCE",
+        )
+
+    def test_boundary_applicability_uses_observed_index(self) -> None:
+        fields = derive_reference_applicability(
+            None,
+            expected_target_index=10,
+            maximum_observed_index=9,
+        )
+        self.assertEqual(
+            fields["reference_applicability"],
+            "REFERENCE_UNAVAILABLE_BOUNDARY",
+        )
+
+    def test_scoped_metrics_exclude_post_observation_references(self) -> None:
+        rows = [
+            {
+                "policy": "batched",
+                "reference_available": True,
+                "neuron_reference_valid_before_observation": True,
+                "segment_reference_valid_before_observation": True,
+                "reference_applicability": "PREEXISTING_PREDICTED_REFERENCE",
+                "reference_exclusion_reason": "",
+                "target_column_raw_recall": True,
+                "target_column_candidate_recall": True,
+                "target_column_emitted_recall": True,
+                "reference_neuron_threshold_crossing_recall": True,
+                "reference_neuron_candidate_recall": True,
+                "reference_neuron_emitted_recall": True,
+                "correct_column_wrong_neuron": False,
+                "exact_segment_match_applicable": True,
+                "source_context_match_applicable": True,
+                "exact_segment_match": True,
+                "same_creation_transition": True,
+                "creation_source_fingerprint_exact_match": True,
+            },
+            {
+                "policy": "batched",
+                "reference_available": True,
+                "neuron_reference_valid_before_observation": False,
+                "segment_reference_valid_before_observation": False,
+                "reference_applicability": "POST_OBSERVATION_CREATED_SEGMENT",
+                "reference_exclusion_reason": "post_observation_created_segment",
+                "target_column_raw_recall": True,
+                "target_column_candidate_recall": True,
+                "target_column_emitted_recall": True,
+                "reference_neuron_threshold_crossing_recall": False,
+                "reference_neuron_candidate_recall": False,
+                "reference_neuron_emitted_recall": False,
+                "correct_column_wrong_neuron": True,
+                "exact_segment_match_applicable": False,
+                "source_context_match_applicable": False,
+                "exact_segment_match": "",
+                "same_creation_transition": "",
+                "creation_source_fingerprint_exact_match": "",
+            },
+        ]
+        metrics = scoped_metric_rows(rows, group_fields=("policy",))
+        candidate = next(
+            row
+            for row in metrics
+            if row["reference_scope"] == "PREEXISTING_NEURON_REFERENCES"
+            and row["metric"] == "reference_neuron_candidate_recall"
+        )
+        self.assertEqual(candidate["numerator"], 1)
+        self.assertEqual(candidate["denominator"], 1)
+        self.assertEqual(candidate["excluded_count"], 1)
+        exact = next(
+            row
+            for row in metrics
+            if row["reference_scope"] == "PREEXISTING_SEGMENT_REFERENCES"
+            and row["metric"] == "exact_segment_match"
+        )
+        self.assertEqual(exact["denominator"], 1)
+
+    def test_crossing_to_candidate_loss_uses_real_stage_flags(self) -> None:
+        self.assertEqual(
+            classify_reference_loss(
+                [
+                    {
+                        "predicted_time": "0.2",
+                        "became_event_winner": True,
+                        "became_prediction_candidate": False,
+                        "emitted_after_competition": False,
+                    }
+                ]
+            ),
+            "REFERENCE_NEURON_EVENT_WINNER_BUT_LOST_COLUMN_SELECTION",
+        )
+
+    def test_reference_wrong_winner_pair_uses_same_column_neurons(self) -> None:
+        identity = {
+            **_reference(),
+            "input_index": 5,
+            "target_timestamp": "2014-07-01 02:30:00",
+            "horizon_step": 1,
+            "target_column": 100,
+            "field": "passenger",
+            "reference_winner_neurons": "2",
+            "neuron_reference_valid_before_observation": True,
+            "reference_applicability": "PREEXISTING_PREDICTED_REFERENCE",
+            "teacher_forced_observe_scenario": "scenario1",
+            "teacher_forced_segment_id": "reference-segment",
+        }
+        reference_segment = {
+            **_segment(neuron=2, candidate=False, emitted=False),
+            "segment_provenance_id": "reference-segment",
+            "became_event_winner": True,
+            "predicted_time": "0.3",
+            "candidate_score_value": "1.1",
+        }
+        wrong = {
+            **_segment(neuron=7, candidate=True, emitted=True),
+            "segment_provenance_id": "wrong-segment",
+            "became_event_winner": True,
+            "predicted_time": "0.2",
+            "candidate_score_value": "1.0",
+        }
+        funnels, pairs = build_reference_funnel(
+            [identity],
+            [reference_segment, wrong],
+        )
+        self.assertEqual(funnels[0]["actual_selected_autonomous_neuron"], 7)
+        self.assertEqual(len(pairs), 1)
+        self.assertTrue(pairs[0]["winner_was_earlier"])
+
+    def test_ranking_observation_recognizes_same_neuron_different_segment(
+        self,
+    ) -> None:
+        identity = {
+            **_reference(),
+            "input_index": 5,
+            "target_timestamp": "2014-07-01 02:30:00",
+            "horizon_step": 1,
+            "target_column": 100,
+            "field": "passenger",
+            "reference_winner_neurons": "2",
+            "neuron_reference_valid_before_observation": True,
+            "reference_applicability": "PREEXISTING_PREDICTED_REFERENCE",
+            "teacher_forced_observe_scenario": "scenario1",
+            "teacher_forced_segment_id": "teacher-segment",
+        }
+        segment = {
+            **_segment(neuron=2),
+            "segment_provenance_id": "different-segment",
+            "response_peak": "1.2",
+            "first_crossing_time": "0.1",
+            "current_context_jaccard": "0.5",
+            "creation_current_source_jaccard": "0.5",
+            "historical_winner_match": True,
+            "segment_age": "0",
+        }
+        observations = build_ranking_observations([identity], [segment])
+        self.assertTrue(observations)
+        self.assertTrue(all(row["hit_at_1"] for row in observations))
+        self.assertTrue(
+            all(
+                not row["reference_segment_exact_match"]
+                for row in observations
+            )
+        )
+
+    def test_observe_scenario_normalization_is_empty_safe(self) -> None:
+        self.assertEqual(normalize_assignment_rows([]), [])
+        self.assertEqual(summarize_assignments([]), [])
+
     def test_reference_id_is_stable_and_uses_column(self) -> None:
         arguments = {
             "stream_label": "original",
@@ -312,6 +567,71 @@ class TeacherForcedIdentityUnitTests(unittest.TestCase):
             bootstrap_rows(rows, samples=20, seed=3),
             bootstrap_rows(rows, samples=20, seed=3),
         )
+
+    def test_bootstrap_uses_scoped_and_conditional_denominators(self) -> None:
+        rows = [
+            {
+                "input_index": 0,
+                "field": "passenger",
+                "horizon_step": 1,
+                "reference_available": True,
+                "neuron_reference_valid_before_observation": True,
+                "reference_neuron_threshold_crossing_recall": True,
+                "reference_neuron_candidate_recall": True,
+                "reference_neuron_emitted_recall": False,
+                "target_column_emitted_recall": True,
+                "correct_column_wrong_neuron": True,
+            },
+            {
+                "input_index": 0,
+                "field": "passenger",
+                "horizon_step": 1,
+                "reference_available": True,
+                "neuron_reference_valid_before_observation": False,
+                "reference_neuron_threshold_crossing_recall": False,
+                "reference_neuron_candidate_recall": False,
+                "reference_neuron_emitted_recall": False,
+                "target_column_emitted_recall": False,
+                "correct_column_wrong_neuron": False,
+            },
+        ]
+        output = bootstrap_rows(rows, samples=1, seed=0)
+        indexed = {
+            (
+                row["reference_scope"],
+                row["field"],
+                row["horizon_step"],
+                row["metric"],
+            ): row
+            for row in output
+        }
+        preexisting_crossing = indexed[
+            (
+                "PREEXISTING_NEURON_REFERENCES",
+                "passenger",
+                "1",
+                "reference_neuron_crossing_recall",
+            )
+        ]
+        operational_crossing = indexed[
+            (
+                "ALL_OPERATIONAL_REFERENCES",
+                "passenger",
+                "1",
+                "reference_neuron_crossing_recall",
+            )
+        ]
+        conditional_wrong = indexed[
+            (
+                "PREEXISTING_NEURON_REFERENCES",
+                "passenger",
+                "1",
+                "correct_column_wrong_neuron_rate",
+            )
+        ]
+        self.assertEqual(preexisting_crossing["mean"], 1.0)
+        self.assertEqual(operational_crossing["mean"], 0.5)
+        self.assertEqual(conditional_wrong["mean"], 1.0)
 
     def test_analysis_empty_trace_is_safe(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

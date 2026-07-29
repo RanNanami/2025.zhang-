@@ -7,7 +7,7 @@ import csv
 import gzip
 import json
 import random
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Iterable, Mapping, Sequence
 
@@ -27,6 +27,18 @@ CLASSIFICATIONS = {
     "G": "TARGET_COLUMN_EMITTED_WRONG_NEURON",
     "H": "REFERENCE_NEURON_EMITTED",
     "I": "REFERENCE_UNAVAILABLE",
+}
+
+REFERENCE_SCOPES = {
+    "ALL_OPERATIONAL_REFERENCES": lambda row: _bool(
+        row.get("reference_available")
+    ),
+    "PREEXISTING_NEURON_REFERENCES": lambda row: _bool(
+        row.get("neuron_reference_valid_before_observation")
+    ),
+    "PREEXISTING_SEGMENT_REFERENCES": lambda row: _bool(
+        row.get("segment_reference_valid_before_observation")
+    ),
 }
 
 
@@ -119,6 +131,75 @@ def _segment_key(row: Mapping[str, object]) -> tuple[int, str, int, int]:
     )
 
 
+def derive_reference_applicability(
+    reference: Mapping[str, object] | None,
+    *,
+    expected_target_index: int,
+    maximum_observed_index: int,
+) -> dict[str, object]:
+    """Recover applicability from captured objects in old or new traces."""
+
+    if reference is None or not _bool(
+        reference.get("observed_winner_available")
+    ):
+        boundary = expected_target_index > maximum_observed_index
+        applicability = (
+            "REFERENCE_UNAVAILABLE_BOUNDARY"
+            if boundary
+            else "REFERENCE_UNAVAILABLE_OTHER"
+        )
+        return {
+            "reference_applicability": applicability,
+            "neuron_reference_valid_before_observation": False,
+            "segment_reference_valid_before_observation": False,
+            "exact_segment_match_applicable": False,
+            "source_context_match_applicable": False,
+            "operational_winner_only": False,
+            "reference_exclusion_reason": applicability.lower(),
+        }
+    if reference.get("reference_applicability"):
+        return {
+            key: reference.get(key, "")
+            for key in (
+                "reference_applicability",
+                "neuron_reference_valid_before_observation",
+                "segment_reference_valid_before_observation",
+                "exact_segment_match_applicable",
+                "source_context_match_applicable",
+                "operational_winner_only",
+                "reference_exclusion_reason",
+            )
+        }
+    scenario = str(reference.get("observe_scenario", ""))
+    if reference.get("created_segment_id"):
+        applicability = "POST_OBSERVATION_CREATED_SEGMENT"
+    elif scenario == "scenario1" and reference.get("reinforced_segment_id"):
+        applicability = "PREEXISTING_PREDICTED_REFERENCE"
+    elif scenario == "scenario2" and reference.get("selected_segment_id"):
+        applicability = "PREEXISTING_MATCHING_SEGMENT_REFERENCE"
+    elif scenario == "scenario3":
+        applicability = "POST_OBSERVATION_CREATED_NEURON"
+    else:
+        applicability = "REFERENCE_UNAVAILABLE_OTHER"
+    neuron_preexisting = applicability.startswith("PREEXISTING_")
+    segment_preexisting = neuron_preexisting and bool(
+        reference.get("selected_segment_id")
+    )
+    return {
+        "reference_applicability": applicability,
+        "neuron_reference_valid_before_observation": neuron_preexisting,
+        "segment_reference_valid_before_observation": segment_preexisting,
+        "exact_segment_match_applicable": segment_preexisting,
+        "source_context_match_applicable": segment_preexisting,
+        "operational_winner_only": (
+            applicability.startswith("POST_OBSERVATION_")
+        ),
+        "reference_exclusion_reason": (
+            "" if neuron_preexisting else applicability.lower()
+        ),
+    }
+
+
 def classify_identity(
     *,
     funnel_outcome: str,
@@ -170,6 +251,14 @@ def align_identity_rows(
         ): row
         for row in observation_rows
     }
+    maximum_observed_index = max(
+        (
+            int(row["actual_record_index"])
+            for row in observation_rows
+            if row.get("actual_record_index", "") != ""
+        ),
+        default=-1,
+    )
     segments_by_key: dict[
         tuple[int, str, int, int],
         list[Mapping[str, object]],
@@ -230,6 +319,12 @@ def align_identity_rows(
             reference_available = bool(
                 reference and _bool(reference.get("observed_winner_available"))
             )
+            expected_target_index = input_index + horizon_step - 1
+            applicability = derive_reference_applicability(
+                reference,
+                expected_target_index=expected_target_index,
+                maximum_observed_index=maximum_observed_index,
+            )
             classification = classify_identity(
                 funnel_outcome=outcome,
                 reference_available=reference_available,
@@ -256,15 +351,15 @@ def align_identity_rows(
             autonomous_segment_id = str(
                 autonomous.get("segment_provenance_id", "")
             )
-            created_after_observation = bool(
-                reference
-                and _bool(reference.get("scenario3"))
-                and reference.get("created_segment_id")
+            created_after_observation = (
+                applicability["reference_applicability"]
+                == "POST_OBSERVATION_CREATED_SEGMENT"
             )
             exact_segment_applicable = bool(
                 reference_segment_id
-                and autonomous_segment_id
-                and not created_after_observation
+                and _bool(
+                    applicability["exact_segment_match_applicable"]
+                )
             )
             creation_exact = bool(
                 reference
@@ -289,7 +384,6 @@ def align_identity_rows(
                 autonomous_segment_id,
                 set(),
             )
-            expected_target_index = input_index + horizon_step - 1
             actual_target_index = (
                 _int(reference.get("actual_record_index"))
                 if reference
@@ -298,12 +392,13 @@ def align_identity_rows(
             aligned.append(
                 {
                     **DIAGNOSTIC_MARKERS,
+                    **applicability,
                     "policy": policy_label,
                     "input_index": input_index,
                     "target_record_index": (
                         actual_target_index
                         if actual_target_index is not None
-                        else ""
+                        else expected_target_index
                     ),
                     "target_timestamp": target_timestamp,
                     "horizon_step": horizon_step,
@@ -352,7 +447,11 @@ def align_identity_rows(
                         created_after_observation
                     ),
                     "exact_segment_match_applicable": (
-                        exact_segment_applicable
+                        _bool(
+                            applicability[
+                                "exact_segment_match_applicable"
+                            ]
+                        )
                     ),
                     "exact_segment_match": (
                         autonomous_segment_id == reference_segment_id
@@ -400,7 +499,7 @@ def align_identity_rows(
 
 def _rate(rows: Sequence[Mapping[str, object]], key: str) -> float:
     values = [
-        _bool(row[key])
+        _bool(row.get(key))
         for row in rows
         if row.get(key, "") not in ("", None)
     ]
@@ -511,13 +610,128 @@ def summarize_rows(
     return output
 
 
+def scoped_metric_rows(
+    rows: Sequence[Mapping[str, object]],
+    *,
+    group_fields: Sequence[str],
+) -> list[dict[str, object]]:
+    """Report explicit numerators and denominators for each reference scope."""
+
+    metric_definitions = {
+        "target_column_raw_recall": (
+            "target_column_raw_recall",
+            None,
+        ),
+        "target_column_candidate_recall": (
+            "target_column_candidate_recall",
+            None,
+        ),
+        "target_column_emitted_recall": (
+            "target_column_emitted_recall",
+            None,
+        ),
+        "reference_neuron_crossing_recall": (
+            "reference_neuron_threshold_crossing_recall",
+            None,
+        ),
+        "reference_neuron_candidate_recall": (
+            "reference_neuron_candidate_recall",
+            None,
+        ),
+        "reference_neuron_emitted_recall": (
+            "reference_neuron_emitted_recall",
+            None,
+        ),
+        "conditional_neuron_match_given_candidate": (
+            "reference_neuron_candidate_recall",
+            "target_column_candidate_recall",
+        ),
+        "conditional_neuron_match_given_emitted": (
+            "reference_neuron_emitted_recall",
+            "target_column_emitted_recall",
+        ),
+        "correct_column_wrong_neuron_rate": (
+            "correct_column_wrong_neuron",
+            "target_column_emitted_recall",
+        ),
+        "exact_segment_match": (
+            "exact_segment_match",
+            "exact_segment_match_applicable",
+        ),
+        "same_creation_transition": (
+            "same_creation_transition",
+            "exact_segment_match_applicable",
+        ),
+        "segment_source_fingerprint_exact_match": (
+            "creation_source_fingerprint_exact_match",
+            "source_context_match_applicable",
+        ),
+    }
+    grouped: dict[
+        tuple[object, ...],
+        list[Mapping[str, object]],
+    ] = defaultdict(list)
+    for row in rows:
+        grouped[tuple(row[field] for field in group_fields)].append(row)
+    output: list[dict[str, object]] = []
+    for group, group_rows in sorted(
+        grouped.items(),
+        key=lambda pair: repr(pair[0]),
+    ):
+        group_payload = dict(zip(group_fields, group))
+        for scope, include in REFERENCE_SCOPES.items():
+            scoped = [row for row in group_rows if include(row)]
+            excluded = [row for row in group_rows if not include(row)]
+            exclusion_reasons = Counter(
+                str(
+                    row.get("reference_exclusion_reason")
+                    or row.get("reference_applicability")
+                    or "unspecified"
+                )
+                for row in excluded
+            )
+            for metric, (value_key, condition_key) in metric_definitions.items():
+                eligible = [
+                    row
+                    for row in scoped
+                    if condition_key is None or _bool(row.get(condition_key))
+                ]
+                numerator = sum(_bool(row.get(value_key)) for row in eligible)
+                denominator = len(eligible)
+                output.append(
+                    {
+                        **group_payload,
+                        "reference_scope": scope,
+                        "metric": metric,
+                        "numerator": numerator,
+                        "denominator": denominator,
+                        "rate": (
+                            numerator / denominator
+                            if denominator
+                            else 0.0
+                        ),
+                        "excluded_count": len(group_rows) - denominator,
+                        "scope_excluded_count": len(excluded),
+                        "conditional_excluded_count": (
+                            len(scoped) - denominator
+                        ),
+                        "exclusion_reasons": json.dumps(
+                            exclusion_reasons,
+                            sort_keys=True,
+                            separators=(",", ":"),
+                        ),
+                    }
+                )
+    return output
+
+
 def bootstrap_rows(
     rows: Sequence[Mapping[str, object]],
     *,
     samples: int,
     seed: int,
 ) -> list[dict[str, object]]:
-    """Bootstrap rollout inputs so columns from one rollout stay together."""
+    """Bootstrap scoped metrics while keeping each rollout input intact."""
 
     by_rollout: dict[int, list[Mapping[str, object]]] = defaultdict(list)
     for row in rows:
@@ -525,32 +739,110 @@ def bootstrap_rows(
     rollout_ids = sorted(by_rollout)
     if not rollout_ids or samples <= 0:
         return []
-    rng = random.Random(seed)
-    metrics = (
-        "target_column_emitted_recall",
-        "reference_neuron_candidate_recall",
-        "reference_neuron_emitted_recall",
-        "correct_column_wrong_neuron",
+    metric_specs = (
+        (
+            "reference_neuron_crossing_recall",
+            "reference_neuron_threshold_crossing_recall",
+            None,
+        ),
+        (
+            "reference_neuron_candidate_recall",
+            "reference_neuron_candidate_recall",
+            None,
+        ),
+        (
+            "reference_neuron_emitted_recall",
+            "reference_neuron_emitted_recall",
+            None,
+        ),
+        (
+            "correct_column_wrong_neuron_rate",
+            "correct_column_wrong_neuron",
+            "target_column_emitted_recall",
+        ),
     )
-    draws: dict[str, list[float]] = {metric: [] for metric in metrics}
+    groups = (
+        ("", "", lambda row: True),
+        (
+            "passenger",
+            "",
+            lambda row: row.get("field") == "passenger",
+        ),
+        (
+            "passenger",
+            "1",
+            lambda row: (
+                row.get("field") == "passenger"
+                and str(row.get("horizon_step", "")) == "1"
+            ),
+        ),
+    )
+    scopes = (
+        "ALL_OPERATIONAL_REFERENCES",
+        "PREEXISTING_NEURON_REFERENCES",
+    )
+    draw_keys = [
+        (scope, field, horizon, metric, value_key, condition_key, predicate)
+        for scope in scopes
+        for field, horizon, predicate in groups
+        for metric, value_key, condition_key in metric_specs
+    ]
+    draws: dict[tuple[str, str, str, str], list[float]] = {
+        (scope, field, horizon, metric): []
+        for (
+            scope,
+            field,
+            horizon,
+            metric,
+            _value_key,
+            _condition_key,
+            _predicate,
+        ) in draw_keys
+    }
+    rng = random.Random(seed)
     for _ in range(samples):
         sample_rows: list[Mapping[str, object]] = []
         for _index in rollout_ids:
             selected = rollout_ids[rng.randrange(len(rollout_ids))]
             sample_rows.extend(by_rollout[selected])
-        available = [
-            row for row in sample_rows if _bool(row["reference_available"])
-        ]
-        for metric in metrics:
-            draws[metric].append(_rate(available, metric))
+        for (
+            scope,
+            field,
+            horizon,
+            metric,
+            value_key,
+            condition_key,
+            predicate,
+        ) in draw_keys:
+            scoped = [
+                row
+                for row in sample_rows
+                if REFERENCE_SCOPES[scope](row) and predicate(row)
+            ]
+            denominator_rows = (
+                [
+                    row
+                    for row in scoped
+                    if _bool(row.get(condition_key, False))
+                ]
+                if condition_key
+                else scoped
+            )
+            draws[(scope, field, horizon, metric)].append(
+                _rate(denominator_rows, value_key)
+            )
     output = []
-    for metric, values in draws.items():
+    for (scope, field, horizon, metric), values in draws.items():
         values.sort()
         low = values[int(0.025 * (len(values) - 1))]
         high = values[int(0.975 * (len(values) - 1))]
         output.append(
             {
                 "metric": metric,
+                "reference_scope": scope,
+                "field": field,
+                "horizon_step": horizon,
+                "bootstrap_unit": "rollout_input_index",
                 "bootstrap_samples": samples,
                 "bootstrap_seed": seed,
                 "mean": sum(values) / len(values),
@@ -583,6 +875,46 @@ def analyze(
     )
     output_dir.mkdir(parents=True, exist_ok=True)
     _write_csv(output_dir / "teacher_forced_identity_rows.csv", rows)
+    _write_csv(
+        output_dir / "teacher_reference_applicability_rows.csv",
+        rows,
+    )
+    applicability_summary = [
+        {
+            "reference_applicability": applicability,
+            "count": count,
+            "fraction": count / len(rows) if rows else 0.0,
+        }
+        for applicability, count in sorted(
+            Counter(
+                str(row["reference_applicability"])
+                for row in rows
+            ).items()
+        )
+    ]
+    _write_csv(
+        output_dir / "teacher_reference_applicability_summary.csv",
+        applicability_summary,
+    )
+    boundary_rows = [
+        {
+            "input_index": row["input_index"],
+            "horizon_step": row["horizon_step"],
+            "target_record_index": row["target_record_index"],
+            "target_timestamp": row["target_timestamp"],
+            "missing_reason": row["reference_applicability"],
+        }
+        for row in rows
+        if row["reference_applicability"]
+        in {
+            "REFERENCE_UNAVAILABLE_BOUNDARY",
+            "REFERENCE_UNAVAILABLE_OTHER",
+        }
+    ]
+    _write_csv(
+        output_dir / "teacher_reference_boundary_audit.csv",
+        boundary_rows,
+    )
     overall = summarize_rows(rows, group_fields=("policy",))
     by_field = summarize_rows(
         rows,
@@ -595,6 +927,26 @@ def analyze(
     by_field_horizon = summarize_rows(
         rows,
         group_fields=("policy", "horizon_step", "field"),
+    )
+    scoped_overall = scoped_metric_rows(
+        rows,
+        group_fields=("policy",),
+    )
+    scoped_by_field = scoped_metric_rows(
+        rows,
+        group_fields=("policy", "field"),
+    )
+    scoped_by_horizon = scoped_metric_rows(
+        rows,
+        group_fields=("policy", "horizon_step"),
+    )
+    scoped_detail = scoped_metric_rows(
+        rows,
+        group_fields=("policy", "horizon_step", "field"),
+    )
+    _write_csv(
+        output_dir / "teacher_reference_scoped_metrics.csv",
+        scoped_overall + scoped_by_field + scoped_by_horizon + scoped_detail,
     )
     _write_csv(
         output_dir / "teacher_forced_column_summary.csv",
@@ -655,6 +1007,9 @@ def analyze(
         "by_field": by_field,
         "by_horizon": by_horizon,
         "loss_stages": loss_rows,
+        "reference_applicability": applicability_summary,
+        "scoped_metrics": scoped_overall,
+        "boundary_unavailable_rows": len(boundary_rows),
         "current_source_jaccard_limitation": (
             "Only exact current-source fingerprints are available in existing "
             "autonomous traces; non-exact current-source Jaccard is left blank."

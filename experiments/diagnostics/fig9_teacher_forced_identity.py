@@ -22,6 +22,14 @@ from seqmem.model import ObservationEventTrace, ObservationTrace, Segment, Seque
 
 
 TEACHER_FORCED_LEVELS = {"summary", "cell", "segment"}
+REFERENCE_APPLICABILITY_VALUES = {
+    "PREEXISTING_PREDICTED_REFERENCE",
+    "PREEXISTING_MATCHING_SEGMENT_REFERENCE",
+    "POST_OBSERVATION_CREATED_NEURON",
+    "POST_OBSERVATION_CREATED_SEGMENT",
+    "REFERENCE_UNAVAILABLE_BOUNDARY",
+    "REFERENCE_UNAVAILABLE_OTHER",
+}
 DIAGNOSTIC_MARKERS = {
     "diagnostic_only": True,
     "offline_analysis_only": True,
@@ -48,6 +56,47 @@ def stable_observation_reference_id(
         target_column,
     )
     return hashlib.sha256(repr(payload).encode("utf-8")).hexdigest()
+
+
+def reference_applicability_from_trace(
+    event: ObservationEventTrace,
+) -> dict[str, object]:
+    """Describe whether identity existed before proximal observation.
+
+    This uses the actual selected objects and `was_predicted` branch outcome,
+    rather than treating scenario labels as an oracle identity definition.
+    """
+
+    if event.created_segment is not None:
+        applicability = "POST_OBSERVATION_CREATED_SEGMENT"
+    elif event.reinforced_segment is not None and event.was_predicted:
+        applicability = "PREEXISTING_PREDICTED_REFERENCE"
+    elif event.reinforced_segment is not None:
+        applicability = "PREEXISTING_MATCHING_SEGMENT_REFERENCE"
+    else:
+        applicability = "POST_OBSERVATION_CREATED_NEURON"
+    neuron_preexisting = applicability.startswith("PREEXISTING_")
+    segment_preexisting = (
+        applicability
+        in {
+            "PREEXISTING_PREDICTED_REFERENCE",
+            "PREEXISTING_MATCHING_SEGMENT_REFERENCE",
+        }
+        and event.selected_segment is not None
+    )
+    return {
+        "reference_applicability": applicability,
+        "neuron_reference_valid_before_observation": neuron_preexisting,
+        "segment_reference_valid_before_observation": segment_preexisting,
+        "exact_segment_match_applicable": segment_preexisting,
+        "source_context_match_applicable": segment_preexisting,
+        "operational_winner_only": not neuron_preexisting,
+        "reference_exclusion_reason": (
+            ""
+            if neuron_preexisting
+            else applicability.lower()
+        ),
+    }
 
 
 def _segment_count(model: SequentialMemory) -> int:
@@ -189,6 +238,7 @@ def build_teacher_forced_observation_rows(
         winner_cells = {event.winner_cell_id for event in events}
         winner_neurons = {event.winner_neuron for event in events}
         representative = events[0]
+        applicability = reference_applicability_from_trace(representative)
         field = field_for_column(target_column, ranges)
         field_index = {"weekday": 0, "time": 1, "passenger": 2}[field]
         selected_segment = representative.selected_segment
@@ -225,9 +275,17 @@ def build_teacher_forced_observation_rows(
             segment_available = False
             missing_reason = "not_captured_at_requested_level"
         winner_available = bool(winner_cells)
+        selected_sources = (
+            set(selected_segment.synapses)
+            if selected_segment is not None
+            else set()
+        )
+        pre_active_sources = set(trace.pre_observe_active_sources)
+        source_union = selected_sources | pre_active_sources
         rows.append(
             {
                 **DIAGNOSTIC_MARKERS,
+                **applicability,
                 "observation_reference_id": stable_observation_reference_id(
                     stream_label=stream_label,
                     actual_record_index=actual_record_index,
@@ -283,6 +341,85 @@ def build_teacher_forced_observation_rows(
                     selected_segment,
                     predicted_sources=predicted_sources,
                     burst_sources=burst_sources,
+                ),
+                "pre_observe_predicted_neuron_count": (
+                    representative.predicted_candidate_count_in_column
+                ),
+                "pre_observe_predicted_segment_count": (
+                    representative.predicted_candidate_count_in_column
+                ),
+                "correctly_predicted_cell_available": (
+                    representative.timing_matched_prediction_count > 0
+                ),
+                "matching_segment_count": (
+                    representative.matching_segment_count
+                ),
+                "best_matching_segment_overlap": (
+                    representative.best_matching_overlap
+                ),
+                "best_matching_segment_score": (
+                    representative.best_matching_score
+                ),
+                "best_matching_segment_active_synapse_count": (
+                    representative.best_matching_active_synapse_count
+                ),
+                "L_match": model.params.l_match,
+                "gap_to_L_match": (
+                    model.params.l_match
+                    - representative.best_matching_overlap
+                ),
+                "existing_segment_count_in_column": (
+                    representative.existing_segment_count_in_column
+                ),
+                "existing_segment_count_on_selected_neuron": (
+                    representative.existing_segment_count_on_selected_neuron
+                ),
+                "least_used_neuron_segment_count": (
+                    representative.least_used_neuron_segment_count
+                ),
+                "previous_winner_count": (
+                    representative.previous_winner_count
+                ),
+                "previous_context_size": (
+                    representative.previous_context_size
+                ),
+                "predicted_supported_source_count": len(
+                    selected_sources & predicted_sources
+                ),
+                "burst_supported_source_count": len(
+                    selected_sources & burst_sources
+                ),
+                "matching_source_jaccard": (
+                    len(selected_sources & pre_active_sources)
+                    / len(source_union)
+                    if source_union
+                    else ""
+                ),
+                "best_segment_age": (
+                    max(
+                        (
+                            synapse.age
+                            for synapse in selected_segment.synapses.values()
+                        ),
+                        default=0,
+                    )
+                    if selected_segment is not None
+                    else ""
+                ),
+                "best_segment_weight_sum": (
+                    sum(
+                        synapse.weight
+                        for synapse in selected_segment.synapses.values()
+                    )
+                    if selected_segment is not None
+                    else ""
+                ),
+                "relevant_segment_forgotten_earlier": "",
+                "segment_created_after_observation": (
+                    created_segment is not None
+                ),
+                "scenario_assignment_reason": (
+                    representative.scenario_assignment_reason
                 ),
                 "resulting_winner_fingerprint": resulting_fingerprint,
                 "post_observe_segment_count": post_segment_count,
