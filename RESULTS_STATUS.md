@@ -133,6 +133,16 @@ The historical 1200-record `0.098` result used growth-only learning and
 proximal replay during retrieval. It is retained as a diagnostic and is not a
 valid corrected paper-protocol result.
 
+Candidate-score separability and branch provenance are nonpaper diagnostics on
+`experiment/fig9-competitive-inhibition`. The 250-record score diagnostic found
+that passenger `original_score` PR-AUC is already near prevalence at Step 1.
+The provenance audit further established that one saved
+`PredictionCandidate` references one winning segment; its score is not a
+multi-segment sum. The new read-only provenance trace therefore tests source
+context mixing within that segment, while explicitly marking multi-segment
+candidate chimera as structurally unavailable. Formal 250-record provenance
+results have not yet been run.
+
 ## Verification
 
 The current implementation passes 108 unit tests. Run
