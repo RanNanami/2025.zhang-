@@ -180,6 +180,78 @@ class PredictionTrace:
     segments: list[SegmentPredictionTrace] = field(default_factory=list)
 
 
+@dataclass
+class PreselectionSegmentTrace:
+    """Read-only state copied from one segment's existing prediction path."""
+
+    target_column: int
+    target_neuron: int
+    segment_index: int
+    inspection_order: int
+    segment: Segment
+    segment_identity: int
+    active_source_count: int
+    active_matched_synapse_count: int
+    sum_active_weights: float
+    dendritic_threshold: float
+    response_computed: bool = False
+    response_peak: float | None = None
+    response_at_selected_time: float | None = None
+    first_threshold_crossing_time: float | None = None
+    predicted_soma_firing_time: float | None = None
+    candidate_score_value: float | None = None
+    contributor_count: int = 0
+    positive_contributor_count: int = 0
+    crossing_synapse_contributions: tuple[
+        SynapsePSPContribution, ...
+    ] = ()
+    crossed_threshold: bool = False
+    valid_firing_time: bool = False
+    event_time_key: float | None = None
+    became_event_winner: bool = False
+    became_column_winner: bool = False
+    became_prediction_candidate: bool = False
+    furthest_stage_reached: str = "INSPECTED"
+    elimination_stage: str = ""
+    elimination_reason: str = ""
+    winner_segment_identity: int | None = None
+    rank_within_event_group: int | None = None
+    rank_within_column_group: int | None = None
+    winner_score_gap: float | None = None
+    winner_time_gap: float | None = None
+    tie_break_used: bool = False
+
+
+@dataclass(frozen=True)
+class PreselectionReplacementTrace:
+    """One replacement performed by an existing prediction selection branch."""
+
+    group_type: str
+    target_column: int
+    target_neuron: int | None
+    stable_time_key: float | None
+    previous_segment: Segment
+    replacement_segment: Segment
+    previous_segment_identity: int
+    replacement_segment_identity: int
+    comparison_field: str
+    previous_value: float
+    replacement_value: float
+    previous_tie_break_value: tuple[int, int]
+    replacement_tie_break_value: tuple[int, int]
+    replacement_stage: str
+
+
+@dataclass
+class PreselectionTrace:
+    """Optional pre-candidate funnel trace for one ``predict_code`` call."""
+
+    segments: list[PreselectionSegmentTrace] = field(default_factory=list)
+    replacements: list[PreselectionReplacementTrace] = field(
+        default_factory=list
+    )
+
+
 @dataclass(frozen=True)
 class ReinforcementTrace:
     scenario: str
@@ -442,7 +514,11 @@ class SequentialMemory:
         self._diagnostic_sentence_index = sentence_index
         self._diagnostic_transition_index = transition_index
 
-    def predict_code(self, trace: PredictionTrace | None = None) -> SymbolCode | None:
+    def predict_code(
+        self,
+        trace: PredictionTrace | None = None,
+        preselection_trace: PreselectionTrace | None = None,
+    ) -> SymbolCode | None:
         """Return the next symbol code predicted from previous context cells.
 
         中文调试提示：这是“神经预测”本体。它只读 previous_active_cells /
@@ -457,6 +533,9 @@ class SequentialMemory:
         self.last_prediction_stats = {}
         if trace is not None:
             trace.segments.clear()
+        if preselection_trace is not None:
+            preselection_trace.segments.clear()
+            preselection_trace.replacements.clear()
         active_sources = self._active_sources()
         if not active_sources:
             self.last_prediction_stats = {
@@ -533,6 +612,42 @@ class SequentialMemory:
                 trace.segments.append(item)
                 trace_by_segment[id(segment)] = item
 
+        preselection_by_segment: dict[int, PreselectionSegmentTrace] = {}
+        if preselection_trace is not None:
+            for (
+                column_id,
+                neuron_index,
+                segment,
+                upper_bound,
+                _,
+            ) in candidates.values():
+                segment_index = next(
+                    index
+                    for index, candidate_segment in enumerate(
+                        self.columns[column_id].neurons[
+                            neuron_index
+                        ].segments
+                    )
+                    if candidate_segment is segment
+                )
+                matched_count = sum(
+                    source in segment.synapses for source in active_sources
+                )
+                item = PreselectionSegmentTrace(
+                    target_column=column_id,
+                    target_neuron=neuron_index,
+                    segment_index=segment_index,
+                    inspection_order=len(preselection_trace.segments),
+                    segment=segment,
+                    segment_identity=id(segment),
+                    active_source_count=len(active_sources),
+                    active_matched_synapse_count=matched_count,
+                    sum_active_weights=upper_bound,
+                    dendritic_threshold=self.params.dendrite_threshold,
+                )
+                preselection_trace.segments.append(item)
+                preselection_by_segment[id(segment)] = item
+
         prediction_metadata: dict[int, dict[str, object]] = {}
         best_by_event: dict[tuple[int, float], tuple[int, float, float, Segment]] = {}
         raw_eligible_segments: set[int] = set()
@@ -556,14 +671,26 @@ class SequentialMemory:
         ) in candidates.values():
             # The normalized response kernel never exceeds one. Segments whose
             # active weights cannot reach threshold need no timed evaluation.
+            preselection_item = preselection_by_segment.get(id(segment))
             if self._dynamics.v_rest + upper_bound < self.params.dendrite_threshold:
+                if preselection_item is not None:
+                    preselection_item.elimination_stage = (
+                        "UPPER_BOUND_ELIGIBILITY"
+                    )
+                    preselection_item.elimination_reason = (
+                        "active_weight_upper_bound_below_threshold"
+                    )
                 continue
             trace_item = trace_by_segment.get(id(segment))
+            if preselection_item is not None:
+                preselection_item.response_computed = True
+                preselection_item.furthest_stage_reached = "RESPONSE_COMPUTED"
             if self.params.continuous_dynamics:
                 # PAPER-EXPLICIT: 连续 PSP 路径会寻找实际 dendritic threshold
                 # crossing，再推算 soma firing time。诊断 trace 只记录，不改变排序。
                 capture_contributions = (
                     trace_item is not None
+                    or preselection_item is not None
                     or self.params.capture_prediction_contributions
                     or self.params.scenario1_contribution_mode
                     != "arrival-window"
@@ -617,6 +744,65 @@ class SequentialMemory:
                             trace_item.peak_dendritic_potential
                             - self.params.dendrite_threshold
                         )
+                if preselection_item is not None and diagnostic is not None:
+                    peak = diagnostic.get("peak_dendritic_potential")
+                    crossing = diagnostic.get(
+                        "first_threshold_crossing_time"
+                    )
+                    soma_time = diagnostic.get(
+                        "predicted_soma_firing_time"
+                    )
+                    contributions_at_crossing = tuple(
+                        item
+                        for item in diagnostic.get(
+                            "crossing_synapse_contributions",
+                            (),
+                        )
+                        if isinstance(item, SynapsePSPContribution)
+                    )
+                    preselection_item.response_peak = (
+                        peak if isinstance(peak, float) else None
+                    )
+                    preselection_item.first_threshold_crossing_time = (
+                        crossing if isinstance(crossing, float) else None
+                    )
+                    preselection_item.predicted_soma_firing_time = (
+                        soma_time if isinstance(soma_time, float) else None
+                    )
+                    preselection_item.contributor_count = len(
+                        contributions_at_crossing
+                    )
+                    preselection_item.crossing_synapse_contributions = (
+                        contributions_at_crossing
+                    )
+                    preselection_item.positive_contributor_count = sum(
+                        item.psp_contribution > 0.0
+                        for item in contributions_at_crossing
+                    )
+                    if isinstance(crossing, float):
+                        preselection_item.crossed_threshold = True
+                        preselection_item.furthest_stage_reached = (
+                            "THRESHOLD_CROSSED"
+                        )
+                    elif continuous is None:
+                        preselection_item.elimination_stage = (
+                            "RESPONSE_COMPUTED"
+                        )
+                        preselection_item.elimination_reason = (
+                            "below_dendritic_threshold"
+                        )
+                    if (
+                        continuous is None
+                        and isinstance(crossing, float)
+                        and not isinstance(soma_time, float)
+                    ):
+                        preselection_item.elimination_stage = "SOMA_FIRING"
+                        preselection_item.elimination_reason = (
+                            "no_valid_soma_firing_time"
+                        )
+                if preselection_item is not None and continuous is not None:
+                    preselection_item.response_at_selected_time = continuous[1]
+                    preselection_item.candidate_score_value = continuous[1]
                 timed_scores = (continuous,) if continuous is not None else ()
             else:
                 # LOCAL CHOICE: event mode 使用固定 target_time 评分，主要用于
@@ -641,14 +827,34 @@ class SequentialMemory:
                     for target_time in target_times
                 )
             for target_time, score in timed_scores:
+                if preselection_item is not None:
+                    preselection_item.response_at_selected_time = score
+                    preselection_item.candidate_score_value = score
                 if score < self.params.dendrite_threshold:
+                    if preselection_item is not None:
+                        preselection_item.elimination_stage = (
+                            "RESPONSE_COMPUTED"
+                        )
+                        preselection_item.elimination_reason = (
+                            "below_dendritic_threshold"
+                        )
                     continue
                 if trace_item is not None:
                     trace_item.crossed_threshold = True
+                if preselection_item is not None:
+                    preselection_item.crossed_threshold = True
+                    preselection_item.furthest_stage_reached = (
+                        "THRESHOLD_CROSSED"
+                    )
                 if (
                     not self.params.continuous_dynamics
                     and not self._predictive_soma_can_fire
                 ):
+                    if preselection_item is not None:
+                        preselection_item.elimination_stage = "SOMA_FIRING"
+                        preselection_item.elimination_reason = (
+                            "predictive_soma_cannot_fire"
+                        )
                     continue
                 if (
                     target_time < self.params.cycle_period
@@ -657,11 +863,71 @@ class SequentialMemory:
                     + self.params.cycle_period / 2.0
                     + self.params.timing_tolerance
                 ):
+                    if preselection_item is not None:
+                        preselection_item.elimination_stage = (
+                            "VALID_FIRING_WINDOW"
+                        )
+                        preselection_item.elimination_reason = (
+                            "predicted_time_outside_valid_window"
+                        )
                     continue
                 raw_eligible_segments.add(id(segment))
                 event_key = (column_id, round(target_time, 12))
+                if preselection_item is not None:
+                    preselection_item.valid_firing_time = True
+                    preselection_item.event_time_key = event_key[1]
+                    preselection_item.furthest_stage_reached = (
+                        "VALID_FIRING_WINDOW"
+                    )
                 previous = best_by_event.get(event_key)
                 if previous is None or score > previous[1]:
+                    if (
+                        previous is not None
+                        and preselection_trace is not None
+                    ):
+                        previous_segment = previous[3]
+                        previous_item = preselection_by_segment[
+                            id(previous_segment)
+                        ]
+                        previous_item.elimination_stage = (
+                            "EVENT_SCORE_SELECTION"
+                        )
+                        previous_item.elimination_reason = (
+                            "lower_score_same_column_time"
+                        )
+                        previous_item.winner_segment_identity = id(segment)
+                        preselection_trace.replacements.append(
+                            PreselectionReplacementTrace(
+                                group_type="column_time_event",
+                                target_column=column_id,
+                                target_neuron=None,
+                                stable_time_key=event_key[1],
+                                previous_segment=previous_segment,
+                                replacement_segment=segment,
+                                previous_segment_identity=id(
+                                    previous_segment
+                                ),
+                                replacement_segment_identity=id(segment),
+                                comparison_field="score",
+                                previous_value=previous[1],
+                                replacement_value=score,
+                                previous_tie_break_value=(
+                                    previous[0],
+                                    previous_item.segment_index,
+                                ),
+                                replacement_tie_break_value=(
+                                    neuron_index,
+                                    (
+                                        preselection_item.segment_index
+                                        if preselection_item is not None
+                                        else -1
+                                    ),
+                                ),
+                                replacement_stage=(
+                                    "EVENT_SCORE_SELECTION"
+                                ),
+                            )
+                        )
                     # DEBUG WATCH: candidate selection。若许多候选 score 都贴近
                     # dendrite_threshold，这里的 winner 可能近似靠 tie/order 决定。
                     best_by_event[event_key] = (
@@ -670,6 +936,15 @@ class SequentialMemory:
                         target_time,
                         segment,
                     )
+                elif preselection_item is not None:
+                    preselection_item.elimination_stage = (
+                        "EVENT_SCORE_SELECTION"
+                    )
+                    preselection_item.elimination_reason = (
+                        "lower_or_equal_score_same_column_time"
+                    )
+                    preselection_item.winner_segment_identity = id(previous[3])
+                    preselection_item.tie_break_used = score == previous[1]
 
         if not best_by_event:
             self.last_prediction_stats = {
@@ -682,6 +957,42 @@ class SequentialMemory:
             }
             return None
 
+        if preselection_trace is not None:
+            for (column_id, event_time), winner in best_by_event.items():
+                winner_item = preselection_by_segment[id(winner[3])]
+                winner_item.became_event_winner = True
+                winner_item.furthest_stage_reached = "EVENT_SCORE_WINNER"
+                members = [
+                    item
+                    for item in preselection_trace.segments
+                    if item.target_column == column_id
+                    and item.valid_firing_time
+                    and item.event_time_key == event_time
+                ]
+                ordered_members = sorted(
+                    members,
+                    key=lambda item: (
+                        -(
+                            item.candidate_score_value
+                            if item.candidate_score_value is not None
+                            else float("-inf")
+                        ),
+                        item.inspection_order,
+                    ),
+                )
+                tie_count = sum(
+                    item.candidate_score_value == winner[1]
+                    for item in ordered_members
+                )
+                for rank, item in enumerate(ordered_members, start=1):
+                    item.rank_within_event_group = rank
+                    item.winner_segment_identity = id(winner[3])
+                    if item.candidate_score_value is not None:
+                        item.winner_score_gap = (
+                            winner[1] - item.candidate_score_value
+                        )
+                    item.tie_break_used = tie_count > 1
+
         if self.params.intracolumn_inhibition:
             # PAPER-EXPLICIT: 同一 mini-column 最终只保留最早 firing 的预测事件，
             # 防止一个列内多个 neuron 同时代表同一个输入列。
@@ -689,13 +1000,114 @@ class SequentialMemory:
             for (column_id, _event_time), values in best_by_event.items():
                 previous = winner_by_column.get(column_id)
                 if previous is None or values[2] < previous[2]:
+                    if (
+                        previous is not None
+                        and preselection_trace is not None
+                    ):
+                        previous_item = preselection_by_segment[
+                            id(previous[3])
+                        ]
+                        replacement_item = preselection_by_segment[
+                            id(values[3])
+                        ]
+                        previous_item.elimination_stage = (
+                            "COLUMN_EARLIEST_SELECTION"
+                        )
+                        previous_item.elimination_reason = (
+                            "later_firing_time_same_column"
+                        )
+                        previous_item.winner_segment_identity = id(values[3])
+                        preselection_trace.replacements.append(
+                            PreselectionReplacementTrace(
+                                group_type="column",
+                                target_column=column_id,
+                                target_neuron=None,
+                                stable_time_key=None,
+                                previous_segment=previous[3],
+                                replacement_segment=values[3],
+                                previous_segment_identity=id(previous[3]),
+                                replacement_segment_identity=id(values[3]),
+                                comparison_field="predicted_time",
+                                previous_value=previous[2],
+                                replacement_value=values[2],
+                                previous_tie_break_value=(
+                                    previous[0],
+                                    previous_item.inspection_order,
+                                ),
+                                replacement_tie_break_value=(
+                                    values[0],
+                                    replacement_item.inspection_order,
+                                ),
+                                replacement_stage=(
+                                    "COLUMN_EARLIEST_SELECTION"
+                                ),
+                            )
+                        )
                     winner_by_column[column_id] = values
+                elif preselection_trace is not None:
+                    item = preselection_by_segment[id(values[3])]
+                    item.elimination_stage = "COLUMN_EARLIEST_SELECTION"
+                    item.elimination_reason = (
+                        "later_or_equal_firing_time_same_column"
+                    )
+                    item.winner_segment_identity = id(previous[3])
+                    item.tie_break_used = values[2] == previous[2]
             selected_events = list(winner_by_column.items())
         else:
             selected_events = [
                 (column_id, values)
                 for (column_id, _event_time), values in best_by_event.items()
             ]
+
+        if preselection_trace is not None:
+            selected_by_column = {
+                column_id: values
+                for column_id, values in selected_events
+            }
+            event_winners = [
+                preselection_by_segment[id(values[3])]
+                for values in best_by_event.values()
+            ]
+            for column_id, selected in selected_by_column.items():
+                selected_item = preselection_by_segment[id(selected[3])]
+                selected_item.became_column_winner = True
+                selected_item.became_prediction_candidate = True
+                selected_item.furthest_stage_reached = (
+                    "PREDICTION_CANDIDATE"
+                )
+                selected_item.elimination_stage = ""
+                selected_item.elimination_reason = ""
+                selected_item.winner_segment_identity = id(selected[3])
+                members = [
+                    item
+                    for item in event_winners
+                    if item.target_column == column_id
+                ]
+                ordered_members = sorted(
+                    members,
+                    key=lambda item: (
+                        (
+                            item.predicted_soma_firing_time
+                            if item.predicted_soma_firing_time is not None
+                            else float("inf")
+                        ),
+                        item.inspection_order,
+                    ),
+                )
+                selected_time = selected[2]
+                tie_count = sum(
+                    item.predicted_soma_firing_time == selected_time
+                    for item in ordered_members
+                )
+                for rank, item in enumerate(ordered_members, start=1):
+                    item.rank_within_column_group = rank
+                    if item.predicted_soma_firing_time is not None:
+                        item.winner_time_gap = (
+                            item.predicted_soma_firing_time - selected_time
+                        )
+                    item.tie_break_used = (
+                        item.tie_break_used or tie_count > 1
+                    )
 
         for column_id, values in selected_events:
             neuron_index, score, target_time, segment = values

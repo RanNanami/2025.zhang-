@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import cProfile
 import csv
+import gzip
 import hashlib
 import io
 import json
@@ -61,6 +62,11 @@ from experiments.diagnostics.fig9_branch_provenance import (  # noqa: E402
     branch_trace_rows,
     summarize_branch_steps,
 )
+from experiments.diagnostics.fig9_preselection_segments import (  # noqa: E402
+    DIAGNOSTIC_MARKERS as PRESELECTION_DIAGNOSTIC_MARKERS,
+    PRESELECTION_LEVELS,
+    build_preselection_rows,
+)
 from seqmem.encoding import (  # noqa: E402
     SSTDCompositeEncoder,
     SSTDPeriodicEncoder,
@@ -69,6 +75,7 @@ from seqmem.encoding import (  # noqa: E402
 )
 from seqmem.model import (  # noqa: E402
     MemoryParams,
+    PreselectionTrace,
     PredictionTrace,
     SequentialMemory,
 )
@@ -125,6 +132,10 @@ class RolloutResult:
     branch_candidate_diagnostics: tuple[dict[str, object], ...] = ()
     branch_segment_diagnostics: tuple[dict[str, object], ...] = ()
     branch_source_diagnostics: tuple[dict[str, object], ...] = ()
+    preselection_funnel_diagnostics: tuple[dict[str, object], ...] = ()
+    preselection_segment_diagnostics: tuple[dict[str, object], ...] = ()
+    preselection_group_diagnostics: tuple[dict[str, object], ...] = ()
+    preselection_replacement_diagnostics: tuple[dict[str, object], ...] = ()
 
 
 @dataclass
@@ -265,6 +276,40 @@ def transient_fingerprint(model: SequentialMemory) -> str:
 def write_json(path: Path, payload: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+
+
+def write_diagnostic_csv(
+    path: Path,
+    rows: list[dict[str, object]],
+    *,
+    compress: bool = False,
+) -> Path | None:
+    """Write a diagnostic CSV or CSV.GZ without changing row contents."""
+
+    if not rows:
+        return None
+    actual_path = (
+        path.with_suffix(path.suffix + ".gz") if compress else path
+    )
+    actual_path.parent.mkdir(parents=True, exist_ok=True)
+    if compress:
+        handle_context = gzip.open(
+            actual_path,
+            "wt",
+            encoding="utf-8",
+            newline="",
+        )
+    else:
+        handle_context = actual_path.open(
+            "w",
+            encoding="utf-8",
+            newline="",
+        )
+    with handle_context as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+    return actual_path
 
 
 def write_density_trace(path: Path, rows: list[dict[str, object]]) -> None:
@@ -731,6 +776,8 @@ def rollout_raw_autonomous(
     branch_provenance_level: str = "candidate",
     branch_source_top_n: int | None = None,
     branch_registry: BranchProvenanceRegistry | None = None,
+    preselection_segment_diagnostic: bool = False,
+    preselection_segment_level: str = "crossing",
     oracle_encoder: SSTDCompositeEncoder | None = None,
     passenger_encoder: SSTDRealValueEncoder | None = None,
     stream_label: str = "original",
@@ -773,6 +820,22 @@ def rollout_raw_autonomous(
         )
     if branch_provenance_diagnostic and branch_registry is None:
         raise ValueError("branch provenance diagnostics require a registry")
+    if preselection_segment_level not in PRESELECTION_LEVELS:
+        raise ValueError(
+            "preselection segment level must be summary, crossing, or full"
+        )
+    if preselection_segment_diagnostic and not oracle_candidate_diagnostic:
+        raise ValueError(
+            "preselection diagnostics require oracle candidate diagnostics"
+        )
+    if preselection_segment_diagnostic and not competition.enabled:
+        raise ValueError(
+            "preselection diagnostics require competitive_raw mode"
+        )
+    if preselection_segment_diagnostic and branch_registry is None:
+        raise ValueError(
+            "preselection diagnostics require a provenance registry"
+        )
     if oracle_candidate_diagnostic and (
         config is None or oracle_encoder is None or future_records is None
     ):
@@ -799,6 +862,10 @@ def rollout_raw_autonomous(
     branch_candidate_diagnostics: list[dict[str, object]] = []
     branch_segment_diagnostics: list[dict[str, object]] = []
     branch_source_diagnostics: list[dict[str, object]] = []
+    preselection_funnel_diagnostics: list[dict[str, object]] = []
+    preselection_segment_diagnostics: list[dict[str, object]] = []
+    preselection_group_diagnostics: list[dict[str, object]] = []
+    preselection_replacement_diagnostics: list[dict[str, object]] = []
     registry_predicted_before = (
         branch_registry.current_predicted_sources.copy()
         if branch_registry is not None
@@ -819,14 +886,25 @@ def rollout_raw_autonomous(
             burst_source_count = len(model.previous_burst_only_sources)
             branch_active_sources = (
                 model._active_sources().copy()
-                if branch_provenance_diagnostic
+                if (
+                    branch_provenance_diagnostic
+                    or preselection_segment_diagnostic
+                )
                 else {}
             )
             predict_started = time.perf_counter()
             prediction_trace = (
                 PredictionTrace() if branch_provenance_diagnostic else None
             )
-            raw = model.predict_code(trace=prediction_trace)
+            preselection_trace = (
+                PreselectionTrace()
+                if preselection_segment_diagnostic
+                else None
+            )
+            raw = model.predict_code(
+                trace=prediction_trace,
+                preselection_trace=preselection_trace,
+            )
             predict_runtime = time.perf_counter() - predict_started
             if raw is None:
                 if (
@@ -864,6 +942,57 @@ def rollout_raw_autonomous(
                             ),
                             ranges=oracle_ranges,
                         )
+                    )
+                if (
+                    preselection_segment_diagnostic
+                    and preselection_trace is not None
+                    and branch_registry is not None
+                    and oracle_encoder is not None
+                    and oracle_ranges is not None
+                    and future_records is not None
+                    and _step_index < len(future_records)
+                ):
+                    target_record = future_records[_step_index]
+                    (
+                        funnel_row,
+                        segment_rows,
+                        group_rows,
+                        replacement_rows,
+                    ) = build_preselection_rows(
+                        model=model,
+                        registry=branch_registry,
+                        trace=preselection_trace,
+                        stream_label=stream_label,
+                        policy=competition.simultaneous_policy,
+                        input_index=(
+                            record_index + 1
+                            if record_index is not None
+                            else 0
+                        ),
+                        input_timestamp=(
+                            timestamp.isoformat(sep=" ")
+                            if timestamp is not None
+                            else ""
+                        ),
+                        target_timestamp=target_record.timestamp.isoformat(
+                            sep=" "
+                        ),
+                        horizon_step=_step_index + 1,
+                        target_code=oracle_encoder.encode(
+                            record_values(target_record)
+                        ),
+                        ranges=oracle_ranges,
+                        active_sources=branch_active_sources,
+                        competition_result=None,
+                        raw_code=None,
+                        runtime_seconds=predict_runtime,
+                        level=preselection_segment_level,
+                    )
+                    preselection_funnel_diagnostics.append(funnel_row)
+                    preselection_segment_diagnostics.extend(segment_rows)
+                    preselection_group_diagnostics.extend(group_rows)
+                    preselection_replacement_diagnostics.extend(
+                        replacement_rows
                     )
                 if config is not None:
                     diagnostics.append(
@@ -950,6 +1079,10 @@ def rollout_raw_autonomous(
                     tuple(branch_candidate_diagnostics),
                     tuple(branch_segment_diagnostics),
                     tuple(branch_source_diagnostics),
+                    tuple(preselection_funnel_diagnostics),
+                    tuple(preselection_segment_diagnostics),
+                    tuple(preselection_group_diagnostics),
+                    tuple(preselection_replacement_diagnostics),
                 )
             # DEBUG WATCH: after predict_code。raw_event_counts/raw_column_counts
             # 是定位“预测列密度膨胀”的最直接指标。
@@ -1273,6 +1406,50 @@ def rollout_raw_autonomous(
                     branch_candidate_diagnostics.extend(candidate_rows)
                     branch_segment_diagnostics.extend(segment_rows)
                     branch_source_diagnostics.extend(source_rows)
+                if (
+                    preselection_segment_diagnostic
+                    and preselection_trace is not None
+                    and branch_registry is not None
+                ):
+                    (
+                        funnel_row,
+                        segment_rows,
+                        group_rows,
+                        replacement_rows,
+                    ) = build_preselection_rows(
+                        model=model,
+                        registry=branch_registry,
+                        trace=preselection_trace,
+                        stream_label=stream_label,
+                        policy=competition.simultaneous_policy,
+                        input_index=(
+                            record_index + 1
+                            if record_index is not None
+                            else 0
+                        ),
+                        input_timestamp=(
+                            timestamp.isoformat(sep=" ")
+                            if timestamp is not None
+                            else ""
+                        ),
+                        target_timestamp=target_record.timestamp.isoformat(
+                            sep=" "
+                        ),
+                        horizon_step=_step_index + 1,
+                        target_code=target_code,
+                        ranges=oracle_ranges,
+                        active_sources=branch_active_sources,
+                        competition_result=competition_result,
+                        raw_code=raw,
+                        runtime_seconds=predict_runtime,
+                        level=preselection_segment_level,
+                    )
+                    preselection_funnel_diagnostics.append(funnel_row)
+                    preselection_segment_diagnostics.extend(segment_rows)
+                    preselection_group_diagnostics.extend(group_rows)
+                    preselection_replacement_diagnostics.extend(
+                        replacement_rows
+                    )
             if not active:
                 if diagnostics:
                     diagnostics[-1]["stopped_reason"] = "no_prediction_active_cells"
@@ -1288,6 +1465,10 @@ def rollout_raw_autonomous(
                     tuple(branch_candidate_diagnostics),
                     tuple(branch_segment_diagnostics),
                     tuple(branch_source_diagnostics),
+                    tuple(preselection_funnel_diagnostics),
+                    tuple(preselection_segment_diagnostics),
+                    tuple(preselection_group_diagnostics),
+                    tuple(preselection_replacement_diagnostics),
                 )
             # STATE MUTATION: 下面两行只推进临时检索状态；长期记忆中的
             # segment/synapse/weight/age 不会改变，并会在 finally 中恢复。
@@ -1308,6 +1489,10 @@ def rollout_raw_autonomous(
             tuple(branch_candidate_diagnostics),
             tuple(branch_segment_diagnostics),
             tuple(branch_source_diagnostics),
+            tuple(preselection_funnel_diagnostics),
+            tuple(preselection_segment_diagnostics),
+            tuple(preselection_group_diagnostics),
+            tuple(preselection_replacement_diagnostics),
         )
     finally:
         # DEBUG WATCH: before/after transient restore。比较 restore 前后的
@@ -1356,6 +1541,10 @@ def run_strict_stream(
     branch_provenance_diagnostic: bool = False,
     branch_provenance_level: str = "candidate",
     branch_source_top_n: int | None = None,
+    preselection_segment_diagnostic: bool = False,
+    preselection_segment_level: str = "crossing",
+    preselection_segment_compress: bool = False,
+    preselection_max_rows: int | None = None,
 ) -> dict[str, object]:
     """Run one original or perturbed stream under the strict Fig.9 protocol."""
 
@@ -1377,6 +1566,16 @@ def run_strict_stream(
         raise ValueError(
             "branch provenance level must be summary, candidate, or full"
         )
+    if preselection_segment_diagnostic and not oracle_candidate_diagnostic:
+        raise ValueError(
+            "preselection diagnostics require oracle candidate diagnostics"
+        )
+    if preselection_segment_level not in PRESELECTION_LEVELS:
+        raise ValueError(
+            "preselection segment level must be summary, crossing, or full"
+        )
+    if preselection_max_rows is not None and preselection_max_rows <= 0:
+        raise ValueError("preselection max rows must be positive")
     if len(records) <= config.horizon:
         raise ValueError("Not enough records for the requested horizon.")
     if resume_checkpoint is not None:
@@ -1411,7 +1610,10 @@ def run_strict_stream(
                     else None
                 ),
             )
-            if branch_provenance_diagnostic
+            if (
+                branch_provenance_diagnostic
+                or preselection_segment_diagnostic
+            )
             else None
         )
         checkpoint_data_hash = checkpoint.get("data_file_sha256")
@@ -1445,7 +1647,10 @@ def run_strict_stream(
         density_rows = []
         branch_registry = (
             BranchProvenanceRegistry()
-            if branch_provenance_diagnostic
+            if (
+                branch_provenance_diagnostic
+                or preselection_segment_diagnostic
+            )
             else None
         )
     passenger_encoder = encoder.encoders[2]
@@ -1457,6 +1662,10 @@ def run_strict_stream(
     branch_candidate_rows: list[dict[str, object]] = []
     branch_segment_rows: list[dict[str, object]] = []
     branch_source_rows: list[dict[str, object]] = []
+    preselection_funnel_rows: list[dict[str, object]] = []
+    preselection_segment_rows: list[dict[str, object]] = []
+    preselection_group_rows: list[dict[str, object]] = []
+    preselection_replacement_rows: list[dict[str, object]] = []
     validate_strict_fingerprint(fingerprint)
     if print_fingerprint:
         print(json.dumps(fingerprint, indent=2, sort_keys=True))
@@ -1495,6 +1704,10 @@ def run_strict_stream(
                 branch_provenance_level=branch_provenance_level,
                 branch_source_top_n=branch_source_top_n,
                 branch_registry=branch_registry,
+                preselection_segment_diagnostic=(
+                    preselection_segment_diagnostic
+                ),
+                preselection_segment_level=preselection_segment_level,
                 oracle_encoder=oracle_encoder,
                 config=(
                     config
@@ -1566,6 +1779,19 @@ def run_strict_stream(
                 )
                 branch_source_rows.extend(
                     rollout.branch_source_diagnostics
+                )
+            if preselection_segment_diagnostic:
+                preselection_funnel_rows.extend(
+                    rollout.preselection_funnel_diagnostics
+                )
+                preselection_segment_rows.extend(
+                    rollout.preselection_segment_diagnostics
+                )
+                preselection_group_rows.extend(
+                    rollout.preselection_group_diagnostics
+                )
+                preselection_replacement_rows.extend(
+                    rollout.preselection_replacement_diagnostics
                 )
             if density_trace_path or density_summary_path or competition.enabled:
                 density_rows.extend(rollout.diagnostics)
@@ -1947,6 +2173,134 @@ def run_strict_stream(
                 "strict_protocol_sha256": stable_object_sha256(fingerprint),
             },
         )
+    if preselection_segment_diagnostic:
+        traced_segments = (
+            preselection_segment_rows[:preselection_max_rows]
+            if preselection_max_rows is not None
+            else preselection_segment_rows
+        )
+        traced_groups = (
+            preselection_group_rows[:preselection_max_rows]
+            if preselection_max_rows is not None
+            else preselection_group_rows
+        )
+        traced_replacements = (
+            preselection_replacement_rows[:preselection_max_rows]
+            if preselection_max_rows is not None
+            else preselection_replacement_rows
+        )
+        write_diagnostic_csv(
+            output_dir / "preselection_funnel_trace.csv",
+            preselection_funnel_rows,
+        )
+        write_diagnostic_csv(
+            output_dir / "preselection_segment_trace.csv",
+            traced_segments,
+            compress=preselection_segment_compress,
+        )
+        write_diagnostic_csv(
+            output_dir / "preselection_group_trace.csv",
+            traced_groups,
+            compress=preselection_segment_compress,
+        )
+        write_diagnostic_csv(
+            output_dir / "preselection_replacement_trace.csv",
+            traced_replacements,
+            compress=preselection_segment_compress,
+        )
+        total_inspected = sum(
+            int(row["inspected_segment_count"])
+            for row in preselection_funnel_rows
+        )
+        total_crossed = sum(
+            int(row["threshold_crossing_count"])
+            for row in preselection_funnel_rows
+        )
+        total_candidates = sum(
+            int(row["saved_candidate_count"])
+            for row in preselection_funnel_rows
+        )
+        write_json(
+            output_dir / "preselection_summary.json",
+            {
+                **PRESELECTION_DIAGNOSTIC_MARKERS,
+                "steps": len(preselection_funnel_rows),
+                "inspected_segment_count": total_inspected,
+                "threshold_crossing_count": total_crossed,
+                "saved_candidate_count": total_candidates,
+                "crossing_to_candidate_ratio": (
+                    total_candidates / total_crossed
+                    if total_crossed
+                    else 0.0
+                ),
+                "unknown_elimination_count": sum(
+                    int(row["unknown_elimination_count"])
+                    for row in preselection_funnel_rows
+                ),
+                "actual_segment_rows": len(traced_segments),
+                "total_segment_rows_before_truncation": len(
+                    preselection_segment_rows
+                ),
+                "actual_group_rows": len(traced_groups),
+                "total_group_rows_before_truncation": len(
+                    preselection_group_rows
+                ),
+                "actual_replacement_rows": len(traced_replacements),
+                "total_replacement_rows_before_truncation": len(
+                    preselection_replacement_rows
+                ),
+            },
+        )
+        write_json(
+            output_dir / "preselection_protocol.json",
+            {
+                **PRESELECTION_DIAGNOSTIC_MARKERS,
+                "version": "fig9-preselection-segments-v1",
+                "level": preselection_segment_level,
+                "compressed": preselection_segment_compress,
+                "trace_truncated": (
+                    preselection_max_rows is not None
+                    and (
+                        len(traced_segments)
+                        < len(preselection_segment_rows)
+                        or len(traced_groups) < len(preselection_group_rows)
+                        or len(traced_replacements)
+                        < len(preselection_replacement_rows)
+                    )
+                ),
+                "requested_max_rows": preselection_max_rows,
+                "actual_rows": {
+                    "segments": len(traced_segments),
+                    "groups": len(traced_groups),
+                    "replacements": len(traced_replacements),
+                },
+                "funnel_counts_are_untruncated": True,
+                "selection_stages": [
+                    "INSPECTED",
+                    "UPPER_BOUND_ELIGIBILITY",
+                    "RESPONSE_COMPUTED",
+                    "THRESHOLD_CROSSED",
+                    "VALID_FIRING_WINDOW",
+                    "EVENT_SCORE_WINNER",
+                    "COLUMN_EARLIEST_SELECTION",
+                    "PREDICTION_CANDIDATE",
+                    "COMPETITION_EMITTED",
+                ],
+                "nonexistent_stage": (
+                    "there is no independent per-neuron winner group"
+                ),
+                "event_group_key": (
+                    "(target_column, round(predicted_soma_time, 12))"
+                ),
+                "event_selection_rule": (
+                    "replace only when score > previous score"
+                ),
+                "column_selection_rule": (
+                    "replace only when predicted time < previous time"
+                ),
+                "strict_protocol_sha256": stable_object_sha256(fingerprint),
+            },
+        )
     if interval_rows:
         write_predictions(
             output_dir / f"{stream_label}_interval_summary.csv",
@@ -2058,6 +2412,27 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=0,
         help="Full mode source cap; zero records every positive contributor.",
+    )
+    parser.add_argument(
+        "--preselection-segment-diagnostic",
+        action="store_true",
+        help="Capture the read-only segment funnel before PredictionCandidate.",
+    )
+    parser.add_argument(
+        "--preselection-segment-level",
+        choices=tuple(sorted(PRESELECTION_LEVELS)),
+        default="crossing",
+    )
+    parser.add_argument(
+        "--preselection-segment-compress",
+        action="store_true",
+        help="Write segment/group/replacement detail as CSV.GZ.",
+    )
+    parser.add_argument(
+        "--preselection-max-rows",
+        type=int,
+        default=0,
+        help="Explicit debug truncation; zero keeps every detail row.",
     )
     parser.add_argument("--interval-every", type=int, default=0)
     parser.add_argument("--profile", action="store_true")
@@ -2254,6 +2629,18 @@ def run_main(args: argparse.Namespace) -> None:
             branch_source_top_n=(
                 args.branch_source_top_n
                 if args.branch_source_top_n > 0
+                else None
+            ),
+            preselection_segment_diagnostic=(
+                args.preselection_segment_diagnostic
+            ),
+            preselection_segment_level=args.preselection_segment_level,
+            preselection_segment_compress=(
+                args.preselection_segment_compress
+            ),
+            preselection_max_rows=(
+                args.preselection_max_rows
+                if args.preselection_max_rows > 0
                 else None
             ),
         )
