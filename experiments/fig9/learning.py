@@ -3,10 +3,15 @@
 from __future__ import annotations
 
 from seqmem.encoding import SymbolCode
-from seqmem.model import SequentialMemory
+from seqmem.model import ObservationTrace, SequentialMemory
 
 
-def learn_actual_code(model: SequentialMemory, code: SymbolCode) -> None:
+def learn_actual_code(
+    model: SequentialMemory,
+    code: SymbolCode,
+    *,
+    observation_trace: ObservationTrace | None = None,
+) -> None:
     """先预测，再按论文 Scenario 1/2/3 学习真实记录。
 
     状态影响
@@ -19,4 +24,11 @@ def learn_actual_code(model: SequentialMemory, code: SymbolCode) -> None:
     # STRICT PROTOCOL: distal prediction must exist before learning chooses
     # Scenario 1, 2, or 3 for the actual proximal code.
     model.predict_code()
-    model.observe_code(code, learn=True)
+    if observation_trace is None:
+        model.observe_code(code, learn=True)
+    else:
+        model.observe_code(
+            code,
+            learn=True,
+            observation_trace=observation_trace,
+        )

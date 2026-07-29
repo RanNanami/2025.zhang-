@@ -67,6 +67,11 @@ from experiments.diagnostics.fig9_preselection_segments import (  # noqa: E402
     PRESELECTION_LEVELS,
     build_preselection_rows,
 )
+from experiments.diagnostics.fig9_teacher_forced_identity import (  # noqa: E402
+    DIAGNOSTIC_MARKERS as TEACHER_FORCED_DIAGNOSTIC_MARKERS,
+    TEACHER_FORCED_LEVELS,
+    build_teacher_forced_observation_rows,
+)
 from seqmem.encoding import (  # noqa: E402
     SSTDCompositeEncoder,
     SSTDPeriodicEncoder,
@@ -75,6 +80,7 @@ from seqmem.encoding import (  # noqa: E402
 )
 from seqmem.model import (  # noqa: E402
     MemoryParams,
+    ObservationTrace,
     PreselectionTrace,
     PredictionTrace,
     SequentialMemory,
@@ -1545,6 +1551,8 @@ def run_strict_stream(
     preselection_segment_level: str = "crossing",
     preselection_segment_compress: bool = False,
     preselection_max_rows: int | None = None,
+    teacher_forced_winner_diagnostic: bool = False,
+    teacher_forced_winner_level: str = "summary",
 ) -> dict[str, object]:
     """Run one original or perturbed stream under the strict Fig.9 protocol."""
 
@@ -1576,6 +1584,22 @@ def run_strict_stream(
         )
     if preselection_max_rows is not None and preselection_max_rows <= 0:
         raise ValueError("preselection max rows must be positive")
+    if teacher_forced_winner_level not in TEACHER_FORCED_LEVELS:
+        raise ValueError(
+            "teacher-forced winner level must be summary, cell, or segment"
+        )
+    if teacher_forced_winner_diagnostic and not oracle_candidate_diagnostic:
+        raise ValueError(
+            "teacher-forced winner diagnostics require oracle diagnostics"
+        )
+    if teacher_forced_winner_diagnostic and not branch_provenance_diagnostic:
+        raise ValueError(
+            "teacher-forced winner diagnostics require branch provenance"
+        )
+    if teacher_forced_winner_diagnostic and not preselection_segment_diagnostic:
+        raise ValueError(
+            "teacher-forced winner diagnostics require preselection diagnostics"
+        )
     if len(records) <= config.horizon:
         raise ValueError("Not enough records for the requested horizon.")
     if resume_checkpoint is not None:
@@ -1613,6 +1637,7 @@ def run_strict_stream(
             if (
                 branch_provenance_diagnostic
                 or preselection_segment_diagnostic
+                or teacher_forced_winner_diagnostic
             )
             else None
         )
@@ -1650,6 +1675,7 @@ def run_strict_stream(
             if (
                 branch_provenance_diagnostic
                 or preselection_segment_diagnostic
+                or teacher_forced_winner_diagnostic
             )
             else None
         )
@@ -1666,6 +1692,16 @@ def run_strict_stream(
     preselection_segment_rows: list[dict[str, object]] = []
     preselection_group_rows: list[dict[str, object]] = []
     preselection_replacement_rows: list[dict[str, object]] = []
+    teacher_forced_observation_rows: list[dict[str, object]] = []
+    teacher_forced_ranges = (
+        FieldColumnRanges.from_sizes(
+            config.weekday_columns,
+            config.time_columns,
+            config.passenger_columns,
+        )
+        if teacher_forced_winner_diagnostic
+        else None
+    )
     validate_strict_fingerprint(fingerprint)
     if print_fingerprint:
         print(json.dumps(fingerprint, indent=2, sort_keys=True))
@@ -1854,19 +1890,67 @@ def run_strict_stream(
             if branch_registry is not None
             else set()
         )
+        pre_observe_segment_count = (
+            segment_count(model)
+            if teacher_forced_winner_diagnostic
+            else 0
+        )
         creation_sources = (
             model._active_sources().copy()
             if branch_registry is not None
             else {}
         )
-        learn_actual_code(model, code)
+        teacher_forced_trace = (
+            ObservationTrace()
+            if teacher_forced_winner_diagnostic
+            else None
+        )
+        if teacher_forced_trace is None:
+            learn_actual_code(model, code)
+        else:
+            learn_actual_code(
+                model,
+                code,
+                observation_trace=teacher_forced_trace,
+            )
         if branch_registry is not None:
+            reference_predicted_sources: set[int] | None = None
+            reference_burst_sources: set[int] | None = None
+            if teacher_forced_winner_diagnostic:
+                reference_predicted_sources = (
+                    branch_registry.current_predicted_sources.copy()
+                )
+                reference_burst_sources = (
+                    branch_registry.current_burst_sources.copy()
+                )
             branch_registry.capture_new_segments(
                 model,
                 previous_segment_ids=previous_segment_ids,
                 creation_transition_index=index,
                 creation_sources=creation_sources,
             )
+            if (
+                teacher_forced_winner_diagnostic
+                and teacher_forced_trace is not None
+                and teacher_forced_ranges is not None
+            ):
+                teacher_forced_observation_rows.extend(
+                    build_teacher_forced_observation_rows(
+                        model=model,
+                        registry=branch_registry,
+                        trace=teacher_forced_trace,
+                        stream_label=stream_label,
+                        actual_record_index=index,
+                        actual_record=record,
+                        ranges=teacher_forced_ranges,
+                        pre_observe_segment_count=(
+                            pre_observe_segment_count
+                        ),
+                        level=teacher_forced_winner_level,
+                        predicted_sources=reference_predicted_sources,
+                        burst_sources=reference_burst_sources,
+                    )
+                )
             branch_registry.update_source_labels(model, code)
         observe_runtime = time.perf_counter() - observe_started
         if debug_payload is not None and debug_payload.get("record_index") == index:
@@ -2301,6 +2385,35 @@ def run_strict_stream(
                 "strict_protocol_sha256": stable_object_sha256(fingerprint),
             },
         )
+    if teacher_forced_winner_diagnostic:
+        write_diagnostic_csv(
+            output_dir / "teacher_forced_observation_trace.csv",
+            teacher_forced_observation_rows,
+        )
+        available = sum(
+            bool(row["observed_winner_available"])
+            for row in teacher_forced_observation_rows
+        )
+        write_json(
+            output_dir / "teacher_forced_winner_protocol.json",
+            {
+                **TEACHER_FORCED_DIAGNOSTIC_MARKERS,
+                "version": "fig9-teacher-forced-winner-v1",
+                "level": teacher_forced_winner_level,
+                "reference_definition": (
+                    "winner identity produced when the target record is later "
+                    "observed in the normal online stream"
+                ),
+                "prediction_before_observe": True,
+                "rows": len(teacher_forced_observation_rows),
+                "winner_reference_available_rate": (
+                    available / len(teacher_forced_observation_rows)
+                    if teacher_forced_observation_rows
+                    else 0.0
+                ),
+                "strict_protocol_sha256": stable_object_sha256(fingerprint),
+            },
+        )
     if interval_rows:
         write_predictions(
             output_dir / f"{stream_label}_interval_summary.csv",
@@ -2433,6 +2546,16 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=0,
         help="Explicit debug truncation; zero keeps every detail row.",
+    )
+    parser.add_argument(
+        "--teacher-forced-winner-diagnostic",
+        action="store_true",
+        help="Capture future-observed winner identity for offline analysis.",
+    )
+    parser.add_argument(
+        "--teacher-forced-winner-level",
+        choices=tuple(sorted(TEACHER_FORCED_LEVELS)),
+        default="summary",
     )
     parser.add_argument("--interval-every", type=int, default=0)
     parser.add_argument("--profile", action="store_true")
@@ -2643,6 +2766,10 @@ def run_main(args: argparse.Namespace) -> None:
                 if args.preselection_max_rows > 0
                 else None
             ),
+            teacher_forced_winner_diagnostic=(
+                args.teacher_forced_winner_diagnostic
+            ),
+            teacher_forced_winner_level=args.teacher_forced_winner_level,
         )
     if {"original", "perturbed"}.issubset(args.streams):
         runtime["pre_change_comparison"] = compare_pre_change_predictions(

@@ -340,6 +340,30 @@ class MemoryParams:
         )
 
 
+@dataclass
+class ObservationEventTrace:
+    """Read-only identity already selected for one proximal input event."""
+
+    target_column: int
+    target_time: float
+    winner_neuron: int
+    winner_cell_id: int
+    scenario: str
+    was_predicted: bool
+    selected_segment: Segment | None = None
+    reinforced_segment: Segment | None = None
+    created_segment: Segment | None = None
+
+
+@dataclass
+class ObservationTrace:
+    """Optional observe output populated without recomputing any decision."""
+
+    events: list[ObservationEventTrace] = field(default_factory=list)
+    pre_observe_previous_winners: dict[int, float] = field(default_factory=dict)
+    pre_observe_active_sources: dict[int, float] = field(default_factory=dict)
+
+
 class SequentialMemory:
     """Fine-grid implementation of the paper's one-layer DS memory model.
 
@@ -1572,7 +1596,12 @@ class SequentialMemory:
         code = self.encoder.encode(symbol)
         return self.observe_code(code, learn=learn)
 
-    def observe_code(self, code: SymbolCode, learn: bool = True) -> dict[int, float]:
+    def observe_code(
+        self,
+        code: SymbolCode,
+        learn: bool = True,
+        observation_trace: ObservationTrace | None = None,
+    ) -> dict[int, float]:
         """Feed an already encoded SSTD item into the sequential memory.
 
         中文调试提示：这是外部 proximal input 入口，也是 learn=True 时唯一
@@ -1582,6 +1611,14 @@ class SequentialMemory:
         # DEBUG WATCH: actual observe。previous_active 是上一周期 lateral
         # context；code.events 是这周期真实外部输入。
         previous_active = self._active_sources()
+        if observation_trace is not None:
+            observation_trace.events.clear()
+            observation_trace.pre_observe_previous_winners = (
+                self.previous_winners.copy()
+            )
+            observation_trace.pre_observe_active_sources = (
+                previous_active.copy()
+            )
         active_cells: dict[int, float] = {}
         learning_winners: dict[int, float] = {}
         predicted_sources: set[int] = set()
@@ -1591,6 +1628,10 @@ class SequentialMemory:
         for event in code.events:
             column_id = event.column
             column = self.columns[column_id]
+            selected_segment: Segment | None = None
+            reinforced_segment: Segment | None = None
+            created_segment: Segment | None = None
+            observe_scenario = ""
             matching_predictions = [
                 candidate
                 for candidate in self.last_prediction_candidates.get(column_id, [])
@@ -1618,13 +1659,16 @@ class SequentialMemory:
                 # PAPER-EXPLICIT: Scenario 3。既没有预测，也没有足够匹配的
                 # segment，就在 least-used neuron 上长一个新 segment。
                 scenario_counts["scenario3"] += 1
+                observe_scenario = "scenario3"
                 neuron_index = self._least_used_neuron_index(column)
                 if learn:
-                    self._grow_segment(
+                    created_segment = self._grow_segment(
                         column_id, neuron_index, self.previous_winners, event.time
                     )
+                    selected_segment = created_segment
             else:
                 neuron_index, segment = matched
+                selected_segment = segment
                 if not learn:
                     pass
                 elif was_predicted:
@@ -1633,6 +1677,8 @@ class SequentialMemory:
                     # DEBUG WATCH: Scenario 1 branch。这里应复用 predicted
                     # PredictionCandidate，检查贡献突触如何被增强/减弱。
                     scenario_counts["scenario1"] += 1
+                    observe_scenario = "scenario1"
+                    reinforced_segment = segment
                     self._reinforce_segment(
                         column_id,
                         neuron_index,
@@ -1653,6 +1699,8 @@ class SequentialMemory:
                     # PAPER-EXPLICIT: Scenario 2。没有提前预测成功，但存在
                     # 与当前输入匹配的旧 segment；会强化并补长缺失突触。
                     scenario_counts["scenario2"] += 1
+                    observe_scenario = "scenario2"
+                    reinforced_segment = segment
                     self._reinforce_segment(
                         column_id,
                         neuron_index,
@@ -1668,13 +1716,29 @@ class SequentialMemory:
                     # PAPER-EXPLICIT: Scenario 3 fallback。匹配 segment 不足
                     # L_match，转为新建 segment。
                     scenario_counts["scenario3"] += 1
+                    observe_scenario = "scenario3"
                     neuron_index = self._least_used_neuron_index(column)
-                    self._grow_segment(
+                    created_segment = self._grow_segment(
                         column_id, neuron_index, self.previous_winners, event.time
                     )
+                    selected_segment = created_segment
 
             winner_id = self._cell_id(column_id, neuron_index)
             learning_winners[winner_id] = event.time
+            if observation_trace is not None:
+                observation_trace.events.append(
+                    ObservationEventTrace(
+                        target_column=column_id,
+                        target_time=event.time,
+                        winner_neuron=neuron_index,
+                        winner_cell_id=winner_id,
+                        scenario=observe_scenario,
+                        was_predicted=was_predicted,
+                        selected_segment=selected_segment,
+                        reinforced_segment=reinforced_segment,
+                        created_segment=created_segment,
+                    )
+                )
             if was_predicted:
                 active_cells[winner_id] = event.time
                 predicted_sources.add(winner_id)
@@ -1836,7 +1900,7 @@ class SequentialMemory:
         neuron_index: int,
         active_sources: dict[int, float],
         target_time: float,
-    ) -> None:
+    ) -> Segment | None:
         """Create a new distal segment from current winners to a target event.
 
         PAPER-EXPLICIT: Scenario 3 和部分 Scenario 2 会长新突触。新突触的
@@ -1844,7 +1908,7 @@ class SequentialMemory:
         """
 
         if not active_sources:
-            return
+            return None
         neuron = self.columns[column_id].neurons[neuron_index]
         source_ids = tuple(sorted(active_sources))
         diagnostic_id: int | None = None
@@ -1890,6 +1954,7 @@ class SequentialMemory:
             self._incoming_index.setdefault(source, []).append(
                 (column_id, neuron_index, segment)
             )
+        return segment
 
     def _new_synapse_delay(
         self,
