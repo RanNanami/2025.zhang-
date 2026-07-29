@@ -54,13 +54,24 @@ from experiments.diagnostics.fig9_oracle_candidate import (  # noqa: E402
 from experiments.diagnostics.fig9_candidate_score_trace import (  # noqa: E402
     candidate_score_trace_rows,
 )
+from experiments.diagnostics.fig9_branch_provenance import (  # noqa: E402
+    BRANCH_LEVELS,
+    DIAGNOSTIC_MARKERS as BRANCH_DIAGNOSTIC_MARKERS,
+    BranchProvenanceRegistry,
+    branch_trace_rows,
+    summarize_branch_steps,
+)
 from seqmem.encoding import (  # noqa: E402
     SSTDCompositeEncoder,
     SSTDPeriodicEncoder,
     SSTDRealValueEncoder,
     SymbolCode,
 )
-from seqmem.model import MemoryParams, SequentialMemory  # noqa: E402
+from seqmem.model import (  # noqa: E402
+    MemoryParams,
+    PredictionTrace,
+    SequentialMemory,
+)
 
 
 PAPER_CHANGE_DATE = datetime(2015, 4, 1)
@@ -111,6 +122,9 @@ class RolloutResult:
     emitted_column_counts: tuple[int, ...] = ()
     oracle_diagnostics: tuple[dict[str, object], ...] = ()
     candidate_score_diagnostics: tuple[dict[str, object], ...] = ()
+    branch_candidate_diagnostics: tuple[dict[str, object], ...] = ()
+    branch_segment_diagnostics: tuple[dict[str, object], ...] = ()
+    branch_source_diagnostics: tuple[dict[str, object], ...] = ()
 
 
 @dataclass
@@ -320,6 +334,14 @@ def load_strict_checkpoint(path: Path) -> dict[str, object]:
     if payload.get("checkpoint_format") != "fig9-strict-v1":
         raise ValueError("unsupported Fig.9 strict checkpoint format")
     return payload
+
+
+def branch_checkpoint_sidecar_path(checkpoint_path: Path) -> Path:
+    """Return the external provenance sidecar without changing checkpoint v1."""
+
+    return checkpoint_path.with_suffix(
+        checkpoint_path.suffix + ".branch_provenance.json"
+    )
 
 
 def find_timestamp_split(
@@ -705,8 +727,13 @@ def rollout_raw_autonomous(
     competition_settings: CompetitionSettings | None = None,
     oracle_candidate_diagnostic: bool = False,
     candidate_separability_trace: bool = False,
+    branch_provenance_diagnostic: bool = False,
+    branch_provenance_level: str = "candidate",
+    branch_source_top_n: int | None = None,
+    branch_registry: BranchProvenanceRegistry | None = None,
     oracle_encoder: SSTDCompositeEncoder | None = None,
     passenger_encoder: SSTDRealValueEncoder | None = None,
+    stream_label: str = "original",
     record_index: int | None = None,
     timestamp: datetime | None = None,
     future_records: list[TaxiRecord] | None = None,
@@ -732,6 +759,20 @@ def rollout_raw_autonomous(
         raise ValueError(
             "candidate separability trace requires oracle candidate diagnostics"
         )
+    if branch_provenance_level not in BRANCH_LEVELS:
+        raise ValueError(
+            "branch provenance level must be summary, candidate, or full"
+        )
+    if branch_provenance_diagnostic and not oracle_candidate_diagnostic:
+        raise ValueError(
+            "branch provenance diagnostics require oracle candidate diagnostics"
+        )
+    if branch_provenance_diagnostic and not competition.enabled:
+        raise ValueError(
+            "branch provenance diagnostics require competitive_raw mode"
+        )
+    if branch_provenance_diagnostic and branch_registry is None:
+        raise ValueError("branch provenance diagnostics require a registry")
     if oracle_candidate_diagnostic and (
         config is None or oracle_encoder is None or future_records is None
     ):
@@ -755,6 +796,19 @@ def rollout_raw_autonomous(
     diagnostics: list[dict[str, object]] = []
     oracle_diagnostics: list[dict[str, object]] = []
     candidate_score_diagnostics: list[dict[str, object]] = []
+    branch_candidate_diagnostics: list[dict[str, object]] = []
+    branch_segment_diagnostics: list[dict[str, object]] = []
+    branch_source_diagnostics: list[dict[str, object]] = []
+    registry_predicted_before = (
+        branch_registry.current_predicted_sources.copy()
+        if branch_registry is not None
+        else set()
+    )
+    registry_burst_before = (
+        branch_registry.current_burst_sources.copy()
+        if branch_registry is not None
+        else set()
+    )
     try:
         for _step_index in range(steps):
             # DEBUG WATCH: horizon step start。此时 previous_active_cells
@@ -763,8 +817,16 @@ def rollout_raw_autonomous(
             previous_winner_count = len(model.previous_winners)
             predicted_source_count = len(model.previous_predicted_sources)
             burst_source_count = len(model.previous_burst_only_sources)
+            branch_active_sources = (
+                model._active_sources().copy()
+                if branch_provenance_diagnostic
+                else {}
+            )
             predict_started = time.perf_counter()
-            raw = model.predict_code()
+            prediction_trace = (
+                PredictionTrace() if branch_provenance_diagnostic else None
+            )
+            raw = model.predict_code(trace=prediction_trace)
             predict_runtime = time.perf_counter() - predict_started
             if raw is None:
                 if (
@@ -885,6 +947,9 @@ def rollout_raw_autonomous(
                     tuple(emitted_columns),
                     tuple(oracle_diagnostics),
                     tuple(candidate_score_diagnostics),
+                    tuple(branch_candidate_diagnostics),
+                    tuple(branch_segment_diagnostics),
+                    tuple(branch_source_diagnostics),
                 )
             # DEBUG WATCH: after predict_code。raw_event_counts/raw_column_counts
             # 是定位“预测列密度膨胀”的最直接指标。
@@ -1172,6 +1237,42 @@ def rollout_raw_autonomous(
                             ranges=oracle_ranges,
                         )
                     )
+                if (
+                    branch_provenance_diagnostic
+                    and competition_result is not None
+                    and branch_registry is not None
+                ):
+                    candidate_rows, segment_rows, source_rows = (
+                        branch_trace_rows(
+                            model=model,
+                            registry=branch_registry,
+                            stream_label=stream_label,
+                            policy=competition.simultaneous_policy,
+                            input_index=(
+                                record_index + 1
+                                if record_index is not None
+                                else 0
+                            ),
+                            input_timestamp=(
+                                timestamp.isoformat(sep=" ")
+                                if timestamp is not None
+                                else ""
+                            ),
+                            target_timestamp=(
+                                target_record.timestamp.isoformat(sep=" ")
+                            ),
+                            horizon_step=_step_index + 1,
+                            target_code=target_code,
+                            ranges=oracle_ranges,
+                            competition_result=competition_result,
+                            active_sources=branch_active_sources,
+                            level=branch_provenance_level,
+                            source_top_n=branch_source_top_n,
+                        )
+                    )
+                    branch_candidate_diagnostics.extend(candidate_rows)
+                    branch_segment_diagnostics.extend(segment_rows)
+                    branch_source_diagnostics.extend(source_rows)
             if not active:
                 if diagnostics:
                     diagnostics[-1]["stopped_reason"] = "no_prediction_active_cells"
@@ -1184,11 +1285,16 @@ def rollout_raw_autonomous(
                     tuple(emitted_columns),
                     tuple(oracle_diagnostics),
                     tuple(candidate_score_diagnostics),
+                    tuple(branch_candidate_diagnostics),
+                    tuple(branch_segment_diagnostics),
+                    tuple(branch_source_diagnostics),
                 )
             # STATE MUTATION: 下面两行只推进临时检索状态；长期记忆中的
             # segment/synapse/weight/age 不会改变，并会在 finally 中恢复。
             model.previous_active_cells = active
             model.previous_winners = active.copy()
+            if branch_registry is not None:
+                branch_registry.set_autonomous_sources(active)
             prediction = propagated
         return RolloutResult(
             prediction,
@@ -1199,12 +1305,20 @@ def rollout_raw_autonomous(
             tuple(emitted_columns),
             tuple(oracle_diagnostics),
             tuple(candidate_score_diagnostics),
+            tuple(branch_candidate_diagnostics),
+            tuple(branch_segment_diagnostics),
+            tuple(branch_source_diagnostics),
         )
     finally:
         # DEBUG WATCH: before/after transient restore。比较 restore 前后的
         # previous_active_cells、last_prediction_candidates、RNG state，确认
         # checkpoint/rollout 没污染后续在线学习。
         model.restore_transient_state(snapshot)
+        if branch_registry is not None:
+            branch_registry.current_predicted_sources = (
+                registry_predicted_before
+            )
+            branch_registry.current_burst_sources = registry_burst_before
 
 
 def strict_summary_paths(output_dir: Path) -> list[Path]:
@@ -1239,6 +1353,9 @@ def run_strict_stream(
     competition_settings: CompetitionSettings | None = None,
     oracle_candidate_diagnostic: bool = False,
     candidate_separability_trace: bool = False,
+    branch_provenance_diagnostic: bool = False,
+    branch_provenance_level: str = "candidate",
+    branch_source_top_n: int | None = None,
 ) -> dict[str, object]:
     """Run one original or perturbed stream under the strict Fig.9 protocol."""
 
@@ -1251,6 +1368,14 @@ def run_strict_stream(
     if candidate_separability_trace and not oracle_candidate_diagnostic:
         raise ValueError(
             "candidate separability trace requires oracle candidate diagnostics"
+        )
+    if branch_provenance_diagnostic and not oracle_candidate_diagnostic:
+        raise ValueError(
+            "branch provenance diagnostics require oracle candidate diagnostics"
+        )
+    if branch_provenance_level not in BRANCH_LEVELS:
+        raise ValueError(
+            "branch provenance level must be summary, candidate, or full"
         )
     if len(records) <= config.horizon:
         raise ValueError("Not enough records for the requested horizon.")
@@ -1271,6 +1396,24 @@ def run_strict_stream(
         raw_event_counts = list(checkpoint["raw_event_counts"])  # type: ignore[arg-type]
         raw_column_counts = list(checkpoint["raw_column_counts"])  # type: ignore[arg-type]
         density_rows = list(checkpoint["density_rows"])  # type: ignore[arg-type]
+        branch_registry = (
+            BranchProvenanceRegistry.from_checkpoint_payload(
+                model,
+                (
+                    json.loads(
+                        branch_checkpoint_sidecar_path(
+                            resume_checkpoint
+                        ).read_text(encoding="utf-8")
+                    )
+                    if branch_checkpoint_sidecar_path(
+                        resume_checkpoint
+                    ).exists()
+                    else None
+                ),
+            )
+            if branch_provenance_diagnostic
+            else None
+        )
         checkpoint_data_hash = checkpoint.get("data_file_sha256")
         current_data_hash = file_sha256(data_path)
         if checkpoint_data_hash != current_data_hash:
@@ -1300,12 +1443,20 @@ def run_strict_stream(
         raw_event_counts = []
         raw_column_counts = []
         density_rows = []
+        branch_registry = (
+            BranchProvenanceRegistry()
+            if branch_provenance_diagnostic
+            else None
+        )
     passenger_encoder = encoder.encoders[2]
     oracle_encoder = (
         build_fig9_encoder(config) if oracle_candidate_diagnostic else None
     )
     oracle_rows: list[dict[str, object]] = []
     candidate_score_rows: list[dict[str, object]] = []
+    branch_candidate_rows: list[dict[str, object]] = []
+    branch_segment_rows: list[dict[str, object]] = []
+    branch_source_rows: list[dict[str, object]] = []
     validate_strict_fingerprint(fingerprint)
     if print_fingerprint:
         print(json.dumps(fingerprint, indent=2, sort_keys=True))
@@ -1340,6 +1491,10 @@ def run_strict_stream(
                 competition_settings=competition,
                 oracle_candidate_diagnostic=oracle_candidate_diagnostic,
                 candidate_separability_trace=candidate_separability_trace,
+                branch_provenance_diagnostic=branch_provenance_diagnostic,
+                branch_provenance_level=branch_provenance_level,
+                branch_source_top_n=branch_source_top_n,
+                branch_registry=branch_registry,
                 oracle_encoder=oracle_encoder,
                 config=(
                     config
@@ -1361,6 +1516,7 @@ def run_strict_stream(
                     )
                     else None
                 ),  # type: ignore[arg-type]
+                stream_label=stream_label,
                 record_index=index,
                 timestamp=record.timestamp,
                 future_records=records[index + 1 : index + config.horizon + 1],
@@ -1400,6 +1556,16 @@ def run_strict_stream(
             if candidate_separability_trace:
                 candidate_score_rows.extend(
                     rollout.candidate_score_diagnostics
+                )
+            if branch_provenance_diagnostic:
+                branch_candidate_rows.extend(
+                    rollout.branch_candidate_diagnostics
+                )
+                branch_segment_rows.extend(
+                    rollout.branch_segment_diagnostics
+                )
+                branch_source_rows.extend(
+                    rollout.branch_source_diagnostics
                 )
             if density_trace_path or density_summary_path or competition.enabled:
                 density_rows.extend(rollout.diagnostics)
@@ -1457,7 +1623,25 @@ def run_strict_stream(
         # STATE MUTATION: 这里才把真实当前 record 写入长期记忆，触发三种
         # learning scenario、weight/age/segment 变化。预测阶段不能学习。
         observe_started = time.perf_counter()
+        previous_segment_ids = (
+            branch_registry.segment_object_ids(model)
+            if branch_registry is not None
+            else set()
+        )
+        creation_sources = (
+            model._active_sources().copy()
+            if branch_registry is not None
+            else {}
+        )
         learn_actual_code(model, code)
+        if branch_registry is not None:
+            branch_registry.capture_new_segments(
+                model,
+                previous_segment_ids=previous_segment_ids,
+                creation_transition_index=index,
+                creation_sources=creation_sources,
+            )
+            branch_registry.update_source_labels(model, code)
         observe_runtime = time.perf_counter() - observe_started
         if debug_payload is not None and debug_payload.get("record_index") == index:
             debug_payload["observe_after"] = {
@@ -1542,6 +1726,11 @@ def run_strict_stream(
                 raw_column_counts=raw_column_counts,
                 density_rows=density_rows,
             )
+            if branch_registry is not None and checkpoint_path is not None:
+                write_json(
+                    branch_checkpoint_sidecar_path(checkpoint_path),
+                    branch_registry.checkpoint_payload(model),
+                )
         if stop_after_index is not None and index + 1 >= stop_after_index:
             break
 
@@ -1704,6 +1893,60 @@ def run_strict_stream(
             output_dir / "candidate_separability_trace.csv",
             candidate_score_rows,
         )
+    if branch_provenance_diagnostic:
+        write_predictions(
+            output_dir / "branch_candidate_trace.csv",
+            branch_candidate_rows,
+        )
+        if branch_provenance_level in {"candidate", "full"}:
+            write_predictions(
+                output_dir / "branch_segment_trace.csv",
+                branch_segment_rows,
+            )
+        if branch_provenance_level == "full":
+            write_predictions(
+                output_dir / "branch_source_trace.csv",
+                branch_source_rows,
+            )
+        write_json(
+            output_dir / "branch_step_summary.json",
+            summarize_branch_steps(branch_candidate_rows),
+        )
+        write_json(
+            output_dir / "branch_provenance_protocol.json",
+            {
+                **BRANCH_DIAGNOSTIC_MARKERS,
+                "version": "fig9-branch-provenance-v1",
+                "level": branch_provenance_level,
+                "source_top_n": branch_source_top_n,
+                "source_rows_truncated": branch_source_top_n is not None,
+                "candidate_source": (
+                    "same predict_code call via last_prediction_candidates"
+                ),
+                "candidate_score_semantics": (
+                    "single winning segment response returned by continuous "
+                    "prediction; not a multi-segment sum"
+                ),
+                "branch_id_definition": (
+                    "SHA256(creation_transition_index,target_column,"
+                    "target_neuron,creation_source_fingerprint,"
+                    "stable_creation_ordinal)"
+                ),
+                "branch_similarity_definition": (
+                    "Jaccard over source-cell sets; not a branch ID"
+                ),
+                "chimera_thresholds": {
+                    "coherent_single_branch": 0.8,
+                    "mostly_coherent": 0.5,
+                    "high_score_percentile": 0.8,
+                },
+                "unavailable_fields": [
+                    "historical winner sets beyond exact creation source set",
+                    "multiple supporting segments per PredictionCandidate",
+                ],
+                "strict_protocol_sha256": stable_object_sha256(fingerprint),
+            },
+        )
     if interval_rows:
         write_predictions(
             output_dir / f"{stream_label}_interval_summary.csv",
@@ -1799,6 +2042,22 @@ def parse_args() -> argparse.Namespace:
         "--candidate-separability-trace",
         action="store_true",
         help="Write candidate labels for offline analysis; requires oracle diagnostics.",
+    )
+    parser.add_argument(
+        "--branch-provenance-diagnostic",
+        action="store_true",
+        help="Capture read-only candidate/segment provenance for offline analysis.",
+    )
+    parser.add_argument(
+        "--branch-provenance-level",
+        choices=tuple(sorted(BRANCH_LEVELS)),
+        default="candidate",
+    )
+    parser.add_argument(
+        "--branch-source-top-n",
+        type=int,
+        default=0,
+        help="Full mode source cap; zero records every positive contributor.",
     )
     parser.add_argument("--interval-every", type=int, default=0)
     parser.add_argument("--profile", action="store_true")
@@ -1990,6 +2249,13 @@ def run_main(args: argparse.Namespace) -> None:
             competition_settings=competition,
             oracle_candidate_diagnostic=args.oracle_candidate_diagnostic,
             candidate_separability_trace=args.candidate_separability_trace,
+            branch_provenance_diagnostic=args.branch_provenance_diagnostic,
+            branch_provenance_level=args.branch_provenance_level,
+            branch_source_top_n=(
+                args.branch_source_top_n
+                if args.branch_source_top_n > 0
+                else None
+            ),
         )
     if {"original", "perturbed"}.issubset(args.streams):
         runtime["pre_change_comparison"] = compare_pre_change_predictions(
