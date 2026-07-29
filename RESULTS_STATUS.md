@@ -159,8 +159,23 @@ encoder defines no target neuron, so target-vs-false replacement inside one
 group is not identifiable. Formal 250-record preselection results have not
 been run.
 
+The future-observed teacher-forced winner diagnostic records the neuron and
+segment selected when each target record later enters the normal online
+observe path, then aligns that reference to earlier autonomous candidates
+offline. The reference never changes prediction or competition. Codex
+validation is limited to 20/50 records; formal 250-record results must be
+generated manually with `scripts/fig9_teacher_forced_identity_250.ps1`. No
+complete Fig.9 reproduction is claimed.
+
+The allowed 50-record batched check found passenger target-column
+raw/candidate recall `0.543`, but future-observed winner-neuron candidate and
+emitted recall only `0.062/0.041`. Among emitted passenger target columns,
+`89.4%` used a different neuron from the future-observed reference. This is
+preliminary evidence that column-level recall overstates branch identity; the
+formal 250-record diagnostic has not been run.
+
 ## Verification
 
-The current implementation passes 218 unit tests. Run
+The current implementation passes the full unit-test suite. Run
 `check_project.ps1` to repeat compilation, tests, dataset checks, and smoke
 experiments.

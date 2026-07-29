@@ -1,0 +1,78 @@
+# Fig.9 Teacher-Forced Winner Identity Diagnostic
+
+This nonpaper diagnostic asks whether a correct predicted mini-column carries
+the same neuron and segment identity later selected when the target record is
+observed in the normal online stream.
+
+## Reference
+
+`future_observed_teacher_forced_reference` is recorded only when the target
+record later reaches the ordinary `predict_code -> observe_code` learning
+path. It includes true intermediate records and is therefore a teacher-forced
+operational reference. It is never fed into an earlier prediction and is not
+an absolute biological neuron label.
+
+All features are disabled by default and marked diagnostic-only,
+offline-analysis-only, teacher-forced-reference-only, and non-interfering with
+prediction and selection.
+
+## CLI
+
+```powershell
+--teacher-forced-winner-diagnostic
+--teacher-forced-winner-level summary|cell|segment
+```
+
+The diagnostic requires existing oracle, branch-provenance, and preselection
+traces so the offline analyzer can locate losses at real stages. The strict
+protocol fingerprint and checkpoint v1 format are unchanged.
+
+## Outputs
+
+The run writes `teacher_forced_observation_trace.csv`. The analyzer
+`experiments/diagnostics/analyze_fig9_teacher_forced_identity.py` joins by
+target timestamp, verified record index, field, and target column, then writes
+the requested identity tables, JSON summary, bootstrap intervals, and report.
+
+The A-I classification distinguishes absent/below-threshold/no-firing losses,
+reference-neuron loss before candidate creation, competition suppression,
+correct-column wrong-neuron emission, exact neuron emission, and unavailable
+future references.
+
+Step 1 is the cleanest initial branch-identity test. Steps 2-5 also contain
+recurrent trajectory divergence. Scenario 3 segments created after observing
+the target are excluded from exact-segment-match applicability.
+
+Creation-source Jaccard is auditable when the checkpoint provenance sidecar is
+present. Existing autonomous traces retain only fingerprints for current
+source sets, so non-exact current-source Jaccard remains blank.
+
+Codex runs only 20/50-record validation. The formal 250 run is manual:
+
+```powershell
+.\scripts\fig9_teacher_forced_identity_250.ps1 -RunFormal250
+```
+
+## Allowed 50-Record Validation
+
+The batched validation used `limit=50`, `warmup=20`, horizon 5, and the strict
+reference continuous implementation. It produced 1,350 future-observed
+target-column references. Every captured column had exactly one winner and
+winner availability inside the observation trace was 100%. Across aligned
+rollout targets, reference availability was 88%; the missing 12% are targets
+near the stream end that had not yet reached normal observation.
+
+| field | target-column raw/candidate recall | reference-neuron candidate recall | reference-neuron emitted recall | wrong neuron given emitted column |
+|---|---:|---:|---:|---:|
+| weekday | 0.701 | 0.701 | 0.536 | 0.000 |
+| time | 0.489 | 0.046 | 0.031 | 0.905 |
+| passenger | 0.543 | 0.062 | 0.041 | 0.894 |
+
+Passenger reference-neuron candidate recall by horizon step was
+`0.067, 0.052, 0.050, 0.062, 0.080`. It is already low at Step 1, so this
+small validation points to initial neuron/segment identity failure rather than
+only late recurrent drift. Passenger exact segment match among applicable
+comparisons was `0.360`; mean creation-source Jaccard was `0.171`.
+
+These values are diagnostic, sample-limited, and nonpaper. They do not establish
+the formal 250-record finding and do not modify the strict selector.
