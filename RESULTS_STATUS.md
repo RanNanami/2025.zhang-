@@ -143,8 +143,24 @@ context mixing within that segment, while explicitly marking multi-segment
 candidate chimera as structurally unavailable. Formal 250-record provenance
 results have not yet been run.
 
+The preselection segment diagnostic moves the audit before
+`PredictionCandidate` construction. It records the actual upper-bound,
+continuous-response, threshold-crossing, same-column/same-time score, and
+earliest-event-per-column funnel without changing selection. It is a nonpaper,
+offline, oracle-labelled diagnostic and is disabled by default. Only 20/50
+record validation runs are performed by Codex; the formal 250-record run
+remains manual through `scripts/fig9_preselection_segments_250.ps1`.
+The allowed 50-record batched validation inspected 58,619 segments; 54,039
+crossed threshold, 21,737 became saved candidates, and 13,388 were emitted.
+Passenger target-column crossing/candidate/emitted recall was
+`0.5672/0.5352/0.3648`. Of 1,250 passenger target-column events, 532 had no
+inspected target-column segment. Internal groups contain one column and the
+encoder defines no target neuron, so target-vs-false replacement inside one
+group is not identifiable. Formal 250-record preselection results have not
+been run.
+
 ## Verification
 
-The current implementation passes 108 unit tests. Run
+The current implementation passes 218 unit tests. Run
 `check_project.ps1` to repeat compilation, tests, dataset checks, and smoke
 experiments.
