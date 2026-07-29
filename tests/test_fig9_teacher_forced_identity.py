@@ -23,6 +23,8 @@ from experiments.diagnostics.analyze_fig9_observe_scenario_assignment import (
     summarize_assignments,
 )
 from experiments.diagnostics.analyze_fig9_reference_neuron_selection import (
+    build_reference_replacement_trace,
+    build_reference_selection_trace,
     build_reference_funnel,
     build_ranking_observations,
     classify_reference_loss,
@@ -33,6 +35,8 @@ from experiments.diagnostics.fig9_competitive_inhibition import (
 from experiments.diagnostics.fig9_teacher_forced_identity import (
     DIAGNOSTIC_MARKERS,
     build_teacher_forced_observation_rows,
+    legacy_teacher_forced_rows,
+    observe_scenario_rows,
     reference_applicability_from_trace,
     stable_observation_reference_id,
     winner_set,
@@ -374,6 +378,142 @@ class TeacherForcedIdentityUnitTests(unittest.TestCase):
         self.assertEqual(normalize_assignment_rows([]), [])
         self.assertEqual(summarize_assignments([]), [])
 
+    def test_observe_level_projection_does_not_recompute_rows(self) -> None:
+        row = {
+            **DIAGNOSTIC_MARKERS,
+            "actual_record_index": 1,
+            "timestamp": "2014-07-01 00:30:00",
+            "field": "passenger",
+            "encoded_column": 100,
+            "encoded_value": 1000.0,
+            "observe_scenario": "scenario3",
+            "scenario_assignment_reason": "NO_EXISTING_SEGMENT_IN_COLUMN",
+            "reference_applicability": "POST_OBSERVATION_CREATED_SEGMENT",
+            "neuron_reference_valid_before_observation": False,
+            "segment_reference_valid_before_observation": False,
+            "created_new_segment": True,
+            "created_new_neuron_identity": True,
+            "private_full_field": "kept-only-in-full",
+        }
+        summary = observe_scenario_rows([row], level="summary")
+        full = observe_scenario_rows([row], level="full")
+        self.assertNotIn("private_full_field", summary[0])
+        self.assertEqual(full[0]["private_full_field"], "kept-only-in-full")
+        self.assertEqual(
+            full[0]["scenario_assignment_reason"],
+            "NO_EXISTING_SEGMENT_IN_COLUMN",
+        )
+
+    def test_legacy_teacher_trace_keeps_old_reason_vocabulary(self) -> None:
+        row = {
+            "scenario_assignment_reason": (
+                "CORRECTLY_PREDICTED_CELL_AVAILABLE"
+            ),
+            "predictive_neuron_ids": "2",
+            "observe_scenario": "scenario1",
+        }
+        projected = legacy_teacher_forced_rows([row])[0]
+        self.assertNotIn("predictive_neuron_ids", projected)
+        self.assertEqual(
+            projected["scenario_assignment_reason"],
+            "PREDICTIVE_CELL_MATCHED",
+        )
+
+    def test_reference_selection_trace_keeps_real_stage_fields(self) -> None:
+        identity = {
+            **_reference(),
+            "input_index": 5,
+            "target_record_index": 6,
+            "target_timestamp": "2014-07-01 02:30:00",
+            "horizon_step": 1,
+            "target_column": 100,
+            "field": "passenger",
+            "reference_winner_neurons": "2",
+            "neuron_reference_valid_before_observation": True,
+            "reference_applicability": "PREEXISTING_PREDICTED_REFERENCE",
+            "teacher_forced_segment_id": "teacher-segment",
+        }
+        reference_segment = {
+            **_segment(neuron=2, candidate=False, emitted=False),
+            "policy": "batched",
+            "response_available": True,
+            "response_peak": 1.1,
+            "predicted_time": 0.2,
+            "became_event_winner": True,
+            "elimination_stage": "COLUMN_EARLIEST_SELECTION",
+            "elimination_reason": "later_predicted_time",
+            "winner_segment_id": "wrong-segment",
+            "rank_within_column_group": 2,
+        }
+        wrong_segment = {
+            **_segment(
+                neuron=3,
+                candidate=True,
+                emitted=True,
+                segment_id="wrong-segment",
+            ),
+            "policy": "batched",
+            "response_available": True,
+            "response_peak": 1.2,
+            "predicted_time": 0.1,
+            "became_event_winner": True,
+            "winner_segment_id": "wrong-segment",
+            "rank_within_column_group": 1,
+        }
+        rows = build_reference_selection_trace(
+            [identity],
+            [reference_segment, wrong_segment],
+            input_timestamps={5: "2014-07-01 02:00:00"},
+        )
+        reference_row = next(
+            row for row in rows if row["is_reference_neuron"]
+        )
+        self.assertEqual(
+            reference_row["comparison_lost_at_stage"],
+            "COLUMN_EARLIEST_SELECTION",
+        )
+        self.assertEqual(reference_row["winning_neuron"], 3)
+        self.assertFalse(reference_row["winner_is_reference_neuron"])
+
+    def test_reference_replacement_trace_uses_captured_comparison(self) -> None:
+        identity = {
+            **_reference(),
+            "input_index": 5,
+            "target_record_index": 6,
+            "target_timestamp": "2014-07-01 02:30:00",
+            "horizon_step": 1,
+            "target_column": 100,
+            "field": "passenger",
+            "reference_winner_neurons": "2",
+            "neuron_reference_valid_before_observation": True,
+            "reference_applicability": "PREEXISTING_PREDICTED_REFERENCE",
+        }
+        segments = [
+            _segment(neuron=2, segment_id="reference"),
+            _segment(neuron=3, segment_id="wrong"),
+        ]
+        replacements = [
+            {
+                "selection_group_id": "group",
+                "previous_winner_id": "reference",
+                "replacement_winner_id": "wrong",
+                "comparison_field": "predicted_time",
+                "previous_value": 0.2,
+                "replacement_value": 0.1,
+                "previous_tie_break_values": "[2]",
+                "replacement_tie_break_values": "[3]",
+                "replacement_stage": "COLUMN_EARLIEST_SELECTION",
+            }
+        ]
+        rows = build_reference_replacement_trace(
+            [identity],
+            segments,
+            replacements,
+        )
+        self.assertEqual(len(rows), 1)
+        self.assertTrue(rows[0]["previous_is_reference"])
+        self.assertEqual(rows[0]["comparison_key"], "predicted_time")
+
     def test_reference_id_is_stable_and_uses_column(self) -> None:
         arguments = {
             "stream_label": "original",
@@ -692,7 +832,11 @@ class TeacherForcedIdentityIntegrationTests(unittest.TestCase):
             simultaneous_bin_width=0.005,
         )
         cls.results = {}
-        for label, enabled in (("off", False), ("on", True)):
+        for label, enabled, details in (
+            ("off", False, False),
+            ("on", True, False),
+            ("details", True, True),
+        ):
             directory = cls.root / label
             cls.results[label] = run_strict_stream(
                 records=cls.records,
@@ -712,6 +856,10 @@ class TeacherForcedIdentityIntegrationTests(unittest.TestCase):
                 checkpoint_at_index=10,
                 teacher_forced_winner_diagnostic=enabled,
                 teacher_forced_winner_level="segment",
+                observe_scenario_diagnostic=details,
+                observe_scenario_level="full",
+                reference_neuron_selection_diagnostic=details,
+                reference_neuron_selection_level="crossing",
             )
 
     @classmethod
@@ -757,6 +905,61 @@ class TeacherForcedIdentityIntegrationTests(unittest.TestCase):
         self.assertEqual(
             _stable_csv(off / "preselection_funnel_trace.csv"),
             _stable_csv(on / "preselection_funnel_trace.csv"),
+        )
+
+    def test_detail_hooks_preserve_predictions_model_rng_and_traces(self) -> None:
+        baseline = self.root / "on"
+        details = self.root / "details"
+        self.assertEqual(
+            _sha256(baseline / "original_predictions.csv"),
+            _sha256(details / "original_predictions.csv"),
+        )
+        self.assertEqual(
+            self.results["on"]["final_model_fingerprint"],
+            self.results["details"]["final_model_fingerprint"],
+        )
+        self.assertEqual(
+            self.results["on"]["final_rng_fingerprint"],
+            self.results["details"]["final_rng_fingerprint"],
+        )
+        for name in (
+            "oracle_candidate_trace.csv",
+            "branch_candidate_trace.csv",
+            "branch_segment_trace.csv",
+            "preselection_segment_trace.csv",
+            "preselection_group_trace.csv",
+            "preselection_replacement_trace.csv",
+            "teacher_forced_observation_trace.csv",
+        ):
+            self.assertEqual(
+                (baseline / name).read_bytes(),
+                (details / name).read_bytes(),
+                name,
+            )
+
+    def test_observe_detail_trace_has_exact_nonempty_reasons(self) -> None:
+        path = self.root / "details" / "observe_scenario_trace.csv"
+        with path.open("r", encoding="utf-8", newline="") as handle:
+            rows = list(csv.DictReader(handle))
+        self.assertTrue(rows)
+        self.assertTrue(all(row["scenario_assignment_reason"] for row in rows))
+        allowed = {
+            "CORRECTLY_PREDICTED_CELL_AVAILABLE",
+            "MATCHING_SEGMENT_FOUND",
+            "NO_EXISTING_SEGMENT_IN_COLUMN",
+            "EXISTING_SEGMENTS_BELOW_L_MATCH",
+            "MATCHING_SEGMENT_NOT_ELIGIBLE",
+            "PREDICTED_TIME_INVALID",
+        }
+        self.assertTrue(
+            {row["scenario_assignment_reason"] for row in rows} <= allowed
+        )
+        self.assertTrue(
+            all(
+                int(row["gap_to_L_match"])
+                == 4 - int(row["best_matching_segment_overlap"])
+                for row in rows
+            )
         )
 
     def test_reference_rows_have_one_winner_and_real_scenarios(self) -> None:

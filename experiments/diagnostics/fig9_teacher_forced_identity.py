@@ -8,6 +8,7 @@ biological ground-truth neuron assignment.
 from __future__ import annotations
 
 import hashlib
+import json
 from collections import defaultdict
 from typing import Iterable, Mapping, Sequence
 
@@ -22,6 +23,8 @@ from seqmem.model import ObservationEventTrace, ObservationTrace, Segment, Seque
 
 
 TEACHER_FORCED_LEVELS = {"summary", "cell", "segment"}
+OBSERVE_SCENARIO_LEVELS = {"summary", "column", "full"}
+REFERENCE_NEURON_SELECTION_LEVELS = {"summary", "crossing", "full"}
 REFERENCE_APPLICABILITY_VALUES = {
     "PREEXISTING_PREDICTED_REFERENCE",
     "PREEXISTING_MATCHING_SEGMENT_REFERENCE",
@@ -38,6 +41,143 @@ DIAGNOSTIC_MARKERS = {
     "ground_truth_does_not_affect_prediction": True,
     "identity_metrics_do_not_affect_selection": True,
 }
+
+OBSERVE_ONLY_FIELDS = {
+    "diagnostic_trace_does_not_affect_selection",
+    "timestamp",
+    "encoded_column",
+    "encoded_value",
+    "active_column_was_predicted",
+    "predictive_cell_count_in_column",
+    "predictive_neuron_ids",
+    "predictive_segment_count",
+    "existing_neuron_count",
+    "existing_segment_count_per_neuron",
+    "column_has_any_segment",
+    "best_matching_segment_id",
+    "best_matching_neuron",
+    "best_active_synapse_count",
+    "matching_segment_missing_due_to_forgetting_known",
+    "recently_deleted_relevant_segment_count",
+    "forgetting_evidence_available",
+    "best_matching_segment_eligible",
+    "eligibility_failure_reason",
+    "predicted_time_available",
+    "predicted_time_valid",
+    "matching_response_available",
+    "selected_winner_neuron",
+    "selected_neuron_was_predictive",
+    "created_new_segment",
+    "created_new_neuron_identity",
+    "selected_segment_creation_transition",
+    "current_context_jaccard",
+}
+LEGACY_REASON_NAMES = {
+    "CORRECTLY_PREDICTED_CELL_AVAILABLE": "PREDICTIVE_CELL_MATCHED",
+    "MATCHING_SEGMENT_FOUND": "EXISTING_SEGMENT_REACHED_L_MATCH",
+    "NO_EXISTING_SEGMENT_IN_COLUMN": "NO_EXISTING_SEGMENT",
+    "PREDICTED_TIME_INVALID": "PREDICTED_TIME_NOT_VALID",
+    "MATCHING_SEGMENT_NOT_ELIGIBLE": (
+        "MATCHING_SEGMENT_FOUND_BUT_NOT_ELIGIBLE"
+    ),
+}
+
+OBSERVE_SUMMARY_FIELDS = {
+    *DIAGNOSTIC_MARKERS,
+    "stream_label",
+    "actual_record_index",
+    "timestamp",
+    "field",
+    "encoded_column",
+    "encoded_value",
+    "observe_scenario",
+    "scenario_assignment_reason",
+    "reference_applicability",
+    "neuron_reference_valid_before_observation",
+    "segment_reference_valid_before_observation",
+    "created_new_segment",
+    "created_new_neuron_identity",
+}
+OBSERVE_COLUMN_FIELDS = OBSERVE_SUMMARY_FIELDS | {
+    "pre_observe_previous_winner_count",
+    "pre_observe_context_fingerprint",
+    "active_column_was_predicted",
+    "predictive_cell_count_in_column",
+    "predictive_neuron_ids",
+    "predictive_segment_count",
+    "existing_neuron_count",
+    "existing_segment_count_in_column",
+    "existing_segment_count_per_neuron",
+    "column_has_any_segment",
+    "matching_segment_count",
+    "best_matching_neuron",
+    "best_active_synapse_count",
+    "best_matching_overlap",
+    "L_match",
+    "gap_to_L_match",
+    "best_matching_segment_eligible",
+    "eligibility_failure_reason",
+    "predicted_time_available",
+    "predicted_time_valid",
+    "matching_response_available",
+    "selected_winner_neuron",
+    "selected_neuron_was_predictive",
+}
+
+
+def observe_scenario_rows(
+    rows: Sequence[Mapping[str, object]],
+    *,
+    level: str,
+) -> list[dict[str, object]]:
+    """Project captured observation rows without recomputing decisions."""
+
+    if level not in OBSERVE_SCENARIO_LEVELS:
+        raise ValueError("observe scenario level must be summary, column, or full")
+    if level == "full":
+        selected = None
+    elif level == "column":
+        selected = OBSERVE_COLUMN_FIELDS
+    else:
+        selected = OBSERVE_SUMMARY_FIELDS
+    output = []
+    for row in rows:
+        projected = dict(row) if selected is None else {
+            key: value for key, value in row.items() if key in selected
+        }
+        projected.update(
+            {
+                "observe_scenario_diagnostic": True,
+                "reference_neuron_selection_diagnostic": True,
+                "ground_truth_does_not_affect_prediction": True,
+                "diagnostic_trace_does_not_affect_selection": True,
+                "future_observation_does_not_affect_past_prediction": True,
+                "observe_scenario_level": level,
+            }
+        )
+        output.append(projected)
+    return output
+
+
+def legacy_teacher_forced_rows(
+    rows: Sequence[Mapping[str, object]],
+) -> list[dict[str, object]]:
+    """Preserve the pre-hook teacher trace schema and reason vocabulary."""
+
+    output = []
+    for row in rows:
+        projected = {
+            key: value
+            for key, value in row.items()
+            if key not in OBSERVE_ONLY_FIELDS
+        }
+        reason = str(projected.get("scenario_assignment_reason", ""))
+        projected["scenario_assignment_reason"] = LEGACY_REASON_NAMES.get(
+            reason,
+            reason,
+        )
+        output.append(projected)
+    return output
 
 
 def stable_observation_reference_id(
@@ -259,6 +399,11 @@ def build_teacher_forced_observation_rows(
             registry,
             current_context=pre_winners,
         )
+        best_matching_fields = _segment_fields(
+            representative.best_matching_segment,
+            registry,
+            current_context=pre_winners,
+        )
         segment_available = bool(
             selected_fields["segment_provenance_available"]
         )
@@ -295,9 +440,12 @@ def build_teacher_forced_observation_rows(
                 "stream_label": stream_label,
                 "actual_record_index": actual_record_index,
                 "actual_timestamp": timestamp,
+                "timestamp": timestamp,
                 "field": field,
                 "target_column": target_column,
+                "encoded_column": target_column,
                 "target_value": values[field_index],
+                "encoded_value": values[field_index],
                 "observed_winner_column": (
                     target_column if winner_available else ""
                 ),
@@ -348,6 +496,28 @@ def build_teacher_forced_observation_rows(
                 "pre_observe_predicted_segment_count": (
                     representative.predicted_candidate_count_in_column
                 ),
+                "active_column_was_predicted": bool(
+                    representative.predicted_candidate_count_in_column
+                ),
+                "predictive_cell_count_in_column": len(
+                    representative.predictive_neuron_ids
+                ),
+                "predictive_neuron_ids": _cell_ids(
+                    representative.predictive_neuron_ids
+                ),
+                "predictive_segment_count": (
+                    representative.predictive_segment_count
+                ),
+                "existing_neuron_count": len(
+                    model.columns[target_column].neurons
+                ),
+                "existing_segment_count_per_neuron": json.dumps(
+                    representative.existing_segment_count_per_neuron,
+                    separators=(",", ":"),
+                ),
+                "column_has_any_segment": (
+                    representative.existing_segment_count_in_column > 0
+                ),
                 "correctly_predicted_cell_available": (
                     representative.timing_matched_prediction_count > 0
                 ),
@@ -361,6 +531,17 @@ def build_teacher_forced_observation_rows(
                     representative.best_matching_score
                 ),
                 "best_matching_segment_active_synapse_count": (
+                    representative.best_matching_active_synapse_count
+                ),
+                "best_matching_segment_id": (
+                    best_matching_fields["segment_provenance_id"]
+                ),
+                "best_matching_neuron": (
+                    representative.best_matching_neuron
+                    if representative.best_matching_neuron is not None
+                    else ""
+                ),
+                "best_active_synapse_count": (
                     representative.best_matching_active_synapse_count
                 ),
                 "L_match": model.params.l_match,
@@ -415,15 +596,53 @@ def build_teacher_forced_observation_rows(
                     else ""
                 ),
                 "relevant_segment_forgotten_earlier": "",
+                "matching_segment_missing_due_to_forgetting_known": False,
+                "recently_deleted_relevant_segment_count": "",
+                "forgetting_evidence_available": False,
                 "segment_created_after_observation": (
                     created_segment is not None
+                ),
+                "best_matching_segment_eligible": (
+                    representative.best_matching_overlap
+                    >= model.params.l_match
+                ),
+                "eligibility_failure_reason": (
+                    ""
+                    if (
+                        representative.best_matching_overlap
+                        >= model.params.l_match
+                    )
+                    else representative.scenario_assignment_reason
+                ),
+                "predicted_time_available": (
+                    representative.predicted_time_available
+                ),
+                "predicted_time_valid": (
+                    representative.predicted_time_valid
+                ),
+                "matching_response_available": (
+                    representative.matching_response_available
                 ),
                 "scenario_assignment_reason": (
                     representative.scenario_assignment_reason
                 ),
+                "selected_winner_neuron": representative.winner_neuron,
+                "selected_neuron_was_predictive": (
+                    representative.winner_neuron
+                    in representative.predictive_neuron_ids
+                ),
+                "created_new_segment": created_segment is not None,
+                "created_new_neuron_identity": (
+                    not applicability[
+                        "neuron_reference_valid_before_observation"
+                    ]
+                ),
                 "resulting_winner_fingerprint": resulting_fingerprint,
                 "post_observe_segment_count": post_segment_count,
                 "segment_creation_transition_index": (
+                    selected_fields["segment_creation_transition_index"]
+                ),
+                "selected_segment_creation_transition": (
                     selected_fields["segment_creation_transition_index"]
                 ),
                 "creation_source_fingerprint": (
@@ -440,6 +659,9 @@ def build_teacher_forced_observation_rows(
                 ),
                 "source_cell_count": selected_fields["source_cell_count"],
                 "source_context_jaccard": (
+                    selected_fields["source_context_jaccard"]
+                ),
+                "current_context_jaccard": (
                     selected_fields["source_context_jaccard"]
                 ),
                 "creation_current_source_jaccard": (
