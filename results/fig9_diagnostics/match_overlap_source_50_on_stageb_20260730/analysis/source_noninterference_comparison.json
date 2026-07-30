@@ -1,0 +1,41 @@
+{
+  "candidate_pool_fingerprint_basis": "oracle_candidate_trace.csv SHA256",
+  "candidate_pool_fingerprint_equal": true,
+  "candidate_pool_fingerprint_sha256": "e2209d8051d09fdd8b3c1ede210c24ee0556ea90e2743c365458baeca01ebadb",
+  "checkpoint_reload_model_fingerprint_equal": true,
+  "checkpoint_reload_model_fingerprint": "5989586cda474d30562e6134740e4d8cb62ba062ff4e2b8307ac680d28a1c653",
+  "checkpoint_reload_rng_fingerprint_equal": true,
+  "checkpoint_reload_rng_fingerprint": "f0c57b87976c085cf27e032a72e4b2f353855a7b1b9ecbc81f789fb04f076496",
+  "competition_trace_normalized_equal": true,
+  "competition_trace_normalized_sha256": "70c1342ea6a2a43cf5109a9ca1a6ff1e2970c59606a178227445d1e5be5a9abc",
+  "coverage_equal": true,
+  "diagnostic_only": true,
+  "final_model_fingerprint_equal": true,
+  "final_model_fingerprint": "8e86c6fac808a07c845cf8919ac1c0f1b6da96e811a65eb26842c91212718130",
+  "final_rng_fingerprint_equal": true,
+  "final_rng_fingerprint": "146a05aaca1b7e5f27e4787e9a67d50ec003af268c832bdd254132d8a40e5e00",
+  "mape_equal": true,
+  "normalized_trace_excludes_fields_containing": "runtime",
+  "observe_scenario_trace_normalized_equal": true,
+  "observe_scenario_trace_normalized_sha256": "efb17650c2256485f3eb4dfc2735b2ede77ea816d8c9d897792226425564f1c0",
+  "off_directory": "results/fig9_diagnostics/match_overlap_source_50_off_stageb_20260730",
+  "on_directory": "results/fig9_diagnostics/match_overlap_source_50_on_stageb_20260730",
+  "predictions_equal": true,
+  "predictions_sha256": "8a64489fc4def9e75e6a2b6e3baa497f183780416a84d0e413ee98af6889455d",
+  "scenario_counts_equal": true,
+  "scenario_counts": {
+    "scenario1": 77,
+    "scenario2": 550,
+    "scenario3": 723
+  },
+  "segment_count_equal": true,
+  "segment_count_at_checkpoint": 677,
+  "source_hook_noninterference_passed": true,
+  "summary_values": {
+    "coverage": 1.0,
+    "final_rolling_mape": 0.5587794411450756,
+    "mape": 0.4293969349409696,
+    "mean_raw_column_count": 175.976,
+    "peak_raw_column_count": 268
+  }
+}

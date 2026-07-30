@@ -1,0 +1,4 @@
+field,metric,numerator,denominator,estimate,ci_low,ci_high,bootstrap_samples,bootstrap_seed,bootstrap_unit
+weekday,source_column_active_wrong_neuron_rate,200,18460,0.010834236186348862,0.009479956663055254,0.012433640303358612,500,11,source_synapse_row
+time,source_column_active_wrong_neuron_rate,133,9245,0.014386154678204435,0.01200108166576528,0.016873985938345052,500,11,source_synapse_row
+passenger,source_column_active_wrong_neuron_rate,31,2837,0.010927035600986958,0.007217130771942193,0.014804370814240395,500,11,source_synapse_row

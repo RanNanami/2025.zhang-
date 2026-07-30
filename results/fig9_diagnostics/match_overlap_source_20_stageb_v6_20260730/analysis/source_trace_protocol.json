@@ -1,0 +1,18 @@
+{
+  "capture_phase": "immediately_before_real_observe_code",
+  "creation_support_class_availability": "historical predicted/burst class unavailable; only creation context membership is recorded",
+  "diagnostic_only": true,
+  "ground_truth_does_not_affect_model": true,
+  "offline_analysis_only": true,
+  "primary_reason_is_mutually_exclusive": true,
+  "rng_calls_by_source_hook": false,
+  "second_matching_call": false,
+  "second_observe_call": false,
+  "second_predict_call": false,
+  "source_rows": 30542,
+  "source_trace_does_not_affect_learning": true,
+  "source_trace_does_not_affect_matching": true,
+  "source_trace_sha256": "573fba42132b3d4989f02c7f08611b7edd18db880dc34c01dfb33c1e021fbe1a",
+  "unknown_rate": 0.0,
+  "unknown_rows": 0
+}

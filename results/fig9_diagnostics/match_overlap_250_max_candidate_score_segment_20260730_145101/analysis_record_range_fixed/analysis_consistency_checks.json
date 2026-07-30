@@ -1,0 +1,46 @@
+{
+  "checks": [
+    {
+      "detail": "{\"column_rows\": 0, \"segment_rows\": 0, \"teacher_rows\": 0}",
+      "name": "no_unknown_record_ranges",
+      "passed": true
+    },
+    {
+      "detail": "ranges=7350, columns=7350",
+      "name": "range_observations_sum_to_columns",
+      "passed": true
+    },
+    {
+      "detail": "fields=7350, columns=7350",
+      "name": "field_observations_sum_to_columns",
+      "passed": true
+    },
+    {
+      "detail": "existing-segment observations never exceed all observations",
+      "name": "existing_segment_scope_is_subset",
+      "passed": true
+    },
+    {
+      "detail": "L1 >= L2 >= L3 >= L4 in every scope",
+      "name": "lmatch_counts_are_monotonic",
+      "passed": true
+    },
+    {
+      "detail": "multiple-neuron ambiguity <= ambiguity <= matches",
+      "name": "ambiguity_is_bounded_by_matches",
+      "passed": true
+    },
+    {
+      "detail": "{\"columns\": {\"fixed\": 7350, \"old\": 7350}, \"passenger_mean_best_overlap\": {\"fixed\": 2.1179591836734692, \"old\": 2.1179591836734692}, \"passenger_scenario3_mean_best_overlap\": {\"fixed\": 0.6780091416962926, \"old\": 0.6780091416962926}, \"passenger_scenario3_rate\": {\"fixed\": 0.8036734693877551, \"old\": 0.8036734693877551}, \"segments\": {\"fixed\": 28260, \"old\": 28260}}",
+      "name": "old_global_totals_preserved",
+      "passed": true
+    }
+  ],
+  "passed": true,
+  "record_range_fix_version": "fig9-match-overlap-record-range-v2",
+  "unknown_record_range_counts": {
+    "column_rows": 0,
+    "segment_rows": 0,
+    "teacher_rows": 0
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "L_match": 4,
+  "actual_overlap": "count of unique active source cell IDs whose synapse arrival is within timing_tolerance of dendritic time",
+  "compressed": true,
+  "context_variants_do_not_affect_model": true,
+  "counterfactual_L_match_does_not_affect_model": true,
+  "diagnostic_only": true,
+  "ground_truth_does_not_affect_matching": true,
+  "ground_truth_does_not_affect_model": true,
+  "ground_truth_does_not_affect_prediction": true,
+  "level": "source",
+  "match_overlap_decomposition": true,
+  "matching_context": "previous_active_cells with previous_winners fallback when burst_context=true; previous_winners otherwise",
+  "offline_analysis_only": true,
+  "segment_creation_context": "previous_winners",
+  "selection_behavior_changed": false,
+  "source_trace_does_not_affect_learning": true,
+  "source_trace_does_not_affect_matching": true,
+  "strict_protocol_sha256": "8b6cd51bbc93619b1717b8afc41deb2b3dca3a6540a419561d62770cb0a6e5ea",
+  "unavailable_fields": [
+    "future segment deletion after each captured observation",
+    "predicted-versus-burst labels at historical segment creation"
+  ],
+  "uses_compensation": false,
+  "uses_ground_truth_for_analysis_only": true,
+  "version": "fig9-match-overlap-v1"
+}

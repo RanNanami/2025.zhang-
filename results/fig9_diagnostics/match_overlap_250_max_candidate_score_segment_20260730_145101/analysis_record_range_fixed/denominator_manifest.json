@@ -1,0 +1,41 @@
+{
+  "files": {
+    "context_variant_overlap_summary_fixed.csv": {
+      "primary_denominator": "observations with at least one preexisting segment",
+      "row_unit": "field x record_range x context_variant"
+    },
+    "lmatch_ambiguity_summary_fixed.csv": {
+      "primary_denominator": "observations with at least one preexisting segment",
+      "row_unit": "field x record_range x observe_scenario x threshold"
+    },
+    "lmatch_counterfactual_summary_fixed.csv": {
+      "primary_denominator": "observations with at least one preexisting segment",
+      "row_unit": "field x record_range x observe_scenario x threshold"
+    },
+    "match_overlap_field_summary_fixed.csv": {
+      "conditional_denominator": "observations with at least one preexisting segment",
+      "primary_denominator": "all observed encoded columns in scope",
+      "row_unit": "field x observe_scenario"
+    },
+    "match_overlap_record_range_summary_fixed.csv": {
+      "conditional_denominator": "observations with at least one preexisting segment",
+      "primary_denominator": "all observed encoded columns in scope",
+      "row_unit": "field x record_range x observe_scenario"
+    },
+    "segment_source_field_summary_fixed.csv": {
+      "primary_denominator": "preexisting segment rows",
+      "row_unit": "field x record_range x observe_scenario"
+    },
+    "source_retention_summary_fixed.csv": {
+      "primary_denominator": "preexisting segment rows",
+      "row_unit": "field x record_range x observe_scenario"
+    },
+    "teacher_reference_overlap_summary_fixed.csv": {
+      "primary_denominator": "teacher-forced reference rows",
+      "row_unit": "field x record_range x observe_scenario"
+    }
+  },
+  "record_range_classifier": "fig9-match-overlap-record-range-v2",
+  "record_range_source": "actual_record_index",
+  "unknown_record_range_policy": "invalid, missing, negative, and index >=245 are explicit UNKNOWN_RECORD_RANGE values and fail formal consistency checks"
+}
