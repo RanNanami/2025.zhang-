@@ -84,6 +84,12 @@ from experiments.diagnostics.fig9_intracolumn_selector import (  # noqa: E402
     summarize_selection_rows,
     write_selection_trace,
 )
+from experiments.diagnostics.fig9_match_overlap import (  # noqa: E402
+    DIAGNOSTIC_MARKERS as MATCH_OVERLAP_DIAGNOSTIC_MARKERS,
+    MATCH_OVERLAP_LEVELS,
+    capture_match_overlap,
+    finalize_match_overlap,
+)
 from seqmem.encoding import (  # noqa: E402
     SSTDCompositeEncoder,
     SSTDPeriodicEncoder,
@@ -1634,6 +1640,9 @@ def run_strict_stream(
     reference_neuron_selection_level: str = "summary",
     intracolumn_selection_policy: str = "existing",
     intracolumn_selection_diagnostic: bool = False,
+    match_overlap_diagnostic: bool = False,
+    match_overlap_level: str = "summary",
+    match_overlap_compress: bool = False,
 ) -> dict[str, object]:
     """Run one original or perturbed stream under the strict Fig.9 protocol."""
 
@@ -1644,6 +1653,10 @@ def run_strict_stream(
     if intracolumn_selection_diagnostic and not oracle_candidate_diagnostic:
         raise ValueError(
             "intracolumn selection diagnostics require oracle diagnostics"
+        )
+    if match_overlap_level not in MATCH_OVERLAP_LEVELS:
+        raise ValueError(
+            "match overlap level must be summary, segment, or source"
         )
     if oracle_candidate_diagnostic and not competition.enabled:
         raise ValueError(
@@ -1755,6 +1768,7 @@ def run_strict_stream(
                 branch_provenance_diagnostic
                 or preselection_segment_diagnostic
                 or teacher_forced_winner_diagnostic
+                or match_overlap_diagnostic
             )
             else None
         )
@@ -1793,6 +1807,7 @@ def run_strict_stream(
                 branch_provenance_diagnostic
                 or preselection_segment_diagnostic
                 or teacher_forced_winner_diagnostic
+                or match_overlap_diagnostic
             )
             else None
         )
@@ -1811,6 +1826,9 @@ def run_strict_stream(
     preselection_replacement_rows: list[dict[str, object]] = []
     intracolumn_selection_rows: list[dict[str, object]] = []
     teacher_forced_observation_rows: list[dict[str, object]] = []
+    match_overlap_column_rows: list[dict[str, object]] = []
+    match_overlap_segment_rows: list[dict[str, object]] = []
+    match_overlap_source_rows: list[dict[str, object]] = []
     teacher_forced_ranges = (
         FieldColumnRanges.from_sizes(
             config.weekday_columns,
@@ -1818,6 +1836,15 @@ def run_strict_stream(
             config.passenger_columns,
         )
         if teacher_forced_winner_diagnostic
+        else None
+    )
+    match_overlap_ranges = (
+        FieldColumnRanges.from_sizes(
+            config.weekday_columns,
+            config.time_columns,
+            config.passenger_columns,
+        )
+        if match_overlap_diagnostic
         else None
     )
     validate_strict_fingerprint(fingerprint)
@@ -2022,18 +2049,49 @@ def run_strict_stream(
             else 0
         )
         creation_sources = (
-            model._active_sources().copy()
+            # _grow_segment and Scenario-2 growth both use previous_winners.
+            # Provenance must record that exact creation context, not the
+            # broader all-cell context used for segment matching.
+            model.previous_winners.copy()
             if branch_registry is not None
             else {}
         )
         teacher_forced_trace = (
             ObservationTrace(
-                capture_scenario_details=observe_scenario_diagnostic,
+                capture_scenario_details=(
+                    observe_scenario_diagnostic
+                    or match_overlap_diagnostic
+                ),
             )
-            if teacher_forced_winner_diagnostic
+            if teacher_forced_winner_diagnostic or match_overlap_diagnostic
             else None
         )
-        if teacher_forced_trace is None:
+        match_overlap_capture = None
+        if match_overlap_diagnostic:
+            if (
+                branch_registry is None
+                or match_overlap_ranges is None
+                or teacher_forced_trace is None
+            ):
+                raise RuntimeError("match-overlap diagnostic state unavailable")
+            # Preserve learn_actual_code's strict predict-then-observe order.
+            model.predict_code()
+            match_overlap_capture = capture_match_overlap(
+                model=model,
+                code=code,
+                registry=branch_registry,
+                stream_label=stream_label,
+                actual_record_index=index,
+                actual_record=record,
+                ranges=match_overlap_ranges,
+                level=match_overlap_level,
+            )
+            model.observe_code(
+                code,
+                learn=True,
+                observation_trace=teacher_forced_trace,
+            )
+        elif teacher_forced_trace is None:
             learn_actual_code(model, code)
         else:
             learn_actual_code(
@@ -2057,6 +2115,24 @@ def run_strict_stream(
                 creation_transition_index=index,
                 creation_sources=creation_sources,
             )
+            if (
+                match_overlap_capture is not None
+                and teacher_forced_trace is not None
+            ):
+                completed_overlap = finalize_match_overlap(
+                    match_overlap_capture,
+                    teacher_forced_trace,
+                    branch_registry,
+                )
+                match_overlap_column_rows.extend(
+                    completed_overlap.column_rows
+                )
+                match_overlap_segment_rows.extend(
+                    completed_overlap.segment_rows
+                )
+                match_overlap_source_rows.extend(
+                    completed_overlap.source_rows
+                )
             if (
                 teacher_forced_winner_diagnostic
                 and teacher_forced_trace is not None
@@ -2593,18 +2669,62 @@ def run_strict_stream(
                     ),
                 },
             )
-        if reference_neuron_selection_diagnostic:
-            write_json(
-                output_dir / "reference_neuron_selection_protocol.json",
-                {
-                    **TEACHER_FORCED_DIAGNOSTIC_MARKERS,
-                    "reference_neuron_selection_diagnostic": True,
-                    "target_column_is_oracle_conditioned_for_analysis": True,
-                    "not_a_deployable_prediction_result": True,
-                    "level": reference_neuron_selection_level,
-                    "selection_behavior_changed": False,
-                },
+    if teacher_forced_winner_diagnostic and reference_neuron_selection_diagnostic:
+        write_json(
+            output_dir / "reference_neuron_selection_protocol.json",
+            {
+                **TEACHER_FORCED_DIAGNOSTIC_MARKERS,
+                "reference_neuron_selection_diagnostic": True,
+                "target_column_is_oracle_conditioned_for_analysis": True,
+                "not_a_deployable_prediction_result": True,
+                "level": reference_neuron_selection_level,
+                "selection_behavior_changed": False,
+            },
+        )
+    if match_overlap_diagnostic:
+        write_diagnostic_csv(
+            output_dir / "match_overlap_column_trace.csv",
+            match_overlap_column_rows,
+        )
+        if match_overlap_level in {"segment", "source"}:
+            write_diagnostic_csv(
+                output_dir / "match_overlap_segment_trace.csv",
+                match_overlap_segment_rows,
+                compress=match_overlap_compress,
             )
+        if match_overlap_level == "source":
+            write_diagnostic_csv(
+                output_dir / "match_overlap_source_trace.csv",
+                match_overlap_source_rows,
+                compress=match_overlap_compress,
+            )
+        write_json(
+            output_dir / "match_overlap_protocol.json",
+            {
+                **MATCH_OVERLAP_DIAGNOSTIC_MARKERS,
+                "version": "fig9-match-overlap-v1",
+                "level": match_overlap_level,
+                "compressed": match_overlap_compress,
+                "matching_context": (
+                    "previous_active_cells with previous_winners fallback "
+                    "when burst_context=true; previous_winners otherwise"
+                ),
+                "segment_creation_context": "previous_winners",
+                "actual_overlap": (
+                    "count of unique active source cell IDs whose synapse "
+                    "arrival is within timing_tolerance of dendritic time"
+                ),
+                "L_match": model.params.l_match,
+                "selection_behavior_changed": False,
+                "unavailable_fields": [
+                    "future segment deletion after each captured observation",
+                    "predicted-versus-burst labels at historical segment creation",
+                ],
+                "strict_protocol_sha256": stable_object_sha256(
+                    fingerprint
+                ),
+            },
+        )
     if interval_rows:
         write_predictions(
             output_dir / f"{stream_label}_interval_summary.csv",
@@ -2778,6 +2898,21 @@ def parse_args() -> argparse.Namespace:
         "--intracolumn-selection-diagnostic",
         action="store_true",
         help="Write the same-call per-column selector trace.",
+    )
+    parser.add_argument(
+        "--match-overlap-diagnostic",
+        action="store_true",
+        help="Capture read-only Scenario-3 overlap decomposition inputs.",
+    )
+    parser.add_argument(
+        "--match-overlap-level",
+        choices=tuple(sorted(MATCH_OVERLAP_LEVELS)),
+        default="summary",
+    )
+    parser.add_argument(
+        "--match-overlap-compress",
+        action="store_true",
+        help="Write segment/source match-overlap traces as CSV.GZ.",
     )
     parser.add_argument("--interval-every", type=int, default=0)
     parser.add_argument("--profile", action="store_true")
@@ -3004,6 +3139,9 @@ def run_main(args: argparse.Namespace) -> None:
             intracolumn_selection_diagnostic=(
                 args.intracolumn_selection_diagnostic
             ),
+            match_overlap_diagnostic=args.match_overlap_diagnostic,
+            match_overlap_level=args.match_overlap_level,
+            match_overlap_compress=args.match_overlap_compress,
         )
     if {"original", "perturbed"}.issubset(args.streams):
         runtime["pre_change_comparison"] = compare_pre_change_predictions(
