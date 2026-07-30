@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 from experiments.diagnostics.analyze_fig9_match_overlap_decomposition import (
     analyze,
+    classify_record_range,
 )
 from experiments.diagnostics.fig9_branch_provenance import (
     BranchProvenanceRegistry,
@@ -19,6 +20,7 @@ from experiments.diagnostics.fig9_match_overlap import (
     DIAGNOSTIC_MARKERS,
     MATCH_OVERLAP_LEVELS,
     capture_match_overlap,
+    classify_source_loss,
     finalize_match_overlap,
 )
 from experiments.diagnostics.fig9_oracle_candidate import FieldColumnRanges
@@ -154,6 +156,28 @@ class MatchOverlapCaptureTests(unittest.TestCase):
         fields = {row["source_field"] for row in self.capture().source_rows}
         self.assertEqual(fields, {"weekday", "time", "passenger"})
 
+    def test_source_level_schema_contains_auditable_identity_fields(self) -> None:
+        row = self.capture().source_rows[0]
+        required = {
+            "segment_target_neuron",
+            "source_cell_stable_id",
+            "synaptic_weight",
+            "synaptic_delay",
+            "source_in_previous_winners",
+            "source_in_current_active_cells",
+            "source_in_predicted_cells",
+            "source_in_burst_cells",
+            "source_column_currently_active",
+            "exact_source_neuron_currently_active",
+            "same_column_other_neuron_active",
+            "active_neuron_count_in_source_column",
+            "contributes_to_actual_overlap",
+            "timing_or_eligibility_allows_match",
+            "source_loss_reason",
+            "source_loss_reason_available",
+        }
+        self.assertTrue(required <= set(row))
+
     def test_all_cell_context_is_real_matching_context(self) -> None:
         row = self.capture().segment_rows[0]
         self.assertEqual(row["overlap_all_cell_current"], 2)
@@ -215,8 +239,58 @@ class MatchOverlapCaptureTests(unittest.TestCase):
         )
         self.assertEqual(
             weekday["source_missing_reason"],
-            "TIMING_OR_ELIGIBILITY_EXCLUDED",
+            "SOURCE_TIMING_OR_ELIGIBILITY_EXCLUDED",
         )
+
+    def test_source_loss_primary_reasons_are_mutually_exclusive(self) -> None:
+        base = {
+            "contributes": False,
+            "source_cell_available": True,
+            "source_column_currently_active": False,
+            "exact_source_neuron_currently_active": False,
+            "same_column_other_neuron_active": False,
+            "source_in_all_cell_context": False,
+            "source_in_burst_cells": False,
+            "source_in_predicted_cells": False,
+            "source_in_previous_winners": False,
+            "timing_or_eligibility_allows_match": False,
+        }
+        cases = {
+            "SOURCE_EXACT_CELL_MATCHED": {"contributes": True},
+            "SOURCE_COLUMN_ACTIVE_WRONG_NEURON": {
+                "source_column_currently_active": True,
+                "same_column_other_neuron_active": True,
+            },
+            "SOURCE_COLUMN_NOT_ACTIVE": {},
+            "SOURCE_EXACT_NEURON_ACTIVE_NOT_IN_MATCH_CONTEXT": {
+                "source_column_currently_active": True,
+                "exact_source_neuron_currently_active": True,
+            },
+            "SOURCE_ONLY_AVAILABLE_THROUGH_BURST": {
+                "source_column_currently_active": True,
+                "exact_source_neuron_currently_active": True,
+                "source_in_burst_cells": True,
+            },
+            "SOURCE_ONLY_AVAILABLE_THROUGH_PREDICTION": {
+                "source_column_currently_active": True,
+                "exact_source_neuron_currently_active": True,
+                "source_in_predicted_cells": True,
+            },
+            "SOURCE_TIMING_OR_ELIGIBILITY_EXCLUDED": {
+                "source_column_currently_active": True,
+                "exact_source_neuron_currently_active": True,
+                "source_in_all_cell_context": True,
+            },
+            "SOURCE_CELL_UNAVAILABLE": {
+                "source_cell_available": False,
+            },
+        }
+        for expected, overrides in cases.items():
+            with self.subTest(expected=expected):
+                self.assertEqual(
+                    classify_source_loss(**(base | overrides)),
+                    expected,
+                )
 
     def test_empty_column_is_safe(self) -> None:
         empty = SymbolCode((SpikeEvent(3, 0.0),))
@@ -284,6 +358,7 @@ class MatchOverlapCaptureTests(unittest.TestCase):
         self.assertEqual(final.column_rows[0]["observe_scenario"], "scenario2")
         self.assertTrue(final.segment_rows[0]["selected_as_best_matching"])
         self.assertTrue(final.segment_rows[0]["reinforced"])
+        self.assertEqual(final.source_rows[0]["observe_scenario"], "scenario2")
 
     def test_markers_are_present_and_true(self) -> None:
         row = self.capture().column_rows[0]
@@ -292,6 +367,29 @@ class MatchOverlapCaptureTests(unittest.TestCase):
 
 
 class MatchOverlapAnalyzerTests(unittest.TestCase):
+    def test_record_range_boundaries_and_invalid_values(self) -> None:
+        cases = {
+            0: "0-49",
+            49: "0-49",
+            50: "50-99",
+            99: "50-99",
+            100: "100-149",
+            149: "100-149",
+            150: "150-199",
+            199: "150-199",
+            200: "200-244",
+            244: "200-244",
+            None: "UNKNOWN_RECORD_RANGE",
+            "": "UNKNOWN_RECORD_RANGE",
+            -1: "UNKNOWN_RECORD_RANGE",
+            245: "UNKNOWN_RECORD_RANGE",
+            1.5: "UNKNOWN_RECORD_RANGE",
+            "bad": "UNKNOWN_RECORD_RANGE",
+        }
+        for value, expected in cases.items():
+            with self.subTest(value=value):
+                self.assertEqual(classify_record_range(value), expected)
+
     def test_analyzer_writes_all_required_outputs(self) -> None:
         column_row = {
             **DIAGNOSTIC_MARKERS,
@@ -374,6 +472,23 @@ class MatchOverlapAnalyzerTests(unittest.TestCase):
                 "match_overlap_bootstrap_ci.csv",
                 "match_overlap_summary.json",
                 "FIG9_MATCH_OVERLAP_DECOMPOSITION_REPORT.md",
+                "match_overlap_field_summary_fixed.csv",
+                "match_overlap_record_range_summary_fixed.csv",
+                "segment_source_field_summary_fixed.csv",
+                "source_retention_summary_fixed.csv",
+                "teacher_reference_overlap_summary_fixed.csv",
+                "lmatch_counterfactual_summary_fixed.csv",
+                "lmatch_ambiguity_summary_fixed.csv",
+                "context_variant_overlap_summary_fixed.csv",
+                "denominator_manifest.json",
+                "analysis_consistency_checks.json",
+                "FIG9_MATCH_OVERLAP_DECOMPOSITION_REPORT_FIXED.md",
+                "source_field_summary.csv",
+                "source_record_range_summary.csv",
+                "source_context_membership_summary.csv",
+                "source_identity_bootstrap_ci.csv",
+                "source_trace_protocol.json",
+                "SOURCE_LEVEL_MATCH_OVERLAP_REPORT.md",
             }
             self.assertEqual(
                 {path.name for path in output_dir.iterdir()},
@@ -386,6 +501,84 @@ class MatchOverlapAnalyzerTests(unittest.TestCase):
                 )
             )
             self.assertTrue(payload["formal_250_not_run_by_analyzer"])
+            self.assertTrue(payload["fixed_analysis_checks_passed"])
+
+    def test_fixed_grouping_uses_actual_index_not_legacy_label(self) -> None:
+        rows = [
+            {
+                **DIAGNOSTIC_MARKERS,
+                "actual_record_index": index,
+                "record_range": "0-49",
+                "timestamp": f"t-{index}",
+                "field": "passenger",
+                "encoded_column": index,
+                "observe_scenario": "scenario3",
+                "best_matching_overlap": 0,
+                "gap_to_L_match": 4,
+            }
+            for index in (0, 50, 100, 150, 200)
+        ]
+        with tempfile.TemporaryDirectory() as temporary:
+            run_dir = Path(temporary) / "run"
+            output_dir = Path(temporary) / "analysis"
+            run_dir.mkdir()
+            self._write(run_dir / "match_overlap_column_trace.csv", rows)
+            analyze(
+                run_dir=run_dir,
+                output_dir=output_dir,
+                bootstrap_samples=10,
+                bootstrap_seed=0,
+            )
+            with (
+                output_dir / "match_overlap_record_range_summary_fixed.csv"
+            ).open(encoding="utf-8", newline="") as handle:
+                fixed = list(csv.DictReader(handle))
+            self.assertEqual(
+                {row["record_range"] for row in fixed},
+                {"0-49", "50-99", "100-149", "150-199", "200-244"},
+            )
+            self.assertEqual(
+                sum(int(row["observation_count"]) for row in fixed),
+                len(rows),
+            )
+            manifest = json.loads(
+                (output_dir / "denominator_manifest.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(
+                manifest["record_range_source"],
+                "actual_record_index",
+            )
+
+    def test_fixed_analysis_rejects_unknown_record_range(self) -> None:
+        row = {
+            **DIAGNOSTIC_MARKERS,
+            "actual_record_index": "",
+            "timestamp": "t",
+            "field": "passenger",
+            "encoded_column": 1,
+            "observe_scenario": "scenario3",
+            "best_matching_overlap": 0,
+            "gap_to_L_match": 4,
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            run_dir = Path(temporary) / "run"
+            run_dir.mkdir()
+            self._write(
+                run_dir / "match_overlap_column_trace.csv",
+                [row],
+            )
+            with self.assertRaisesRegex(
+                AssertionError, "no_unknown_record_ranges"
+            ):
+                analyze(
+                    run_dir=run_dir,
+                    output_dir=Path(temporary) / "fixed",
+                    bootstrap_samples=10,
+                    bootstrap_seed=0,
+                    fixed_only=True,
+                )
 
     def test_runner_trace_is_noninterfering(self) -> None:
         records = [

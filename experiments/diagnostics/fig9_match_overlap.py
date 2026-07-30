@@ -32,6 +32,9 @@ DIAGNOSTIC_MARKERS = {
     "uses_ground_truth_for_analysis_only": True,
     "ground_truth_does_not_affect_matching": True,
     "ground_truth_does_not_affect_prediction": True,
+    "ground_truth_does_not_affect_model": True,
+    "source_trace_does_not_affect_matching": True,
+    "source_trace_does_not_affect_learning": True,
     "counterfactual_L_match_does_not_affect_model": True,
     "context_variants_do_not_affect_model": True,
     "uses_compensation": False,
@@ -119,27 +122,55 @@ def _timed_members(
     }
 
 
-def _source_loss_reason(
+def classify_source_loss(
     *,
-    source: int,
     contributes: bool,
-    segment_active: bool,
-    active: set[int],
-    active_columns: set[int],
-    model: SequentialMemory,
-    timing_matched: bool,
+    source_cell_available: bool,
+    source_column_currently_active: bool,
+    exact_source_neuron_currently_active: bool,
+    same_column_other_neuron_active: bool,
+    source_in_all_cell_context: bool,
+    source_in_burst_cells: bool,
+    source_in_predicted_cells: bool,
+    source_in_previous_winners: bool,
+    timing_or_eligibility_allows_match: bool,
 ) -> str:
+    """Return one mutually exclusive source-support classification."""
+
+    if not source_cell_available:
+        return "SOURCE_CELL_UNAVAILABLE"
     if contributes:
-        return ""
-    if not segment_active:
-        return "SOURCE_SEGMENT_DELETED"
-    source_column = _cell_column(model, source)
-    if source in active and not timing_matched:
-        return "TIMING_OR_ELIGIBILITY_EXCLUDED"
-    if source_column in active_columns:
+        return "SOURCE_EXACT_CELL_MATCHED"
+    if (
+        source_in_all_cell_context
+        and not timing_or_eligibility_allows_match
+    ):
+        return "SOURCE_TIMING_OR_ELIGIBILITY_EXCLUDED"
+    if exact_source_neuron_currently_active and not source_in_all_cell_context:
+        burst_only = (
+            source_in_burst_cells
+            and not source_in_predicted_cells
+            and not source_in_previous_winners
+        )
+        if burst_only:
+            return "SOURCE_ONLY_AVAILABLE_THROUGH_BURST"
+        predicted_only = (
+            source_in_predicted_cells
+            and not source_in_burst_cells
+            and not source_in_previous_winners
+        )
+        if predicted_only:
+            return "SOURCE_ONLY_AVAILABLE_THROUGH_PREDICTION"
+        return "SOURCE_EXACT_NEURON_ACTIVE_NOT_IN_MATCH_CONTEXT"
+    if (
+        source_column_currently_active
+        and same_column_other_neuron_active
+    ):
         return "SOURCE_COLUMN_ACTIVE_WRONG_NEURON"
-    if source not in active:
+    if not source_column_currently_active:
         return "SOURCE_COLUMN_NOT_ACTIVE"
+    if exact_source_neuron_currently_active:
+        return "SOURCE_EXACT_NEURON_ACTIVE_NOT_IN_MATCH_CONTEXT"
     return "UNKNOWN_SOURCE_LOSS"
 
 
@@ -176,7 +207,6 @@ def capture_match_overlap(
     predicted_plus_winner = predicted | winner_ids
     burst_only = burst - predicted - winner_ids
     without_burst_only = active_ids - burst_only
-    active_columns = {_cell_column(model, source) for source in active_ids}
     values = record_values(actual_record)
     timestamp = actual_record.timestamp.isoformat(sep=" ")
 
@@ -232,56 +262,60 @@ def capture_match_overlap(
                 for source, source_time in active.items()
                 if field_for_column(_cell_column(model, source), ranges) != field
             }
+            predicted_context = {
+                key: active[key] for key in predicted if key in active
+            }
+            burst_context = {
+                key: active[key] for key in burst if key in active
+            }
+            predicted_winner_context = {
+                key: (active[key] if key in active else winners[key])
+                for key in predicted_plus_winner
+                if key in active or key in winners
+            }
+            without_burst_context = {
+                key: active[key]
+                for key in without_burst_only
+                if key in active
+            }
+            winner_members = _timed_members(
+                segment,
+                winners,
+                dendritic_time=dendritic_time,
+                tolerance=model.params.timing_tolerance,
+            )
+            predicted_members = _timed_members(
+                segment,
+                predicted_context,
+                dendritic_time=dendritic_time,
+                tolerance=model.params.timing_tolerance,
+            )
+            burst_members = _timed_members(
+                segment,
+                burst_context,
+                dendritic_time=dendritic_time,
+                tolerance=model.params.timing_tolerance,
+            )
+            without_burst_members = _timed_members(
+                segment,
+                without_burst_context,
+                dendritic_time=dendritic_time,
+                tolerance=model.params.timing_tolerance,
+            )
             variants = {
                 "overlap_all_cell_current": overlap,
-                "overlap_winner_only": len(
-                    _timed_members(
-                        segment,
-                        winners,
-                        dendritic_time=dendritic_time,
-                        tolerance=model.params.timing_tolerance,
-                    )
-                ),
-                "overlap_predicted_only": len(
-                    _timed_members(
-                        segment,
-                        {key: active[key] for key in predicted if key in active},
-                        dendritic_time=dendritic_time,
-                        tolerance=model.params.timing_tolerance,
-                    )
-                ),
-                "overlap_burst_only": len(
-                    _timed_members(
-                        segment,
-                        {key: active[key] for key in burst if key in active},
-                        dendritic_time=dendritic_time,
-                        tolerance=model.params.timing_tolerance,
-                    )
-                ),
+                "overlap_winner_only": len(winner_members),
+                "overlap_predicted_only": len(predicted_members),
+                "overlap_burst_only": len(burst_members),
                 "overlap_predicted_plus_winner": len(
                     _timed_members(
                         segment,
-                        {
-                            key: (active[key] if key in active else winners[key])
-                            for key in predicted_plus_winner
-                            if key in active or key in winners
-                        },
+                        predicted_winner_context,
                         dendritic_time=dendritic_time,
                         tolerance=model.params.timing_tolerance,
                     )
                 ),
-                "overlap_without_burst_only": len(
-                    _timed_members(
-                        segment,
-                        {
-                            key: active[key]
-                            for key in without_burst_only
-                            if key in active
-                        },
-                        dendritic_time=dendritic_time,
-                        tolerance=model.params.timing_tolerance,
-                    )
-                ),
+                "overlap_without_burst_only": len(without_burst_members),
                 "overlap_same_field_only": len(
                     _timed_members(
                         segment,
@@ -390,6 +424,12 @@ def capture_match_overlap(
             if level == "source":
                 for source, synapse in segment.synapses.items():
                     source_column = _cell_column(model, source)
+                    source_neuron = _cell_neuron(model, source)
+                    column_active_cells = {
+                        cell
+                        for cell in active_ids
+                        if _cell_column(model, cell) == source_column
+                    }
                     source_time = active.get(source)
                     timing_matched = bool(
                         source_time is not None
@@ -399,6 +439,29 @@ def capture_match_overlap(
                         <= model.params.timing_tolerance
                     )
                     contributes = source in actual_members
+                    source_cell_available = (
+                        0 <= source_column < len(model.columns)
+                        and 0 <= source_neuron
+                        < len(model.columns[source_column].neurons)
+                    )
+                    loss_reason = classify_source_loss(
+                        contributes=contributes,
+                        source_cell_available=source_cell_available,
+                        source_column_currently_active=bool(
+                            column_active_cells
+                        ),
+                        exact_source_neuron_currently_active=(
+                            source in active_ids
+                        ),
+                        same_column_other_neuron_active=any(
+                            cell != source for cell in column_active_cells
+                        ),
+                        source_in_all_cell_context=source in active_ids,
+                        source_in_burst_cells=source in burst,
+                        source_in_predicted_cells=source in predicted,
+                        source_in_previous_winners=source in winner_ids,
+                        timing_or_eligibility_allows_match=timing_matched,
+                    )
                     source_rows.append(
                         {
                             **DIAGNOSTIC_MARKERS,
@@ -408,37 +471,87 @@ def capture_match_overlap(
                             "field": field,
                             "encoded_column": event.column,
                             "segment_provenance_id": segment_id,
+                            "segment_target_neuron": neuron_index,
                             "source_column": source_column,
-                            "source_neuron": _cell_neuron(model, source),
+                            "source_neuron": source_neuron,
                             "source_field": field_for_column(
                                 source_column,
                                 ranges,
                             ),
+                            "synaptic_weight": synapse.weight,
+                            "synaptic_delay": synapse.delay,
                             "source_synaptic_weight": synapse.weight,
                             "source_synaptic_delay": synapse.delay,
+                            "source_still_present_in_segment": True,
+                            "source_cell_stable_id": source,
                             "source_in_creation_context": (
                                 source in creation_sources
                             ),
+                            "source_creation_support_class": (
+                                "CREATION_CONTEXT_MEMBERSHIP_ONLY"
+                                if source in creation_sources
+                                else "NOT_IN_RECORDED_CREATION_CONTEXT"
+                            ),
+                            "segment_creation_transition_index": (
+                                creation_transition
+                            ),
+                            "source_in_previous_winners": source in winner_ids,
+                            "source_in_current_active_cells": (
+                                source in active_ids
+                            ),
+                            "source_in_predicted_cells": source in predicted,
+                            "source_in_burst_cells": source in burst,
+                            "source_in_winner_only_context": (
+                                source in winner_ids
+                            ),
+                            "source_in_all_cell_context": source in active_ids,
+                            "source_in_without_burst_context": (
+                                source in without_burst_only
+                            ),
                             "source_in_current_previous_winners": (
+                                source in winner_ids
+                            ),
+                            "source_column_currently_active": bool(
+                                column_active_cells
+                            ),
+                            "exact_source_neuron_currently_active": (
+                                source in active_ids
+                            ),
+                            "same_column_other_neuron_active": any(
+                                cell != source for cell in column_active_cells
+                            ),
+                            "active_neuron_count_in_source_column": len(
+                                column_active_cells
+                            ),
+                            "exact_source_neuron_was_predicted": (
+                                source in predicted
+                            ),
+                            "exact_source_neuron_was_burst": source in burst,
+                            "exact_source_neuron_was_winner": (
                                 source in winner_ids
                             ),
                             "source_currently_active": source in active_ids,
                             "source_currently_predicted": source in predicted,
                             "source_currently_burst": source in burst,
                             "source_currently_winner": source in winner_ids,
+                            "contributes_to_actual_overlap": contributes,
+                            "contributes_to_winner_only_overlap": (
+                                source in winner_members
+                            ),
+                            "contributes_to_predicted_only_overlap": (
+                                source in predicted_members
+                            ),
+                            "contributes_to_without_burst_overlap": (
+                                source in without_burst_members
+                            ),
+                            "timing_or_eligibility_allows_match": (
+                                timing_matched
+                            ),
                             "source_contributes_to_actual_overlap": contributes,
-                            "source_missing_reason": _source_loss_reason(
-                                source=source,
-                                contributes=contributes,
-                                segment_active=segment.active,
-                                active=active_ids,
-                                active_columns=active_columns,
-                                model=model,
-                                timing_matched=timing_matched,
-                            ),
-                            "source_cell_still_exists": (
-                                0 <= source_column < len(model.columns)
-                            ),
+                            "source_loss_reason": loss_reason,
+                            "source_missing_reason": loss_reason,
+                            "source_loss_reason_available": True,
+                            "source_cell_still_exists": source_cell_available,
                             "source_segment_still_exists": segment.active,
                             "_segment_object_id": id(segment),
                         }
@@ -684,10 +797,21 @@ def finalize_match_overlap(
             )
         segment_rows.append(_public_row(row))
 
+    source_rows: list[dict[str, object]] = []
+    for original in capture.source_rows:
+        row = dict(original)
+        event = events.get(int(row["encoded_column"]))
+        if event is not None:
+            row["observe_scenario"] = event.scenario
+            row["scenario_assignment_reason"] = (
+                event.scenario_assignment_reason
+            )
+        source_rows.append(_public_row(row))
+
     return MatchOverlapCapture(
         column_rows=tuple(column_rows),
         segment_rows=tuple(segment_rows),
-        source_rows=tuple(_public_row(dict(row)) for row in capture.source_rows),
+        source_rows=tuple(source_rows),
     )
 
 
