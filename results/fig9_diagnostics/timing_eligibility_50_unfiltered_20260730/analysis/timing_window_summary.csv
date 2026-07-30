@@ -1,0 +1,5 @@
+metric,numerator,denominator,rate,denominator_scope
+arrival_in_matching_window,11371,210225,0.05408966583422523,pre_observation_source_synapse_rows
+timing_used_by_actual_overlap,210225,210225,1.0,pre_observation_source_synapse_rows
+source_predicted_time_available,1291,210225,0.006141039362587704,pre_observation_source_synapse_rows
+source_predicted_time_valid,1291,210225,0.006141039362587704,pre_observation_source_synapse_rows

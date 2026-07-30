@@ -1,0 +1,23 @@
+{
+  "candidate_trace_sha256": "e2209d8051d09fdd8b3c1ede210c24ee0556ea90e2743c365458baeca01ebadb",
+  "checkpoint_reload_model_fingerprint": "5989586cda474d30562e6134740e4d8cb62ba062ff4e2b8307ac680d28a1c653",
+  "checkpoint_reload_rng_fingerprint": "f0c57b87976c085cf27e032a72e4b2f353855a7b1b9ecbc81f789fb04f076496",
+  "comparison_paths": {
+    "diagnostic_off": "results/fig9_diagnostics/match_overlap_source_50_off_stageb_20260730",
+    "diagnostic_on_filtered": "results/fig9_diagnostics/timing_eligibility_50_filtered_20260730",
+    "diagnostic_on_unfiltered": "results/fig9_diagnostics/timing_eligibility_50_unfiltered_20260730"
+  },
+  "competition_trace_normalized_sha256": "70c1342ea6a2a43cf5109a9ca1a6ff1e2970c59606a178227445d1e5be5a9abc",
+  "coverage": 1.0,
+  "filtered_row_count": 8863,
+  "filtered_rows_are_exact_unfiltered_subset": true,
+  "filtered_rows_satisfy_all_filters": true,
+  "final_model_fingerprint": "8e86c6fac808a07c845cf8919ac1c0f1b6da96e811a65eb26842c91212718130",
+  "final_rng_fingerprint": "146a05aaca1b7e5f27e4787e9a67d50ec003af268c832bdd254132d8a40e5e00",
+  "mape": 0.4293969349409696,
+  "observe_trace_normalized_sha256": "efb17650c2256485f3eb4dfc2735b2ede77ea816d8c9d897792226425564f1c0",
+  "predictions_sha256": "8a64489fc4def9e75e6a2b6e3baa497f183780416a84d0e413ee98af6889455d",
+  "source_independent_outputs_equal": true,
+  "trajectory_equality_passed": true,
+  "unfiltered_row_count": 210225
+}

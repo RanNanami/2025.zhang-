@@ -1,0 +1,3 @@
+metric,numerator,denominator,rate,denominator_scope
+segment_considered_by_matching,210225,210225,1.0,pre_observation_source_synapse_rows
+segment_eligible,166685,210225,0.7928885717683435,pre_observation_source_synapse_rows

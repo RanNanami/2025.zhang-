@@ -1,0 +1,12 @@
+{
+  "expected_late_observations": 329,
+  "expected_late_segments": 2437,
+  "late_target_scope_detected": false,
+  "model_execution_unfiltered": true,
+  "record_index_max": 44,
+  "record_index_min": 2,
+  "source_rows": 210225,
+  "source_trace_path": "results\\fig9_diagnostics\\timing_eligibility_50_unfiltered_20260730\\match_overlap_source_trace.csv.gz",
+  "unique_observation_count": 1041,
+  "unique_segment_count": 1975
+}

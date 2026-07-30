@@ -1,0 +1,21 @@
+{
+  "coverage_passed": true,
+  "dominant_primary_reason": "SOURCE_COLUMN_NOT_ACTIVE",
+  "expected_late_observations": 329,
+  "expected_late_segments": 2437,
+  "late_target_scope_detected": false,
+  "model_execution_unfiltered": true,
+  "passed": true,
+  "recommended_next_step": "CONTEXT_TRAJECTORY_DIAGNOSTIC_REQUIRED",
+  "record_index_max": 14,
+  "record_index_min": 2,
+  "segment_synapse_count_mismatch_count": 0,
+  "segment_synapse_count_mismatch_keys": [],
+  "source_rows": 30542,
+  "source_trace_path": "results\\fig9_diagnostics\\timing_eligibility_20_v3_20260730\\match_overlap_source_trace.csv.gz",
+  "unique_observation_count": 301,
+  "unique_segment_count": 513,
+  "unknown_reason_rate": 0.0,
+  "unknown_reason_rows": 0,
+  "unknown_record_range_rows": 0
+}

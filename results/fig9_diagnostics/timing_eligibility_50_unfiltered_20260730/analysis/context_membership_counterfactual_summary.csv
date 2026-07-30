@@ -1,0 +1,5 @@
+counterfactual_mode,observation_count,mean_best_overlap,L4_match_count,L4_match_rate,L4_ambiguity_count,L4_ambiguity_rate,L4_multiple_neuron_ambiguity_count,L4_multiple_neuron_ambiguity_rate,teacher_reference_compatibility,trajectory_changed,ground_truth_used_for_selection
+ACTUAL_TIMED_OVERLAP,178,0.3146067415730337,0,0.0,0,0.0,0,0.0,unavailable_in_source_trace,False,False
+ACTIVE_EXACT_IDENTITY_IGNORE_TIMING,178,16.528089887640448,178,1.0,79,0.4438202247191011,79,0.4438202247191011,unavailable_in_source_trace,False,False
+PREDICTED_EXACT_IDENTITY_IGNORE_TIMING,178,0.38764044943820225,1,0.0056179775280898875,0,0.0,0,0.0,unavailable_in_source_trace,False,False
+EXPLICIT_CONTEXT_EXCLUSIONS_ONLY,178,0.3146067415730337,0,0.0,0,0.0,0,0.0,unavailable_in_source_trace,False,False

@@ -1,0 +1,9 @@
+{
+  "coverage_passed": true,
+  "passed": true,
+  "segment_synapse_count_mismatch_count": 0,
+  "segment_synapse_count_mismatch_keys": [],
+  "unknown_reason_rate": 0.0,
+  "unknown_reason_rows": 0,
+  "unknown_record_range_rows": 0
+}
