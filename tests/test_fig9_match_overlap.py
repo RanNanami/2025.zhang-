@@ -13,14 +13,20 @@ from experiments.diagnostics.analyze_fig9_match_overlap_decomposition import (
     analyze,
     classify_record_range,
 )
+from experiments.diagnostics.analyze_fig9_timing_eligibility_decomposition import (
+    analyze as analyze_timing_eligibility,
+)
 from experiments.diagnostics.fig9_branch_provenance import (
     BranchProvenanceRegistry,
 )
 from experiments.diagnostics.fig9_match_overlap import (
     DIAGNOSTIC_MARKERS,
     MATCH_OVERLAP_LEVELS,
+    SourceTraceFilter,
     capture_match_overlap,
     classify_source_loss,
+    classify_timing_eligibility_loss,
+    filter_source_trace_rows,
     finalize_match_overlap,
 )
 from experiments.diagnostics.fig9_oracle_candidate import FieldColumnRanges
@@ -291,6 +297,185 @@ class MatchOverlapCaptureTests(unittest.TestCase):
                     classify_source_loss(**(base | overrides)),
                     expected,
                 )
+
+    def test_timing_decomposition_uses_real_arrival_window(self) -> None:
+        common = {
+            "contributes": False,
+            "source_cell_available": True,
+            "source_in_matching_context": True,
+            "source_in_active_cells": True,
+            "source_in_predicted_cells": False,
+            "source_in_burst_cells": False,
+            "arrival_available": True,
+            "arrival_in_matching_window": False,
+            "matching_window_start": 0.47,
+            "matching_window_end": 0.53,
+            "segment_considered_by_matching": True,
+            "synapse_considered_by_matching": True,
+        }
+        late = classify_timing_eligibility_loss(
+            **common, computed_arrival_time=0.6
+        )
+        early = classify_timing_eligibility_loss(
+            **common, computed_arrival_time=0.4
+        )
+        self.assertEqual(late[0], "SOURCE_IN_CONTEXT_DELAY_NOT_ARRIVED")
+        self.assertEqual(
+            early[0], "SOURCE_IN_CONTEXT_ARRIVAL_TOO_EARLY"
+        )
+        self.assertEqual(late[2], "Segment.timed_overlap")
+        self.assertEqual(late[3], "src/seqmem/model.py")
+
+    def test_context_decomposition_reasons_are_distinct(self) -> None:
+        base = {
+            "contributes": False,
+            "source_cell_available": True,
+            "source_in_matching_context": False,
+            "source_in_active_cells": False,
+            "source_in_predicted_cells": False,
+            "source_in_burst_cells": False,
+            "arrival_available": False,
+            "arrival_in_matching_window": False,
+            "computed_arrival_time": None,
+            "matching_window_start": 0.47,
+            "matching_window_end": 0.53,
+            "segment_considered_by_matching": False,
+            "synapse_considered_by_matching": False,
+        }
+        cases = (
+            (
+                {"source_in_active_cells": True},
+                "SOURCE_ACTIVE_NOT_IN_MATCH_CONTEXT",
+            ),
+            (
+                {"source_in_predicted_cells": True},
+                "SOURCE_PREDICTED_NOT_IN_MATCH_CONTEXT",
+            ),
+            (
+                {"source_in_burst_cells": True},
+                "SOURCE_BURST_NOT_IN_MATCH_CONTEXT",
+            ),
+            ({}, "SEGMENT_NOT_ELIGIBLE"),
+        )
+        for overrides, expected in cases:
+            with self.subTest(expected=expected):
+                self.assertEqual(
+                    classify_timing_eligibility_loss(
+                        **(base | overrides)
+                    )[0],
+                    expected,
+                )
+
+    def test_remaining_timing_eligibility_paths_are_explicit(self) -> None:
+        base = {
+            "contributes": False,
+            "source_cell_available": True,
+            "source_in_matching_context": False,
+            "source_in_active_cells": False,
+            "source_in_predicted_cells": False,
+            "source_in_burst_cells": False,
+            "arrival_available": False,
+            "arrival_in_matching_window": False,
+            "computed_arrival_time": None,
+            "matching_window_start": 0.47,
+            "matching_window_end": 0.53,
+            "segment_considered_by_matching": True,
+            "synapse_considered_by_matching": False,
+        }
+        cases = (
+            ({}, "SYNAPSE_NOT_ELIGIBLE"),
+            (
+                {
+                    "source_in_matching_context": True,
+                    "source_in_active_cells": True,
+                },
+                "SOURCE_STATE_CAPTURE_UNAVAILABLE",
+            ),
+            (
+                {
+                    "source_in_matching_context": True,
+                    "source_in_active_cells": True,
+                    "arrival_available": True,
+                    "computed_arrival_time": 0.55,
+                    "synapse_considered_by_matching": True,
+                },
+                "SOURCE_IN_CONTEXT_DELAY_NOT_ARRIVED",
+            ),
+            (
+                {
+                    "source_in_matching_context": True,
+                    "source_in_active_cells": True,
+                    "arrival_available": True,
+                    "computed_arrival_time": 0.5,
+                    "synapse_considered_by_matching": True,
+                },
+                "SOURCE_OTHER_EXPLICIT_CODE_PATH",
+            ),
+            (
+                {
+                    "arrival_available": True,
+                    "synapse_considered_by_matching": True,
+                },
+                "UNKNOWN_TIMING_ELIGIBILITY_REASON",
+            ),
+        )
+        for overrides, expected in cases:
+            with self.subTest(expected=expected):
+                reason = classify_timing_eligibility_loss(
+                    **(base | overrides)
+                )[0]
+                self.assertEqual(reason, expected)
+
+        # Predicted firing time is trace metadata, not an input to the real
+        # Segment.timed_overlap predicate. It must not invent a matching loss.
+        predicted_time_invalid_reason = classify_timing_eligibility_loss(
+            **base
+        )[0]
+        self.assertEqual(
+            predicted_time_invalid_reason,
+            "SYNAPSE_NOT_ELIGIBLE",
+        )
+        self.assertNotEqual(
+            predicted_time_invalid_reason,
+            "SOURCE_PREDICTED_TIME_INVALID",
+        )
+
+    def test_source_trace_filter_is_output_only_and_boundary_exact(self) -> None:
+        rows = [
+            {
+                "actual_record_index": index,
+                "field": field,
+                "observe_scenario": scenario,
+                "source_loss_reason_primary": reason,
+                "source_still_present_in_segment": True,
+            }
+            for index, field, scenario, reason in (
+                (199, "passenger", "scenario3", "SOURCE_COLUMN_NOT_ACTIVE"),
+                (200, "passenger", "scenario3", "SOURCE_COLUMN_NOT_ACTIVE"),
+                (244, "passenger", "scenario3", "SOURCE_COLUMN_NOT_ACTIVE"),
+                (245, "passenger", "scenario3", "SOURCE_COLUMN_NOT_ACTIVE"),
+                (220, "time", "scenario3", "SOURCE_COLUMN_NOT_ACTIVE"),
+                (220, "passenger", "scenario2", "SOURCE_COLUMN_NOT_ACTIVE"),
+                (220, "passenger", "scenario3", "SOURCE_EXACT_CELL_MATCHED"),
+            )
+        ]
+        original = json.dumps(rows, sort_keys=True)
+        filtered = filter_source_trace_rows(
+            rows,
+            SourceTraceFilter(
+                field="passenger",
+                scenario="scenario3",
+                record_start=200,
+                record_end=244,
+                loss_only=True,
+                existing_segments_only=True,
+            ),
+        )
+        self.assertEqual(
+            [row["actual_record_index"] for row in filtered],
+            [200, 244],
+        )
+        self.assertEqual(json.dumps(rows, sort_keys=True), original)
 
     def test_empty_column_is_safe(self) -> None:
         empty = SymbolCode((SpikeEvent(3, 0.0),))
@@ -579,6 +764,77 @@ class MatchOverlapAnalyzerTests(unittest.TestCase):
                     bootstrap_seed=0,
                     fixed_only=True,
                 )
+
+    def test_timing_analyzer_writes_scoped_auditable_outputs(self) -> None:
+        rows = [
+            {
+                "actual_record_index": 20,
+                "timestamp": "2014-07-01 10:00:00",
+                "field": "passenger",
+                "encoded_column": 500,
+                "observe_scenario": "scenario3",
+                "segment_provenance_id": "s1",
+                "segment_target_neuron": 2,
+                "segment_synapse_count": 2,
+                "source_loss_reason_primary": reason,
+                "source_loss_reason_secondary": "explicit",
+                "source_column_currently_active": True,
+                "exact_source_neuron_currently_active": True,
+                "source_in_previous_winners": False,
+                "source_in_predicted_cells": False,
+                "source_in_burst_cells": True,
+                "source_in_matching_context": True,
+                "source_in_active_cells": True,
+                "arrival_in_matching_window": matched,
+                "timing_used_by_actual_overlap": True,
+                "source_predicted_time_available": False,
+                "source_predicted_time_valid": False,
+                "segment_considered_by_matching": True,
+                "segment_eligible": False,
+                "synapse_considered_by_matching": True,
+                "synapse_eligible": matched,
+                "contributes_to_actual_overlap": matched,
+            }
+            for reason, matched in (
+                ("SOURCE_EXACT_CELL_MATCHED", True),
+                ("SOURCE_IN_CONTEXT_DELAY_NOT_ARRIVED", False),
+            )
+        ]
+        with tempfile.TemporaryDirectory() as temporary:
+            run_dir = Path(temporary) / "run"
+            output_dir = Path(temporary) / "analysis"
+            run_dir.mkdir()
+            self._write_gzip(
+                run_dir / "match_overlap_source_trace.csv.gz",
+                rows,
+            )
+            summary = analyze_timing_eligibility(
+                run_dir=run_dir,
+                output_dir=output_dir,
+                bootstrap_samples=20,
+                bootstrap_seed=0,
+            )
+            self.assertTrue(summary["passed"])
+            self.assertEqual(summary["unknown_reason_rate"], 0.0)
+            self.assertTrue(
+                (
+                    output_dir
+                    / "FIG9_TIMING_ELIGIBILITY_DECOMPOSITION_REPORT.md"
+                ).exists()
+            )
+            with (
+                output_dir / "timing_eligibility_reason_summary.csv"
+            ).open(encoding="utf-8", newline="") as handle:
+                summary_rows = list(csv.DictReader(handle))
+            passenger_s3 = [
+                row
+                for row in summary_rows
+                if row["scope"] == "PASSENGER_SCENARIO3"
+            ]
+            self.assertEqual(
+                {int(row["source_row_denominator"]) for row in passenger_s3},
+                {2},
+            )
 
     def test_runner_trace_is_noninterfering(self) -> None:
         records = [
