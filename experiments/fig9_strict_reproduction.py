@@ -87,7 +87,9 @@ from experiments.diagnostics.fig9_intracolumn_selector import (  # noqa: E402
 from experiments.diagnostics.fig9_match_overlap import (  # noqa: E402
     DIAGNOSTIC_MARKERS as MATCH_OVERLAP_DIAGNOSTIC_MARKERS,
     MATCH_OVERLAP_LEVELS,
+    SourceTraceFilter,
     capture_match_overlap,
+    filter_source_trace_rows,
     finalize_match_overlap,
 )
 from seqmem.encoding import (  # noqa: E402
@@ -1643,6 +1645,8 @@ def run_strict_stream(
     match_overlap_diagnostic: bool = False,
     match_overlap_level: str = "summary",
     match_overlap_compress: bool = False,
+    timing_eligibility_decomposition: bool = False,
+    source_trace_filter: SourceTraceFilter | None = None,
 ) -> dict[str, object]:
     """Run one original or perturbed stream under the strict Fig.9 protocol."""
 
@@ -1657,6 +1661,13 @@ def run_strict_stream(
     if match_overlap_level not in MATCH_OVERLAP_LEVELS:
         raise ValueError(
             "match overlap level must be summary, segment, or source"
+        )
+    if timing_eligibility_decomposition and (
+        not match_overlap_diagnostic or match_overlap_level != "source"
+    ):
+        raise ValueError(
+            "timing eligibility decomposition requires source-level "
+            "match-overlap diagnostics"
         )
     if oracle_candidate_diagnostic and not competition.enabled:
         raise ValueError(
@@ -2085,6 +2096,9 @@ def run_strict_stream(
                 actual_record=record,
                 ranges=match_overlap_ranges,
                 level=match_overlap_level,
+                timing_eligibility_decomposition=(
+                    timing_eligibility_decomposition
+                ),
             )
             model.observe_code(
                 code,
@@ -2130,9 +2144,13 @@ def run_strict_stream(
                 match_overlap_segment_rows.extend(
                     completed_overlap.segment_rows
                 )
-                match_overlap_source_rows.extend(
-                    completed_overlap.source_rows
-                )
+                source_rows = completed_overlap.source_rows
+                if source_trace_filter is not None:
+                    source_rows = filter_source_trace_rows(
+                        source_rows,
+                        source_trace_filter,
+                    )
+                match_overlap_source_rows.extend(source_rows)
             if (
                 teacher_forced_winner_diagnostic
                 and teacher_forced_trace is not None
@@ -2716,6 +2734,22 @@ def run_strict_stream(
                 ),
                 "L_match": model.params.l_match,
                 "selection_behavior_changed": False,
+                "timing_eligibility_decomposition": (
+                    timing_eligibility_decomposition
+                ),
+                "diagnostic_does_not_affect_matching": True,
+                "diagnostic_does_not_affect_prediction": True,
+                "diagnostic_does_not_affect_learning": True,
+                "ground_truth_does_not_affect_model": True,
+                "filtered_trace_does_not_filter_model_execution": True,
+                "counterfactual_does_not_affect_model": True,
+                "trace_filter_only": source_trace_filter is not None,
+                "model_execution_unfiltered": True,
+                "source_trace_filter": (
+                    asdict(source_trace_filter)
+                    if source_trace_filter is not None
+                    else None
+                ),
                 "unavailable_fields": [
                     "future segment deletion after each captured observation",
                     "predicted-versus-burst labels at historical segment creation",
@@ -2913,6 +2947,26 @@ def parse_args() -> argparse.Namespace:
         "--match-overlap-compress",
         action="store_true",
         help="Write segment/source match-overlap traces as CSV.GZ.",
+    )
+    parser.add_argument(
+        "--timing-eligibility-decomposition",
+        action="store_true",
+        help="Add read-only timing/eligibility evidence to source rows.",
+    )
+    parser.add_argument("--source-trace-filter-field", default="")
+    parser.add_argument("--source-trace-filter-scenario", default="")
+    parser.add_argument(
+        "--source-trace-filter-record-start", type=int, default=None
+    )
+    parser.add_argument(
+        "--source-trace-filter-record-end", type=int, default=None
+    )
+    parser.add_argument(
+        "--source-trace-filter-loss-only", action="store_true"
+    )
+    parser.add_argument(
+        "--source-trace-filter-segments-existing-only",
+        action="store_true",
     )
     parser.add_argument("--interval-every", type=int, default=0)
     parser.add_argument("--profile", action="store_true")
@@ -3142,6 +3196,30 @@ def run_main(args: argparse.Namespace) -> None:
             match_overlap_diagnostic=args.match_overlap_diagnostic,
             match_overlap_level=args.match_overlap_level,
             match_overlap_compress=args.match_overlap_compress,
+            timing_eligibility_decomposition=(
+                args.timing_eligibility_decomposition
+            ),
+            source_trace_filter=(
+                SourceTraceFilter(
+                    field=args.source_trace_filter_field or None,
+                    scenario=args.source_trace_filter_scenario or None,
+                    record_start=args.source_trace_filter_record_start,
+                    record_end=args.source_trace_filter_record_end,
+                    loss_only=args.source_trace_filter_loss_only,
+                    existing_segments_only=(
+                        args.source_trace_filter_segments_existing_only
+                    ),
+                )
+                if (
+                    args.source_trace_filter_field
+                    or args.source_trace_filter_scenario
+                    or args.source_trace_filter_record_start is not None
+                    or args.source_trace_filter_record_end is not None
+                    or args.source_trace_filter_loss_only
+                    or args.source_trace_filter_segments_existing_only
+                )
+                else None
+            ),
         )
     if {"original", "perturbed"}.issubset(args.streams):
         runtime["pre_change_comparison"] = compare_pre_change_predictions(

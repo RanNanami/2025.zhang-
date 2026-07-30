@@ -9,6 +9,7 @@ alternative model trajectories.
 from __future__ import annotations
 
 import json
+import math
 import statistics
 from collections import Counter
 from dataclasses import dataclass
@@ -48,6 +49,47 @@ class MatchOverlapCapture:
     column_rows: tuple[dict[str, object], ...]
     segment_rows: tuple[dict[str, object], ...]
     source_rows: tuple[dict[str, object], ...]
+
+
+@dataclass(frozen=True)
+class SourceTraceFilter:
+    """Output-only filter; it never changes model execution."""
+
+    field: str | None = None
+    scenario: str | None = None
+    record_start: int | None = None
+    record_end: int | None = None
+    loss_only: bool = False
+    existing_segments_only: bool = False
+
+    def accepts(self, row: Mapping[str, object]) -> bool:
+        if self.field and row.get("field") != self.field:
+            return False
+        if self.scenario and row.get("observe_scenario") != self.scenario:
+            return False
+        index = int(row["actual_record_index"])
+        if self.record_start is not None and index < self.record_start:
+            return False
+        if self.record_end is not None and index > self.record_end:
+            return False
+        if self.loss_only and row.get("source_loss_reason_primary") == (
+            "SOURCE_EXACT_CELL_MATCHED"
+        ):
+            return False
+        if self.existing_segments_only and not row.get(
+            "source_still_present_in_segment"
+        ):
+            return False
+        return True
+
+
+def filter_source_trace_rows(
+    rows: Sequence[Mapping[str, object]],
+    trace_filter: SourceTraceFilter,
+) -> tuple[dict[str, object], ...]:
+    """Project captured rows without touching the model or capture path."""
+
+    return tuple(dict(row) for row in rows if trace_filter.accepts(row))
 
 
 def _ratio(numerator: float, denominator: float) -> float:
@@ -174,6 +216,119 @@ def classify_source_loss(
     return "UNKNOWN_SOURCE_LOSS"
 
 
+def classify_timing_eligibility_loss(
+    *,
+    contributes: bool,
+    source_cell_available: bool,
+    source_in_matching_context: bool,
+    source_in_active_cells: bool,
+    source_in_predicted_cells: bool,
+    source_in_burst_cells: bool,
+    arrival_available: bool,
+    arrival_in_matching_window: bool,
+    computed_arrival_time: float | None,
+    matching_window_start: float,
+    matching_window_end: float,
+    segment_considered_by_matching: bool,
+    synapse_considered_by_matching: bool,
+) -> tuple[str, str, str, str]:
+    """Classify one source using only conditions in the real match path."""
+
+    source_file = "src/seqmem/model.py"
+    if contributes:
+        return (
+            "SOURCE_EXACT_CELL_MATCHED",
+            "exact_cell_and_arrival_within_tolerance",
+            "Segment.timed_overlap",
+            source_file,
+        )
+    if not source_cell_available:
+        return (
+            "SOURCE_CELL_UNAVAILABLE",
+            "stable_source_cell_cannot_be_resolved",
+            "diagnostic_source_identity_validation",
+            "experiments/diagnostics/fig9_match_overlap.py",
+        )
+    if source_in_active_cells and not source_in_matching_context:
+        return (
+            "SOURCE_ACTIVE_NOT_IN_MATCH_CONTEXT",
+            "exact_source_in_active_cells_but_not_active_sources",
+            "SequentialMemory._active_sources",
+            source_file,
+        )
+    if (
+        source_in_predicted_cells
+        and not source_in_matching_context
+        and not source_in_active_cells
+    ):
+        return (
+            "SOURCE_PREDICTED_NOT_IN_MATCH_CONTEXT",
+            "predicted_source_not_present_in_active_sources",
+            "SequentialMemory._active_sources",
+            source_file,
+        )
+    if (
+        source_in_burst_cells
+        and not source_in_matching_context
+        and not source_in_active_cells
+    ):
+        return (
+            "SOURCE_BURST_NOT_IN_MATCH_CONTEXT",
+            "burst_source_not_present_in_active_sources",
+            "SequentialMemory._active_sources",
+            source_file,
+        )
+    if source_in_matching_context and not arrival_available:
+        return (
+            "SOURCE_STATE_CAPTURE_UNAVAILABLE",
+            "matching_source_firing_time_unavailable",
+            "Segment.timed_overlap",
+            source_file,
+        )
+    if source_in_matching_context and computed_arrival_time is not None:
+        if computed_arrival_time > matching_window_end:
+            return (
+                "SOURCE_IN_CONTEXT_DELAY_NOT_ARRIVED",
+                "source_time_plus_delay_after_matching_window",
+                "Segment.timed_overlap",
+                source_file,
+            )
+        if computed_arrival_time < matching_window_start:
+            return (
+                "SOURCE_IN_CONTEXT_ARRIVAL_TOO_EARLY",
+                "source_time_plus_delay_before_matching_window",
+                "Segment.timed_overlap",
+                source_file,
+            )
+    if not segment_considered_by_matching:
+        return (
+            "SEGMENT_NOT_ELIGIBLE",
+            "segment_not_reached_from_any_active_source",
+            "SequentialMemory._best_matching_neuron",
+            source_file,
+        )
+    if not synapse_considered_by_matching:
+        return (
+            "SYNAPSE_NOT_ELIGIBLE",
+            "source_identity_not_in_active_sources",
+            "Segment.timed_overlap",
+            source_file,
+        )
+    if source_in_matching_context and not arrival_in_matching_window:
+        return (
+            "SOURCE_OTHER_EXPLICIT_CODE_PATH",
+            "timed_overlap_rejected_outside_tolerance",
+            "Segment.timed_overlap",
+            source_file,
+        )
+    return (
+        "UNKNOWN_TIMING_ELIGIBILITY_REASON",
+        "no_explicit_matching_condition_identified",
+        "timing_eligibility_decomposition",
+        "experiments/diagnostics/fig9_match_overlap.py",
+    )
+
+
 def capture_match_overlap(
     *,
     model: SequentialMemory,
@@ -184,6 +339,7 @@ def capture_match_overlap(
     actual_record: TaxiRecord,
     ranges: FieldColumnRanges,
     level: str,
+    timing_eligibility_decomposition: bool = False,
 ) -> MatchOverlapCapture:
     """Copy match inputs before the one real ``observe_code`` call."""
 
@@ -462,6 +618,44 @@ def capture_match_overlap(
                         source_in_previous_winners=source in winner_ids,
                         timing_or_eligibility_allows_match=timing_matched,
                     )
+                    matching_window_start = (
+                        dendritic_time - model.params.timing_tolerance
+                    )
+                    matching_window_end = (
+                        dendritic_time + model.params.timing_tolerance
+                    )
+                    computed_arrival = (
+                        source_time + synapse.delay
+                        if source_time is not None
+                        else None
+                    )
+                    segment_considered = bool(
+                        segment.active and source_ids & active_ids
+                    )
+                    decomposed = classify_timing_eligibility_loss(
+                        contributes=contributes,
+                        source_cell_available=source_cell_available,
+                        source_in_matching_context=source in active_ids,
+                        source_in_active_cells=source in active_ids,
+                        source_in_predicted_cells=source in predicted,
+                        source_in_burst_cells=source in burst,
+                        arrival_available=computed_arrival is not None,
+                        arrival_in_matching_window=timing_matched,
+                        computed_arrival_time=computed_arrival,
+                        matching_window_start=matching_window_start,
+                        matching_window_end=matching_window_end,
+                        segment_considered_by_matching=segment_considered,
+                        synapse_considered_by_matching=source in active_ids,
+                    )
+                    primary_reason = (
+                        decomposed[0]
+                        if (
+                            timing_eligibility_decomposition
+                            and loss_reason
+                            == "SOURCE_TIMING_OR_ELIGIBILITY_EXCLUDED"
+                        )
+                        else loss_reason
+                    )
                     source_rows.append(
                         {
                             **DIAGNOSTIC_MARKERS,
@@ -472,6 +666,7 @@ def capture_match_overlap(
                             "encoded_column": event.column,
                             "segment_provenance_id": segment_id,
                             "segment_target_neuron": neuron_index,
+                            "segment_synapse_count": len(source_ids),
                             "source_column": source_column,
                             "source_neuron": source_neuron,
                             "source_field": field_for_column(
@@ -496,6 +691,8 @@ def capture_match_overlap(
                                 creation_transition
                             ),
                             "source_in_previous_winners": source in winner_ids,
+                            "source_in_matching_context": source in active_ids,
+                            "source_in_active_cells": source in active_ids,
                             "source_in_current_active_cells": (
                                 source in active_ids
                             ),
@@ -547,10 +744,143 @@ def capture_match_overlap(
                             "timing_or_eligibility_allows_match": (
                                 timing_matched
                             ),
+                            "actual_observation_time": event.time,
+                            "source_last_firing_time": (
+                                source_time if source_time is not None else ""
+                            ),
+                            "source_predicted_firing_time": (
+                                source_time
+                                if source in predicted
+                                and source_time is not None
+                                else ""
+                            ),
+                            "source_predicted_time_available": (
+                                source in predicted
+                                and source_time is not None
+                            ),
+                            "source_predicted_time_valid": (
+                                source in predicted
+                                and source_time is not None
+                                and math.isfinite(source_time)
+                            ),
+                            "computed_arrival_time": (
+                                computed_arrival
+                                if computed_arrival is not None
+                                else ""
+                            ),
+                            "matching_window_start": matching_window_start,
+                            "matching_window_end": matching_window_end,
+                            "arrival_in_matching_window": timing_matched,
+                            "timing_used_by_actual_overlap": True,
+                            "segment_considered_by_matching": (
+                                segment_considered
+                            ),
+                            "segment_eligible": (
+                                segment_considered
+                                and overlap >= model.params.l_match
+                            ),
+                            "segment_eligibility_failure_reason": (
+                                ""
+                                if segment_considered
+                                and overlap >= model.params.l_match
+                                else (
+                                    "SEGMENT_NOT_REACHED_FROM_ACTIVE_SOURCE"
+                                    if not segment_considered
+                                    else "TIMED_OVERLAP_BELOW_L_MATCH"
+                                )
+                            ),
+                            "synapse_considered_by_matching": (
+                                source in active_ids
+                            ),
+                            "synapse_eligible": timing_matched,
+                            "synapse_eligibility_failure_reason": (
+                                ""
+                                if timing_matched
+                                else (
+                                    "SOURCE_NOT_IN_ACTIVE_SOURCES"
+                                    if source not in active_ids
+                                    else "ARRIVAL_OUTSIDE_TIMING_TOLERANCE"
+                                )
+                            ),
+                            "source_identity_matches": (
+                                source in segment.synapses
+                            ),
                             "source_contributes_to_actual_overlap": contributes,
-                            "source_loss_reason": loss_reason,
-                            "source_missing_reason": loss_reason,
+                            "source_loss_reason_primary": primary_reason,
+                            "source_loss_reason_secondary": (
+                                decomposed[1]
+                                if (
+                                    timing_eligibility_decomposition
+                                    and loss_reason
+                                    == "SOURCE_TIMING_OR_ELIGIBILITY_EXCLUDED"
+                                )
+                                else ""
+                            ),
+                            "source_loss_reason_code_path": (
+                                decomposed[2]
+                                if (
+                                    timing_eligibility_decomposition
+                                    and loss_reason
+                                    == "SOURCE_TIMING_OR_ELIGIBILITY_EXCLUDED"
+                                )
+                                else ""
+                            ),
+                            "source_loss_condition": (
+                                decomposed[1]
+                                if (
+                                    timing_eligibility_decomposition
+                                    and loss_reason
+                                    == "SOURCE_TIMING_OR_ELIGIBILITY_EXCLUDED"
+                                )
+                                else ""
+                            ),
+                            "source_loss_source_file": (
+                                decomposed[3]
+                                if (
+                                    timing_eligibility_decomposition
+                                    and loss_reason
+                                    == "SOURCE_TIMING_OR_ELIGIBILITY_EXCLUDED"
+                                )
+                                else ""
+                            ),
+                            "source_loss_source_line": (
+                                "71-79"
+                                if (
+                                    timing_eligibility_decomposition
+                                    and loss_reason
+                                    == "SOURCE_TIMING_OR_ELIGIBILITY_EXCLUDED"
+                                )
+                                and decomposed[2] == "Segment.timed_overlap"
+                                else (
+                                    "604-614"
+                                    if timing_eligibility_decomposition
+                                    and decomposed[2]
+                                    == "SequentialMemory._active_sources"
+                                    else (
+                                        "2359-2373"
+                                        if timing_eligibility_decomposition
+                                        and decomposed[2]
+                                        == "SequentialMemory._best_matching_neuron"
+                                        else ""
+                                    )
+                                )
+                            ),
+                            "source_loss_evidence_available": (
+                                timing_eligibility_decomposition
+                                and loss_reason
+                                == "SOURCE_TIMING_OR_ELIGIBILITY_EXCLUDED"
+                            ),
+                            "source_loss_reason": primary_reason,
+                            "source_missing_reason": primary_reason,
                             "source_loss_reason_available": True,
+                            "state_capture_phase": (
+                                "pre_observation_matching_context"
+                            ),
+                            "captured_before_matching": True,
+                            "captured_before_observation_update": True,
+                            "captured_before_learning": True,
+                            "captured_before_segment_creation": True,
+                            "captured_before_segment_reinforcement": True,
                             "source_cell_still_exists": source_cell_available,
                             "source_segment_still_exists": segment.active,
                             "_segment_object_id": id(segment),
