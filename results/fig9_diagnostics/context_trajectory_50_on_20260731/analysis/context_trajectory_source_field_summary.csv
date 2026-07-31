@@ -1,0 +1,5 @@
+trajectory_kind,source_field,numerator,denominator,rate,denominator_scope
+actual_observation,passenger,1864,3276,0.568986568986569,source-column dependencies with SOURCE_COLUMN_NOT_ACTIVE
+actual_observation,time,1412,3276,0.43101343101343104,source-column dependencies with SOURCE_COLUMN_NOT_ACTIVE
+autonomous_rollout,passenger,1864,3276,0.568986568986569,source-column dependencies with SOURCE_COLUMN_NOT_ACTIVE
+autonomous_rollout,time,1412,3276,0.43101343101343104,source-column dependencies with SOURCE_COLUMN_NOT_ACTIVE

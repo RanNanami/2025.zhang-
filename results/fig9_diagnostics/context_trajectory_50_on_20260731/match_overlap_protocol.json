@@ -1,0 +1,43 @@
+{
+  "L_match": 4,
+  "actual_overlap": "count of unique active source cell IDs whose synapse arrival is within timing_tolerance of dendritic time",
+  "compressed": true,
+  "context_variants_do_not_affect_model": true,
+  "counterfactual_L_match_does_not_affect_model": true,
+  "counterfactual_does_not_affect_model": true,
+  "diagnostic_does_not_affect_learning": true,
+  "diagnostic_does_not_affect_matching": true,
+  "diagnostic_does_not_affect_prediction": true,
+  "diagnostic_only": true,
+  "filtered_trace_does_not_filter_model_execution": true,
+  "ground_truth_does_not_affect_matching": true,
+  "ground_truth_does_not_affect_model": true,
+  "ground_truth_does_not_affect_prediction": true,
+  "level": "source",
+  "match_overlap_decomposition": true,
+  "matching_context": "previous_active_cells with previous_winners fallback when burst_context=true; previous_winners otherwise",
+  "model_execution_unfiltered": true,
+  "offline_analysis_only": true,
+  "segment_creation_context": "previous_winners",
+  "selection_behavior_changed": false,
+  "source_trace_does_not_affect_learning": true,
+  "source_trace_does_not_affect_matching": true,
+  "source_trace_filter": {
+    "existing_segments_only": true,
+    "field": "passenger",
+    "loss_only": false,
+    "record_end": 44,
+    "record_start": 20,
+    "scenario": "scenario3"
+  },
+  "strict_protocol_sha256": "2ffc42addf25dad879a7f7d7b979a2b1f4b3e481aecad7a4a9aaea500851d81b",
+  "timing_eligibility_decomposition": false,
+  "trace_filter_only": true,
+  "unavailable_fields": [
+    "future segment deletion after each captured observation",
+    "predicted-versus-burst labels at historical segment creation"
+  ],
+  "uses_compensation": false,
+  "uses_ground_truth_for_analysis_only": true,
+  "version": "fig9-match-overlap-v1"
+}

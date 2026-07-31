@@ -1,0 +1,8 @@
+trajectory_kind,most_recent_loss_horizon_step,numerator,denominator,rate,denominator_scope
+actual_observation,0,3276,3276,1.0,source-column dependencies with SOURCE_COLUMN_NOT_ACTIVE
+autonomous_rollout,1,761,3276,0.2322954822954823,source-column dependencies with SOURCE_COLUMN_NOT_ACTIVE
+autonomous_rollout,2,824,3276,0.2515262515262515,source-column dependencies with SOURCE_COLUMN_NOT_ACTIVE
+autonomous_rollout,3,491,3276,0.14987789987789987,source-column dependencies with SOURCE_COLUMN_NOT_ACTIVE
+autonomous_rollout,4,198,3276,0.06043956043956044,source-column dependencies with SOURCE_COLUMN_NOT_ACTIVE
+autonomous_rollout,5,130,3276,0.03968253968253968,source-column dependencies with SOURCE_COLUMN_NOT_ACTIVE
+autonomous_rollout,NONE,872,3276,0.2661782661782662,source-column dependencies with SOURCE_COLUMN_NOT_ACTIVE

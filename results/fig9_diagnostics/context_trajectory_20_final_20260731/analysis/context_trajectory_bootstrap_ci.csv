@@ -1,0 +1,5 @@
+trajectory_kind,trajectory_loss_primary_reason,numerator,denominator,rate,bootstrap_low_95,bootstrap_high_95,bootstrap_unit
+actual_observation,EMITTED_NOT_PROPAGATED,266,831,0.3200962695547533,0.28797083839611176,0.35011709601873536,actual_record-observed_column-segment cluster
+actual_observation,NEVER_REACTIVATED_AFTER_CREATION,565,831,0.6799037304452467,0.6398046398046398,0.7171597633136094,actual_record-observed_column-segment cluster
+autonomous_rollout,LOST_BEFORE_CURRENT_TRANSITION,807,831,0.9711191335740073,0.9451428571428572,0.9906651108518086,actual_record-observed_column-segment cluster
+autonomous_rollout,NEVER_REACTIVATED_AFTER_CREATION,24,831,0.02888086642599278,0.009626955475330927,0.047619047619047616,actual_record-observed_column-segment cluster

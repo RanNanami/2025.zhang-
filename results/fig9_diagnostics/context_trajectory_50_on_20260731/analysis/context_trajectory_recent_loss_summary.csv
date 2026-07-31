@@ -1,0 +1,9 @@
+trajectory_kind,most_recent_loss_stage,numerator,denominator,rate,denominator_scope
+actual_observation,CROSSING_INVALID_TIME,166,3276,0.05067155067155067,source-column dependencies with SOURCE_COLUMN_NOT_ACTIVE
+actual_observation,EMITTED_NOT_PROPAGATED,3110,3276,0.9493284493284493,source-column dependencies with SOURCE_COLUMN_NOT_ACTIVE
+autonomous_rollout,CROSSING_INVALID_TIME,248,3276,0.0757020757020757,source-column dependencies with SOURCE_COLUMN_NOT_ACTIVE
+autonomous_rollout,LOST_BEFORE_CURRENT_TRANSITION,148,3276,0.045177045177045176,source-column dependencies with SOURCE_COLUMN_NOT_ACTIVE
+autonomous_rollout,LOST_INTERCOLUMN,2006,3276,0.6123321123321124,source-column dependencies with SOURCE_COLUMN_NOT_ACTIVE
+autonomous_rollout,NONE,724,3276,0.221001221001221,source-column dependencies with SOURCE_COLUMN_NOT_ACTIVE
+autonomous_rollout,NO_INSPECTED_SEGMENT,119,3276,0.03632478632478633,source-column dependencies with SOURCE_COLUMN_NOT_ACTIVE
+autonomous_rollout,RESPONSE_BELOW_THRESHOLD,31,3276,0.009462759462759462,source-column dependencies with SOURCE_COLUMN_NOT_ACTIVE

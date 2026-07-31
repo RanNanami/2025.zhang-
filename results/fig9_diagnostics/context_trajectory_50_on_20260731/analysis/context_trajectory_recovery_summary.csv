@@ -1,0 +1,3 @@
+trajectory_kind,dependency_count,dependencies_with_recovery,recovery_rate,mean_recovery_count,maximum_recovery_count
+actual_observation,3276,554,0.16910866910866912,0.29304029304029305,5
+autonomous_rollout,3276,2245,0.6852869352869353,2.6944444444444446,19

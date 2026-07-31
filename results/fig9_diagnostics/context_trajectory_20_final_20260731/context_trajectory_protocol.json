@@ -1,0 +1,29 @@
+{
+  "actual_and_autonomous_trajectories_separated": true,
+  "actual_observation_context_update": "observe_code proximal input updates previous_active_cells and learning winners",
+  "autonomous_context_update": "competition-emitted prediction cells are copied into previous_active_cells and previous_winners",
+  "compressed": true,
+  "context_trajectory_decomposition": true,
+  "diagnostic_does_not_affect_learning": true,
+  "diagnostic_does_not_affect_prediction": true,
+  "diagnostic_only": true,
+  "ground_truth_does_not_affect_model": true,
+  "level": "column",
+  "model_execution_unfiltered": true,
+  "offline_analysis_only": true,
+  "rows": 1662,
+  "source_dependency_filter": "SOURCE_COLUMN_NOT_ACTIVE",
+  "source_trace_filter": {
+    "existing_segments_only": true,
+    "field": "passenger",
+    "loss_only": false,
+    "record_end": null,
+    "record_start": null,
+    "scenario": "scenario3"
+  },
+  "strict_protocol_sha256": "387017d191de86a07c87ee80427ced64ffea0a1fae018203ad51c6a590a5024f",
+  "trace_filter_only": true,
+  "trace_path": "results\\fig9_diagnostics\\context_trajectory_20_final_20260731\\context_trajectory_column_trace.csv.gz",
+  "uses_compensation": false,
+  "version": "fig9-context-trajectory-v1"
+}

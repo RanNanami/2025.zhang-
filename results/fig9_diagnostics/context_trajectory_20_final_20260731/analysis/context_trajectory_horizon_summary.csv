@@ -1,0 +1,4 @@
+trajectory_kind,most_recent_loss_horizon_step,numerator,denominator,rate,denominator_scope
+actual_observation,0,831,831,1.0,source-column dependencies with SOURCE_COLUMN_NOT_ACTIVE
+autonomous_rollout,1,24,831,0.02888086642599278,source-column dependencies with SOURCE_COLUMN_NOT_ACTIVE
+autonomous_rollout,NONE,807,831,0.9711191335740073,source-column dependencies with SOURCE_COLUMN_NOT_ACTIVE

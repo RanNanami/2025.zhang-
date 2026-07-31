@@ -1,0 +1,10 @@
+trajectory_kind,trajectory_pattern,numerator,denominator,rate,denominator_scope
+actual_observation,ACTIVE_THEN_LOST,1284,3276,0.39194139194139194,source-column dependencies with SOURCE_COLUMN_NOT_ACTIVE
+actual_observation,INTERMITTENT_THEN_LOST,554,3276,0.16910866910866912,source-column dependencies with SOURCE_COLUMN_NOT_ACTIVE
+actual_observation,NEVER_PRESENT_AFTER_CREATION,1438,3276,0.43894993894993894,source-column dependencies with SOURCE_COLUMN_NOT_ACTIVE
+autonomous_rollout,ACTIVE_THEN_LOST,35,3276,0.010683760683760684,source-column dependencies with SOURCE_COLUMN_NOT_ACTIVE
+autonomous_rollout,CONSISTENTLY_PRESENT,724,3276,0.221001221001221,source-column dependencies with SOURCE_COLUMN_NOT_ACTIVE
+autonomous_rollout,INTERMITTENT_THEN_LOST,266,3276,0.0811965811965812,source-column dependencies with SOURCE_COLUMN_NOT_ACTIVE
+autonomous_rollout,LOST_THEN_RECOVERED,1979,3276,0.604090354090354,source-column dependencies with SOURCE_COLUMN_NOT_ACTIVE
+autonomous_rollout,NEVER_PRESENT_AFTER_CREATION,124,3276,0.03785103785103785,source-column dependencies with SOURCE_COLUMN_NOT_ACTIVE
+autonomous_rollout,NO_TRAJECTORY_HISTORY,148,3276,0.045177045177045176,source-column dependencies with SOURCE_COLUMN_NOT_ACTIVE

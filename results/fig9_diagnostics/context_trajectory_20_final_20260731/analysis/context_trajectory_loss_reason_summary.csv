@@ -1,0 +1,5 @@
+trajectory_kind,trajectory_loss_primary_reason,numerator,denominator,rate,denominator_scope
+actual_observation,EMITTED_NOT_PROPAGATED,266,831,0.3200962695547533,source-column dependencies with SOURCE_COLUMN_NOT_ACTIVE
+actual_observation,NEVER_REACTIVATED_AFTER_CREATION,565,831,0.6799037304452467,source-column dependencies with SOURCE_COLUMN_NOT_ACTIVE
+autonomous_rollout,LOST_BEFORE_CURRENT_TRANSITION,807,831,0.9711191335740073,source-column dependencies with SOURCE_COLUMN_NOT_ACTIVE
+autonomous_rollout,NEVER_REACTIVATED_AFTER_CREATION,24,831,0.02888086642599278,source-column dependencies with SOURCE_COLUMN_NOT_ACTIVE

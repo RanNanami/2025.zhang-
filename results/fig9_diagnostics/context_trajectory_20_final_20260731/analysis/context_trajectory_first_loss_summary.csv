@@ -1,0 +1,6 @@
+trajectory_kind,first_loss_stage,numerator,denominator,rate,denominator_scope
+actual_observation,CROSSING_INVALID_TIME,151,831,0.18170878459687123,source-column dependencies with SOURCE_COLUMN_NOT_ACTIVE
+actual_observation,EMITTED_NOT_PROPAGATED,680,831,0.8182912154031288,source-column dependencies with SOURCE_COLUMN_NOT_ACTIVE
+autonomous_rollout,LOST_BEFORE_CURRENT_TRANSITION,711,831,0.855595667870036,source-column dependencies with SOURCE_COLUMN_NOT_ACTIVE
+autonomous_rollout,LOST_INTERCOLUMN,24,831,0.02888086642599278,source-column dependencies with SOURCE_COLUMN_NOT_ACTIVE
+autonomous_rollout,NONE,96,831,0.11552346570397112,source-column dependencies with SOURCE_COLUMN_NOT_ACTIVE

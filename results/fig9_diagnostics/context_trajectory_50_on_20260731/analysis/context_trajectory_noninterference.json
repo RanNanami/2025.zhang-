@@ -1,0 +1,18 @@
+{
+  "baseline_run": "results/fig9_diagnostics/context_trajectory_50_off_v2_20260731",
+  "diagnostic_run": "results/fig9_diagnostics/context_trajectory_50_on_20260731",
+  "checkpoint_model_fingerprint": "8e86c6fac808a07c845cf8919ac1c0f1b6da96e811a65eb26842c91212718130",
+  "checkpoint_rng_fingerprint": "146a05aaca1b7e5f27e4787e9a67d50ec003af268c832bdd254132d8a40e5e00",
+  "coverage": 1.0,
+  "final_model_fingerprint": "8e86c6fac808a07c845cf8919ac1c0f1b6da96e811a65eb26842c91212718130",
+  "final_rng_fingerprint": "146a05aaca1b7e5f27e4787e9a67d50ec003af268c832bdd254132d8a40e5e00",
+  "mape": 0.4293969349409696,
+  "match_overlap_column_trace_sha256": "8f34d9492876379aa21cd266ad0eff43f3f004e1f1e17c50c24b3b53ca31362d",
+  "match_overlap_source_trace_decompressed_sha256": "621d89217a5920305dd7773c823f88b25e334ac8e1a44d73cda2966a3da69997",
+  "mean_raw_column_count": 175.976,
+  "peak_raw_column_count": 268,
+  "predictions_sha256": "8a64489fc4def9e75e6a2b6e3baa497f183780416a84d0e413ee98af6889455d",
+  "scenario_trace_identical": true,
+  "segment_count": 693,
+  "trajectory_equal": true
+}
