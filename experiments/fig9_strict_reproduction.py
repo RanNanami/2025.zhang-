@@ -92,6 +92,11 @@ from experiments.diagnostics.fig9_match_overlap import (  # noqa: E402
     filter_source_trace_rows,
     finalize_match_overlap,
 )
+from experiments.diagnostics.fig9_context_trajectory import (  # noqa: E402
+    CONTEXT_TRAJECTORY_LEVELS,
+    CONTEXT_TRAJECTORY_MARKERS,
+    ContextTrajectoryTracker,
+)
 from seqmem.encoding import (  # noqa: E402
     SSTDCompositeEncoder,
     SSTDPeriodicEncoder,
@@ -815,6 +820,7 @@ def rollout_raw_autonomous(
     future_records: list[TaxiRecord] | None = None,
     intracolumn_selection_policy: str = "existing",
     intracolumn_selection_diagnostic: bool = False,
+    context_trajectory_tracker: ContextTrajectoryTracker | None = None,
 ) -> RolloutResult:
     """Roll out future SSTD codes using only raw predictive neurons.
 
@@ -937,7 +943,10 @@ def rollout_raw_autonomous(
             )
             preselection_trace = (
                 PreselectionTrace()
-                if preselection_segment_diagnostic
+                if (
+                    preselection_segment_diagnostic
+                    or context_trajectory_tracker is not None
+                )
                 else None
             )
             intracolumn_trace = (
@@ -974,6 +983,21 @@ def rollout_raw_autonomous(
                     ranges=oracle_ranges,
                 )
             if raw is None:
+                if context_trajectory_tracker is not None:
+                    assert preselection_trace is not None
+                    context_trajectory_tracker.record_transition(
+                        model=model,
+                        trajectory_kind="autonomous_rollout",
+                        actual_record_index=(
+                            record_index if record_index is not None else 0
+                        ),
+                        horizon_step=_step_index + 1,
+                        preselection_trace=preselection_trace,
+                        raw_code=None,
+                        competition_result=None,
+                        next_active_cells={},
+                        next_winners={},
+                    )
                 intracolumn_selection_diagnostics.extend(
                     step_intracolumn_rows
                 )
@@ -1210,6 +1234,21 @@ def rollout_raw_autonomous(
                     model.prediction_active_cells(propagated)
                     if competition.enabled
                     else raw_active
+                )
+            if context_trajectory_tracker is not None:
+                assert preselection_trace is not None
+                context_trajectory_tracker.record_transition(
+                    model=model,
+                    trajectory_kind="autonomous_rollout",
+                    actual_record_index=(
+                        record_index if record_index is not None else 0
+                    ),
+                    horizon_step=_step_index + 1,
+                    preselection_trace=preselection_trace,
+                    raw_code=raw,
+                    competition_result=competition_result,
+                    next_active_cells=active,
+                    next_winners=active,
                 )
             decode_runtime = 0.0
             decoded_passenger: float | str = ""
@@ -1647,6 +1686,8 @@ def run_strict_stream(
     match_overlap_compress: bool = False,
     timing_eligibility_decomposition: bool = False,
     source_trace_filter: SourceTraceFilter | None = None,
+    context_trajectory_diagnostic: bool = False,
+    context_trajectory_level: str = "summary",
 ) -> dict[str, object]:
     """Run one original or perturbed stream under the strict Fig.9 protocol."""
 
@@ -1661,6 +1702,10 @@ def run_strict_stream(
     if match_overlap_level not in MATCH_OVERLAP_LEVELS:
         raise ValueError(
             "match overlap level must be summary, segment, or source"
+        )
+    if context_trajectory_level not in CONTEXT_TRAJECTORY_LEVELS:
+        raise ValueError(
+            "context trajectory level must be summary, column, or cell"
         )
     if timing_eligibility_decomposition and (
         not match_overlap_diagnostic or match_overlap_level != "source"
@@ -1780,6 +1825,7 @@ def run_strict_stream(
                 or preselection_segment_diagnostic
                 or teacher_forced_winner_diagnostic
                 or match_overlap_diagnostic
+                or context_trajectory_diagnostic
             )
             else None
         )
@@ -1819,6 +1865,7 @@ def run_strict_stream(
                 or preselection_segment_diagnostic
                 or teacher_forced_winner_diagnostic
                 or match_overlap_diagnostic
+                or context_trajectory_diagnostic
             )
             else None
         )
@@ -1840,6 +1887,12 @@ def run_strict_stream(
     match_overlap_column_rows: list[dict[str, object]] = []
     match_overlap_segment_rows: list[dict[str, object]] = []
     match_overlap_source_rows: list[dict[str, object]] = []
+    context_trajectory_rows: list[dict[str, object]] = []
+    context_trajectory_tracker = (
+        ContextTrajectoryTracker()
+        if context_trajectory_diagnostic
+        else None
+    )
     teacher_forced_ranges = (
         FieldColumnRanges.from_sizes(
             config.weekday_columns,
@@ -1855,7 +1908,7 @@ def run_strict_stream(
             config.time_columns,
             config.passenger_columns,
         )
-        if match_overlap_diagnostic
+        if match_overlap_diagnostic or context_trajectory_diagnostic
         else None
     )
     validate_strict_fingerprint(fingerprint)
@@ -1929,6 +1982,7 @@ def run_strict_stream(
                 intracolumn_selection_diagnostic=(
                     intracolumn_selection_diagnostic
                 ),
+                context_trajectory_tracker=context_trajectory_tracker,
             )
             if debug_enabled:
                 debug_payload = {
@@ -2072,13 +2126,24 @@ def run_strict_stream(
                 capture_scenario_details=(
                     observe_scenario_diagnostic
                     or match_overlap_diagnostic
+                    or context_trajectory_diagnostic
                 ),
             )
-            if teacher_forced_winner_diagnostic or match_overlap_diagnostic
+            if (
+                teacher_forced_winner_diagnostic
+                or match_overlap_diagnostic
+                or context_trajectory_diagnostic
+            )
             else None
         )
         match_overlap_capture = None
-        if match_overlap_diagnostic:
+        actual_prediction_trace = (
+            PreselectionTrace()
+            if context_trajectory_diagnostic
+            else None
+        )
+        actual_raw: SymbolCode | None = None
+        if match_overlap_diagnostic or context_trajectory_diagnostic:
             if (
                 branch_registry is None
                 or match_overlap_ranges is None
@@ -2086,7 +2151,9 @@ def run_strict_stream(
             ):
                 raise RuntimeError("match-overlap diagnostic state unavailable")
             # Preserve learn_actual_code's strict predict-then-observe order.
-            model.predict_code()
+            actual_raw = model.predict_code(
+                preselection_trace=actual_prediction_trace,
+            )
             match_overlap_capture = capture_match_overlap(
                 model=model,
                 code=code,
@@ -2095,7 +2162,11 @@ def run_strict_stream(
                 actual_record_index=index,
                 actual_record=record,
                 ranges=match_overlap_ranges,
-                level=match_overlap_level,
+                level=(
+                    "source"
+                    if context_trajectory_diagnostic
+                    else match_overlap_level
+                ),
                 timing_eligibility_decomposition=(
                     timing_eligibility_decomposition
                 ),
@@ -2138,19 +2209,43 @@ def run_strict_stream(
                     teacher_forced_trace,
                     branch_registry,
                 )
-                match_overlap_column_rows.extend(
-                    completed_overlap.column_rows
-                )
-                match_overlap_segment_rows.extend(
-                    completed_overlap.segment_rows
-                )
                 source_rows = completed_overlap.source_rows
                 if source_trace_filter is not None:
                     source_rows = filter_source_trace_rows(
                         source_rows,
                         source_trace_filter,
                     )
-                match_overlap_source_rows.extend(source_rows)
+                if context_trajectory_tracker is not None:
+                    context_trajectory_rows.extend(
+                        context_trajectory_tracker.dependency_rows(
+                            source_rows=source_rows,
+                            ranges=match_overlap_ranges,
+                            level=context_trajectory_level,
+                        )
+                    )
+                if match_overlap_diagnostic:
+                    match_overlap_column_rows.extend(
+                        completed_overlap.column_rows
+                    )
+                    if match_overlap_level in {"segment", "source"}:
+                        match_overlap_segment_rows.extend(
+                            completed_overlap.segment_rows
+                        )
+                    if match_overlap_level == "source":
+                        match_overlap_source_rows.extend(source_rows)
+            if context_trajectory_tracker is not None:
+                assert actual_prediction_trace is not None
+                context_trajectory_tracker.record_transition(
+                    model=model,
+                    trajectory_kind="actual_observation",
+                    actual_record_index=index,
+                    horizon_step=0,
+                    preselection_trace=actual_prediction_trace,
+                    raw_code=actual_raw,
+                    competition_result=None,
+                    next_active_cells=model.previous_active_cells,
+                    next_winners=model.previous_winners,
+                )
             if (
                 teacher_forced_winner_diagnostic
                 and teacher_forced_trace is not None
@@ -2312,6 +2407,13 @@ def run_strict_stream(
                 "simultaneous_policy": competition.simultaneous_policy,
                 "simultaneous_bin_width": competition.simultaneous_bin_width,
             }
+        )
+    if context_trajectory_diagnostic:
+        summary["context_trajectory_trace_path"] = str(
+            output_dir / "context_trajectory_column_trace.csv.gz"
+        )
+        summary["context_trajectory_row_count"] = len(
+            context_trajectory_rows
         )
     if density_rows:
         density_summary = summarize_density(density_rows)
@@ -2759,6 +2861,40 @@ def run_strict_stream(
                 ),
             },
         )
+    if context_trajectory_diagnostic:
+        trace_path = write_diagnostic_csv(
+            output_dir / "context_trajectory_column_trace.csv",
+            context_trajectory_rows,
+            compress=True,
+        )
+        write_json(
+            output_dir / "context_trajectory_protocol.json",
+            {
+                **CONTEXT_TRAJECTORY_MARKERS,
+                "version": "fig9-context-trajectory-v1",
+                "level": context_trajectory_level,
+                "compressed": True,
+                "trace_path": str(trace_path) if trace_path else "",
+                "rows": len(context_trajectory_rows),
+                "source_dependency_filter": "SOURCE_COLUMN_NOT_ACTIVE",
+                "source_trace_filter": (
+                    asdict(source_trace_filter)
+                    if source_trace_filter is not None
+                    else None
+                ),
+                "trace_filter_only": source_trace_filter is not None,
+                "model_execution_unfiltered": True,
+                "actual_observation_context_update": (
+                    "observe_code proximal input updates previous_active_cells "
+                    "and learning winners"
+                ),
+                "autonomous_context_update": (
+                    "competition-emitted prediction cells are copied into "
+                    "previous_active_cells and previous_winners"
+                ),
+                "strict_protocol_sha256": stable_object_sha256(fingerprint),
+            },
+        )
     if interval_rows:
         write_predictions(
             output_dir / f"{stream_label}_interval_summary.csv",
@@ -2967,6 +3103,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--source-trace-filter-segments-existing-only",
         action="store_true",
+    )
+    parser.add_argument(
+        "--context-trajectory-diagnostic",
+        action="store_true",
+        help="Trace read-only source-column progress across context stages.",
+    )
+    parser.add_argument(
+        "--context-trajectory-level",
+        choices=tuple(sorted(CONTEXT_TRAJECTORY_LEVELS)),
+        default="summary",
     )
     parser.add_argument("--interval-every", type=int, default=0)
     parser.add_argument("--profile", action="store_true")
@@ -3220,6 +3366,10 @@ def run_main(args: argparse.Namespace) -> None:
                 )
                 else None
             ),
+            context_trajectory_diagnostic=(
+                args.context_trajectory_diagnostic
+            ),
+            context_trajectory_level=args.context_trajectory_level,
         )
     if {"original", "perturbed"}.issubset(args.streams):
         runtime["pre_change_comparison"] = compare_pre_change_predictions(
