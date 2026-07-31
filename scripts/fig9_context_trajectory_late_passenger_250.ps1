@@ -1,0 +1,86 @@
+$ErrorActionPreference = "Stop"
+$RepositoryRoot = Split-Path -Parent $PSScriptRoot
+Set-Location $RepositoryRoot
+
+Write-Host "This is the manual 250-record context trajectory diagnostic."
+Write-Host "It does not change strict defaults, matching, prediction, or learning."
+
+$env:PYTHONUNBUFFERED = "1"
+$env:PYTHONFAULTHANDLER = "1"
+$Timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+$OutputDirectory = Join-Path `
+    "results/fig9_diagnostics/context_trajectory" `
+    "late_passenger_250_$Timestamp"
+$AnalysisDirectory = Join-Path $OutputDirectory "analysis"
+$LogPath = Join-Path $OutputDirectory "run.log"
+
+New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
+New-Item -ItemType File -Force -Path $LogPath | Out-Null
+
+$PythonArgs = @(
+    "-X", "faulthandler", "-u",
+    "experiments/fig9_strict_reproduction.py",
+    "--limit", "250",
+    "--warmup", "200",
+    "--streams", "original",
+    "--continuous-impl", "reference",
+    "--competition-mode", "competitive_raw",
+    "--inhibition-strength", "0.1",
+    "--inhibition-tau", "0.02",
+    "--simultaneous-policy", "batched",
+    "--simultaneous-bin-width", "0.005",
+    "--intracolumn-selection-policy", "max_candidate_score",
+    "--context-trajectory-diagnostic",
+    "--context-trajectory-level", "column",
+    "--source-trace-filter-field", "passenger",
+    "--source-trace-filter-scenario", "scenario3",
+    "--source-trace-filter-record-start", "200",
+    "--source-trace-filter-record-end", "244",
+    "--source-trace-filter-segments-existing-only",
+    "--density-trace",
+    "--interval-every", "25",
+    "--checkpoint-every", "50",
+    "--checkpoint-path", (Join-Path $OutputDirectory "checkpoint.pkl"),
+    "--output-dir", $OutputDirectory
+)
+
+& .\.venv\Scripts\python.exe @PythonArgs 2>&1 |
+    Tee-Object -FilePath $LogPath
+$RunExitCode = $LASTEXITCODE
+if ($RunExitCode -ne 0) {
+    throw "Fig.9 diagnostic failed with exit code $RunExitCode. Log: $LogPath"
+}
+
+& .\.venv\Scripts\python.exe `
+    experiments/diagnostics/analyze_fig9_context_trajectory_decomposition.py `
+    --run-dir $OutputDirectory `
+    --output-dir $AnalysisDirectory `
+    --bootstrap-samples 1000 `
+    --bootstrap-seed 0
+$AnalysisExitCode = $LASTEXITCODE
+if ($AnalysisExitCode -ne 0) {
+    throw "Analysis failed with exit code $AnalysisExitCode."
+}
+
+$SummaryPath = Join-Path $AnalysisDirectory "context_trajectory_summary.json"
+$Summary = Get-Content $SummaryPath -Raw | ConvertFrom-Json
+$TracePath = Join-Path $OutputDirectory "context_trajectory_column_trace.csv.gz"
+
+Write-Host "Observation coverage: $($Summary.unique_observation_count) / 329"
+Write-Host "Segment coverage: $($Summary.unique_segment_count) / 2437"
+Write-Host "Dependencies: $($Summary.unique_dependency_count)"
+Write-Host "Trajectory pair coverage: $($Summary.trajectory_pair_coverage)"
+Write-Host "Unknown rate: $($Summary.unknown_reason_rate)"
+Write-Host "Actual dominant recent loss: $($Summary.by_trajectory_kind.actual_observation.dominant_recent_loss_stage)"
+Write-Host "Autonomous dominant recent loss: $($Summary.by_trajectory_kind.autonomous_rollout.dominant_recent_loss_stage)"
+Write-Host "Recommended next step: $($Summary.recommended_next_step)"
+Write-Host "Trace bytes: $((Get-Item $TracePath).Length)"
+Write-Host "Report: $(Join-Path $AnalysisDirectory 'FIG9_CONTEXT_TRAJECTORY_DECOMPOSITION_REPORT.md')"
+Write-Host "Output directory: $OutputDirectory"
+
+if (
+    $Summary.unique_observation_count -ne 329 -or
+    $Summary.unique_segment_count -ne 2437
+) {
+    throw "Late-passenger join coverage is incomplete; do not interpret the report."
+}
