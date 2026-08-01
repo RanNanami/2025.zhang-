@@ -380,6 +380,7 @@ def save_strict_checkpoint(
         "model": model,
         "fingerprint": fingerprint,
         "config": config,
+        "L_match": config.l_match,
         "stream_label": stream_label,
         "data_path": str(data_path),
         "data_file_sha256": file_sha256(data_path),
@@ -407,12 +408,50 @@ def save_strict_checkpoint(
         pickle.dump(payload, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
+class _StrictCheckpointUnpickler(pickle.Unpickler):
+    """Load checkpoints written by either module or direct-script entrypoints."""
+
+    def find_class(self, module: str, name: str) -> type:
+        if module == "__main__" and name == "Fig9StrictConfig":
+            return Fig9StrictConfig
+        return super().find_class(module, name)
+
+
 def load_strict_checkpoint(path: Path) -> dict[str, object]:
     with path.open("rb") as handle:
-        payload = pickle.load(handle)
+        payload = _StrictCheckpointUnpickler(handle).load()
     if payload.get("checkpoint_format") != "fig9-strict-v1":
         raise ValueError("unsupported Fig.9 strict checkpoint format")
     return payload
+
+
+def validate_checkpoint_l_match(
+    checkpoint: dict[str, object],
+    config: Fig9StrictConfig,
+) -> None:
+    """Reject resumes that would silently change the real matching threshold."""
+
+    checkpoint_config = checkpoint.get("config")
+    checkpoint_l_match = checkpoint.get("L_match")
+    if checkpoint_l_match is None and isinstance(
+        checkpoint_config, Fig9StrictConfig
+    ):
+        checkpoint_l_match = checkpoint_config.l_match
+    if checkpoint_l_match is None:
+        fingerprint = checkpoint.get("fingerprint")
+        if isinstance(fingerprint, dict):
+            checkpoint_l_match = fingerprint.get("L_match")
+    if checkpoint_l_match is None:
+        model = checkpoint.get("model")
+        params = getattr(model, "params", None)
+        checkpoint_l_match = getattr(params, "l_match", None)
+    if checkpoint_l_match is None:
+        raise ValueError("checkpoint does not record L_match")
+    if int(checkpoint_l_match) != config.l_match:
+        raise ValueError(
+            "checkpoint L_match mismatch: "
+            f"checkpoint={checkpoint_l_match}, requested={config.l_match}"
+        )
 
 
 def branch_checkpoint_sidecar_path(checkpoint_path: Path) -> Path:
@@ -796,6 +835,21 @@ def validate_strict_fingerprint(fingerprint: dict[str, object]) -> None:
         forbidden.append("non-strict label")
     if forbidden:
         raise ValueError(f"forbidden strict Fig.9 settings: {', '.join(forbidden)}")
+
+
+def lmatch_ablation_markers(l_match: int) -> dict[str, object]:
+    """Return auditable labels for a nonpaper real-L_match experiment."""
+
+    return {
+        "diagnostic_only": True,
+        "lmatch_real_ablation": True,
+        "strict_default_unchanged": Fig9StrictConfig().l_match == 4,
+        "uses_ground_truth_for_selection": False,
+        "uses_future_covariates": False,
+        "uses_compensation": False,
+        "L_match": l_match,
+        "recurrent_trajectory_divergence": True,
+    }
 
 
 def rollout_raw_autonomous(
@@ -1688,6 +1742,7 @@ def run_strict_stream(
     source_trace_filter: SourceTraceFilter | None = None,
     context_trajectory_diagnostic: bool = False,
     context_trajectory_level: str = "summary",
+    lmatch_real_ablation: bool = False,
 ) -> dict[str, object]:
     """Run one original or perturbed stream under the strict Fig.9 protocol."""
 
@@ -1790,6 +1845,7 @@ def run_strict_stream(
         raise ValueError("Not enough records for the requested horizon.")
     if resume_checkpoint is not None:
         checkpoint = load_strict_checkpoint(resume_checkpoint)
+        validate_checkpoint_l_match(checkpoint, config)
         encoder = checkpoint["encoder"]  # type: ignore[assignment]
         model = checkpoint["model"]  # type: ignore[assignment]
         fingerprint = checkpoint["fingerprint"]  # type: ignore[assignment]
@@ -1912,6 +1968,8 @@ def run_strict_stream(
         else None
     )
     validate_strict_fingerprint(fingerprint)
+    if lmatch_real_ablation:
+        fingerprint.update(lmatch_ablation_markers(config.l_match))
     if print_fingerprint:
         print(json.dumps(fingerprint, indent=2, sort_keys=True))
 
@@ -2391,10 +2449,15 @@ def run_strict_stream(
         ),
         "final_model_fingerprint": model_long_term_fingerprint(model),
         "final_rng_fingerprint": model_rng_fingerprint(model),
+        "final_segment_count": segment_count(model),
+        "final_synapse_count": synapse_count(model),
         "prediction_before_observe": True,
         "autonomous_rollout_steps": config.horizon,
         "uses_compensation": False,
+        "L_match": config.l_match,
     }
+    if lmatch_real_ablation:
+        summary.update(lmatch_ablation_markers(config.l_match))
     if competition.enabled:
         summary.update(
             {
@@ -2958,6 +3021,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--perturbed-data", default="data/paper_nyc_taxi_perturb.csv")
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--warmup", type=int, default=5904)
+    parser.add_argument("--prediction-horizon", type=int, default=5)
+    parser.add_argument("--tie-break-seed", type=int, default=0)
+    parser.add_argument(
+        "--l-match",
+        type=int,
+        choices=(2, 3, 4),
+        default=4,
+        help="Real matching threshold; 2/3 require --lmatch-real-ablation.",
+    )
+    parser.add_argument(
+        "--lmatch-real-ablation",
+        action="store_true",
+        help="Label a controlled nonpaper real-L_match experiment.",
+    )
     parser.add_argument("--output-dir", default="results/fig9_strict")
     parser.add_argument("--density-trace", action="store_true")
     parser.add_argument("--density-trace-csv", default="")
@@ -3207,9 +3284,16 @@ def run_april_branch(args: argparse.Namespace, config: Fig9StrictConfig) -> None
 def run_main(args: argparse.Namespace) -> None:
     output_dir = Path(args.output_dir)
     config = Fig9StrictConfig(
+        horizon=args.prediction_horizon,
         warmup=args.warmup,
+        seed=args.tie_break_seed,
+        l_match=args.l_match,
         continuous_prediction_impl=args.continuous_impl,
     )
+    if config.l_match != Fig9StrictConfig().l_match and not args.lmatch_real_ablation:
+        raise ValueError(
+            "non-default L_match requires --lmatch-real-ablation"
+        )
     competition = CompetitionSettings(
         mode=args.competition_mode,
         inhibition_strength=args.inhibition_strength,
@@ -3230,12 +3314,17 @@ def run_main(args: argparse.Namespace) -> None:
         "started_at": datetime.now().isoformat(sep=" ", timespec="seconds"),
         "limit": args.limit,
         "warmup": args.warmup,
+        "prediction_horizon": config.horizon,
+        "tie_break_seed": config.seed,
         "streams": list(args.streams),
         "continuous_impl": config.continuous_prediction_impl,
         "continuous_impl_version": continuous_impl_version(
             config.continuous_prediction_impl
         ),
+        "L_match": config.l_match,
     }
+    if args.lmatch_real_ablation:
+        runtime.update(lmatch_ablation_markers(config.l_match))
     if competition.enabled:
         runtime.update(
             {
@@ -3370,6 +3459,7 @@ def run_main(args: argparse.Namespace) -> None:
                 args.context_trajectory_diagnostic
             ),
             context_trajectory_level=args.context_trajectory_level,
+            lmatch_real_ablation=args.lmatch_real_ablation,
         )
     if {"original", "perturbed"}.issubset(args.streams):
         runtime["pre_change_comparison"] = compare_pre_change_predictions(
