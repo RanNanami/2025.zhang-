@@ -135,15 +135,50 @@ class BranchProvenanceRegistry:
     ) -> list[SegmentOrigin]:
         """Record segments created by one already-completed learning call."""
 
-        source_ids = tuple(sorted(creation_sources))
-        source_fingerprint = stable_source_fingerprint(source_ids)
         created = [
             (column, neuron, segment)
             for column, neuron, segment in _iter_segments(model)
             if id(segment) not in previous_segment_ids
         ]
+        return self.capture_created_segments(
+            model,
+            created=created,
+            creation_transition_index=creation_transition_index,
+            creation_sources=creation_sources,
+        )
+
+    def capture_created_segments(
+        self,
+        model: SequentialMemory,
+        *,
+        created: Iterable[tuple[int, int, Segment]],
+        creation_transition_index: int,
+        creation_sources: Mapping[int, float],
+    ) -> list[SegmentOrigin]:
+        """Record exact segments exposed by the same observation trace.
+
+        Ordering mirrors the model's column/neuron/segment traversal so stable
+        diagnostic IDs remain identical to the historical full-model scan.
+        """
+
+        source_ids = tuple(sorted(creation_sources))
+        source_fingerprint = stable_source_fingerprint(source_ids)
+        ordered = sorted(
+            created,
+            key=lambda item: (
+                item[0],
+                item[1],
+                next(
+                    index
+                    for index, segment in enumerate(
+                        model.columns[item[0]].neurons[item[1]].segments
+                    )
+                    if segment is item[2]
+                ),
+            ),
+        )
         origins: list[SegmentOrigin] = []
-        for ordinal, (column, neuron, segment) in enumerate(created):
+        for ordinal, (column, neuron, segment) in enumerate(ordered):
             origin = SegmentOrigin(
                 segment_provenance_id=stable_segment_provenance_id(
                     creation_transition_index=creation_transition_index,
@@ -210,6 +245,18 @@ class BranchProvenanceRegistry:
             "segments": rows,
             "current_predicted_sources": sorted(self.current_predicted_sources),
             "current_burst_sources": sorted(self.current_burst_sources),
+        }
+
+    def binding_summary(self, model: SequentialMemory) -> dict[str, int]:
+        """Report exact object rebinding coverage after checkpoint restore."""
+
+        live_segments = list(_iter_segments(model))
+        bound = sum(id(segment) in self._by_object for _, _, segment in live_segments)
+        return {
+            "live_segment_count": len(live_segments),
+            "bound_segment_count": bound,
+            "unbound_segment_count": len(live_segments) - bound,
+            "registry_entry_count": len(self._by_object),
         }
 
     @classmethod

@@ -282,6 +282,7 @@ class ContextTrajectoryTracker:
             grouped.setdefault(key, source)
 
         output: list[dict[str, object]] = []
+        history_cache: dict[tuple[str, int, int, int], dict[str, object]] = {}
         for source in grouped.values():
             current_index = int(source["actual_record_index"])
             source_column = int(source["source_column"])
@@ -292,19 +293,41 @@ class ContextTrajectoryTracker:
                 else -1
             )
             for kind in ("actual_observation", "autonomous_rollout"):
-                history = [
-                    snapshot.for_column(source_column)
-                    for snapshot in self._transitions.get(kind, ())
-                    if snapshot.effective_record_index < current_index
-                    and snapshot.effective_record_index >= creation_index
-                ]
+                cache_key = (kind, source_column, creation_index, current_index)
+                history_summary = history_cache.get(cache_key)
+                if history_summary is None:
+                    history = [
+                        snapshot.for_column(source_column)
+                        for snapshot in self._transitions.get(kind, ())
+                        if snapshot.effective_record_index < current_index
+                        and snapshot.effective_record_index >= creation_index
+                    ]
+                    history_summary = self._summarize_history(history)
+                    history_cache[cache_key] = history_summary
                 output.append(
-                    self._summarize_dependency(
-                        source=source,
-                        history=history,
-                        trajectory_kind=kind,
-                        ranges=ranges,
-                    )
+                    {
+                        **CONTEXT_TRAJECTORY_MARKERS,
+                        "actual_record_index": source["actual_record_index"],
+                        "timestamp": source.get("timestamp", ""),
+                        "observed_field": source.get("field", ""),
+                        "observed_column": source.get("encoded_column", ""),
+                        "observe_scenario": source.get("observe_scenario", ""),
+                        "segment_id": source.get("segment_provenance_id", ""),
+                        "segment_creation_transition_index": source.get(
+                            "segment_creation_transition_index", ""
+                        ),
+                        "source_field": source.get(
+                            "source_field",
+                            field_for_column(source_column, ranges),
+                        ),
+                        "source_column": source_column,
+                        "source_neuron": source.get("source_neuron", ""),
+                        "source_cell_stable_id": source.get(
+                            "source_cell_stable_id", ""
+                        ),
+                        "trajectory_kind": kind,
+                        **history_summary,
+                    }
                 )
         return output
 
@@ -317,6 +340,31 @@ class ContextTrajectoryTracker:
         ranges: FieldColumnRanges,
     ) -> dict[str, object]:
         source_column = int(source["source_column"])
+        return {
+            **CONTEXT_TRAJECTORY_MARKERS,
+            "actual_record_index": source["actual_record_index"],
+            "timestamp": source.get("timestamp", ""),
+            "observed_field": source.get("field", ""),
+            "observed_column": source.get("encoded_column", ""),
+            "observe_scenario": source.get("observe_scenario", ""),
+            "segment_id": source.get("segment_provenance_id", ""),
+            "segment_creation_transition_index": source.get(
+                "segment_creation_transition_index", ""
+            ),
+            "source_field": source.get(
+                "source_field", field_for_column(source_column, ranges)
+            ),
+            "source_column": source_column,
+            "source_neuron": source.get("source_neuron", ""),
+            "source_cell_stable_id": source.get("source_cell_stable_id", ""),
+            "trajectory_kind": trajectory_kind,
+            **ContextTrajectoryTracker._summarize_history(history),
+        }
+
+    @staticmethod
+    def _summarize_history(
+        history: Sequence[ColumnTransition],
+    ) -> dict[str, object]:
         losses = [_stage_loss(item) for item in history]
         explicit_losses = [reason for reason in losses if reason]
         loss_items = [
@@ -358,24 +406,6 @@ class ContextTrajectoryTracker:
 
         latest = history[-1] if history else None
         return {
-            **CONTEXT_TRAJECTORY_MARKERS,
-            "actual_record_index": source["actual_record_index"],
-            "timestamp": source.get("timestamp", ""),
-            "observed_field": source.get("field", ""),
-            "observed_column": source.get("encoded_column", ""),
-            "observe_scenario": source.get("observe_scenario", ""),
-            "segment_id": source.get("segment_provenance_id", ""),
-            "segment_creation_transition_index": source.get(
-                "segment_creation_transition_index", ""
-            ),
-            "source_field": source.get(
-                "source_field",
-                field_for_column(source_column, ranges),
-            ),
-            "source_column": source_column,
-            "source_neuron": source.get("source_neuron", ""),
-            "source_cell_stable_id": source.get("source_cell_stable_id", ""),
-            "trajectory_kind": trajectory_kind,
             "history_transition_count": len(history),
             "history_available": bool(history),
             "latest_horizon_step": (

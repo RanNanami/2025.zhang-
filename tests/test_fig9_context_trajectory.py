@@ -293,6 +293,24 @@ class ContextTrajectoryRunnerTests(unittest.TestCase):
                 context_trajectory_level="column",
                 **common,
             )
+            streamed = run_strict_stream(
+                output_dir=root / "streamed",
+                checkpoint_path=root / "streamed.pkl",
+                checkpoint_at_index=9,
+                context_trajectory_diagnostic=True,
+                context_trajectory_level="column",
+                stream_diagnostic_traces=True,
+                **common,
+            )
+            uncompressed = run_strict_stream(
+                output_dir=root / "uncompressed",
+                checkpoint_path=root / "uncompressed.pkl",
+                checkpoint_at_index=9,
+                context_trajectory_diagnostic=True,
+                context_trajectory_level="column",
+                context_trajectory_compress=False,
+                **common,
+            )
             self.assertEqual(
                 (root / "plain" / "original_predictions.csv").read_bytes(),
                 (root / "traced" / "original_predictions.csv").read_bytes(),
@@ -313,6 +331,35 @@ class ContextTrajectoryRunnerTests(unittest.TestCase):
                 "final_segment_count",
             ):
                 self.assertEqual(plain.get(field), traced.get(field))
+                self.assertEqual(traced.get(field), streamed.get(field))
+                self.assertEqual(traced.get(field), uncompressed.get(field))
+            self.assertEqual(
+                (root / "traced" / "original_predictions.csv").read_bytes(),
+                (root / "streamed" / "original_predictions.csv").read_bytes(),
+            )
+            with gzip.open(
+                root / "traced" / "context_trajectory_column_trace.csv.gz",
+                "rt",
+                encoding="utf-8",
+            ) as left, gzip.open(
+                root / "streamed" / "context_trajectory_column_trace.csv.gz",
+                "rt",
+                encoding="utf-8",
+            ) as right:
+                self.assertEqual(left.read(), right.read())
+            with gzip.open(
+                root / "traced" / "context_trajectory_column_trace.csv.gz",
+                "rt",
+                encoding="utf-8",
+            ) as left:
+                self.assertEqual(
+                    left.read(),
+                    (
+                        root
+                        / "uncompressed"
+                        / "context_trajectory_column_trace.csv"
+                    ).read_text(encoding="utf-8"),
+                )
             for path, summary in (
                 (root / "plain.pkl", plain),
                 (root / "traced.pkl", traced),

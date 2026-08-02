@@ -135,6 +135,34 @@ class Fig9BranchProvenanceUnitTests(unittest.TestCase):
             origin,
         )
 
+    def test_exact_created_segment_capture_matches_full_scan(self) -> None:
+        model = SequentialMemory(
+            encoder=SSTDDiscreteEncoder(num_columns=12, k=3, seed=4),
+            num_neurons_per_column=3,
+            params=MemoryParams(response_scale=1.0),
+            tie_break_seed=4,
+        )
+        before: set[int] = set()
+        model._grow_segment(2, 1, {3: 0.1, 1: 0.2}, 0.3)
+        segment = model.columns[2].neurons[1].segments[0]
+        scanned = BranchProvenanceRegistry()
+        exact = BranchProvenanceRegistry()
+        scanned.capture_new_segments(
+            model,
+            previous_segment_ids=before,
+            creation_transition_index=5,
+            creation_sources={3: 0.1, 1: 0.2},
+        )
+        exact.capture_created_segments(
+            model,
+            created=[(2, 1, segment)],
+            creation_transition_index=5,
+            creation_sources={3: 0.1, 1: 0.2},
+        )
+        self.assertEqual(
+            scanned.provenance_for(segment), exact.provenance_for(segment)
+        )
+
 
 class Fig9BranchProvenanceIntegrationTests(unittest.TestCase):
     @classmethod
@@ -246,7 +274,7 @@ class Fig9BranchProvenanceIntegrationTests(unittest.TestCase):
         checkpoint_path = self.root / "on" / "checkpoint.pkl"
         checkpoint = load_strict_checkpoint(checkpoint_path)
         self.assertEqual(checkpoint["checkpoint_format"], "fig9-strict-v1")
-        self.assertNotIn("branch_provenance_sidecar", checkpoint)
+        self.assertIsInstance(checkpoint["branch_provenance"], dict)
         sidecar_path = branch_checkpoint_sidecar_path(checkpoint_path)
         self.assertTrue(sidecar_path.exists())
         registry = BranchProvenanceRegistry.from_checkpoint_payload(

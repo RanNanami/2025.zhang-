@@ -8,17 +8,24 @@
 from __future__ import annotations
 
 import argparse
+import atexit
 import cProfile
 import csv
+import faulthandler
 import gzip
 import hashlib
+import importlib.metadata
 import io
 import json
+import os
+import platform
 import pickle
 import pstats
 import subprocess
 import sys
+import threading
 import time
+import zlib
 from collections import deque
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
@@ -120,6 +127,13 @@ CONTINUOUS_IMPL_VERSIONS = {
     "optimized_v1": "optimized-v1-local-bindings-local-response-memo",
     "optimized_v2": "optimized-v2-exact-arrivals-memo",
 }
+
+_NATIVE_CRASH_HANDLE: io.TextIOWrapper | None = None
+_NATIVE_CRASH_PATH: Path | None = None
+_NATIVE_TRACEBACK_STOP: threading.Event | None = None
+_NATIVE_TRACEBACK_THREAD: threading.Thread | None = None
+_NATIVE_LOG_LOCK = threading.Lock()
+_LAST_PROCESS_MEMORY_MB = 0.0
 
 
 @dataclass(frozen=True)
@@ -312,6 +326,17 @@ def write_json(path: Path, payload: object) -> None:
     path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
 
 
+def write_json_atomic(path: Path, payload: object) -> None:
+    """Write JSON beside a checkpoint without exposing a partial file."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(path.name + ".tmp")
+    temporary.write_text(
+        json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8"
+    )
+    os.replace(temporary, path)
+
+
 def write_diagnostic_csv(
     path: Path,
     rows: list[dict[str, object]],
@@ -346,6 +371,236 @@ def write_diagnostic_csv(
     return actual_path
 
 
+def append_diagnostic_csv(
+    path: Path,
+    rows: list[dict[str, object]],
+    *,
+    compress: bool = False,
+) -> Path | None:
+    """Append a homogeneous trace batch and flush it out of process memory."""
+
+    if not rows:
+        return None
+    actual_path = path.with_suffix(path.suffix + ".gz") if compress else path
+    actual_path.parent.mkdir(parents=True, exist_ok=True)
+    write_header = not actual_path.exists() or actual_path.stat().st_size == 0
+    opener = gzip.open if compress else Path.open
+    if compress:
+        handle_context = opener(
+            actual_path, "at", encoding="utf-8", newline=""
+        )
+    else:
+        handle_context = opener(
+            actual_path, "a", encoding="utf-8", newline=""
+        )
+    with handle_context as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+        if write_header:
+            writer.writeheader()
+        writer.writerows(rows)
+        handle.flush()
+    return actual_path
+
+
+def working_set_memory_mb() -> float:
+    """Read working set out-of-process, avoiding an unsafe ctypes boundary."""
+
+    if os.name != "nt":
+        try:
+            import resource
+
+            value = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+            return float(value) / (1024.0 if value > 1024 * 1024 else 1.0)
+        except (ImportError, OSError):
+            return 0.0
+
+    process = subprocess.Popen(
+        [
+            "tasklist.exe",
+            "/FI",
+            f"PID eq {os.getpid()}",
+            "/FO",
+            "CSV",
+            "/NH",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+    # Read the tiny tasklist response on the calling thread. subprocess.run
+    # with capture_output creates transient Windows reader threads; periodic
+    # faulthandler enumeration previously raced with those threads exiting.
+    assert process.stdout is not None
+    output = process.stdout.read()
+    process.stdout.close()
+    returncode = process.wait()
+    if returncode != 0 or not output.strip():
+        return 0.0
+    try:
+        row = next(csv.reader([output.strip().splitlines()[0]]))
+        kilobytes = int("".join(character for character in row[-1] if character.isdigit()))
+    except (IndexError, StopIteration, ValueError):
+        return 0.0
+    return kilobytes / 1024.0
+
+
+def native_environment() -> dict[str, object]:
+    """Collect versions without importing optional native libraries."""
+
+    packages = {}
+    for name in (
+        "numpy",
+        "pandas",
+        "scipy",
+        "matplotlib",
+        "numexpr",
+        "threadpoolctl",
+    ):
+        try:
+            packages[name] = importlib.metadata.version(name)
+        except importlib.metadata.PackageNotFoundError:
+            packages[name] = None
+    native_modules = sorted(
+        {
+            str(getattr(module, "__file__", ""))
+            for module in sys.modules.values()
+            if str(getattr(module, "__file__", "")).lower().endswith(
+                (".pyd", ".dll")
+            )
+        }
+    )
+    return {
+        "python": sys.version,
+        "python_executable": sys.executable,
+        "platform": platform.platform(),
+        "architecture": platform.architecture(),
+        "zlib_runtime": zlib.ZLIB_RUNTIME_VERSION,
+        "zlib_compile": zlib.ZLIB_VERSION,
+        "packages": packages,
+        "loaded_native_modules_at_start": native_modules,
+        "thread_environment": {
+            key: os.environ.get(key)
+            for key in (
+                "OMP_NUM_THREADS",
+                "MKL_NUM_THREADS",
+                "OPENBLAS_NUM_THREADS",
+                "NUMEXPR_NUM_THREADS",
+            )
+        },
+    }
+
+
+def close_native_crash_logging() -> None:
+    global _NATIVE_CRASH_HANDLE, _NATIVE_TRACEBACK_STOP, _NATIVE_TRACEBACK_THREAD
+    if _NATIVE_CRASH_HANDLE is None:
+        return
+    if _NATIVE_TRACEBACK_STOP is not None:
+        _NATIVE_TRACEBACK_STOP.set()
+    if _NATIVE_TRACEBACK_THREAD is not None:
+        _NATIVE_TRACEBACK_THREAD.join(timeout=2.0)
+    _NATIVE_TRACEBACK_STOP = None
+    _NATIVE_TRACEBACK_THREAD = None
+    faulthandler.disable()
+    with _NATIVE_LOG_LOCK:
+        _NATIVE_CRASH_HANDLE.flush()
+        _NATIVE_CRASH_HANDLE.close()
+    _NATIVE_CRASH_HANDLE = None
+
+
+def _periodic_native_traceback(stop: threading.Event) -> None:
+    """Write synchronous stack snapshots without the Windows watchdog thread."""
+
+    while not stop.wait(60.0):
+        handle = _NATIVE_CRASH_HANDLE
+        if handle is None:
+            return
+        with _NATIVE_LOG_LOCK:
+            handle.write("PERIODIC_TRACEBACK interval_seconds=60\n")
+            handle.flush()
+            # Unlike dump_traceback_later, this call runs while a normal Python
+            # thread owns the GIL. That avoids asynchronously walking frames as
+            # the model mutates Python dictionaries on Windows.
+            faulthandler.dump_traceback(file=handle, all_threads=True)
+            handle.flush()
+
+
+def install_native_crash_logging(
+    output_dir: Path,
+    *,
+    periodic_traceback_seconds: float = 0.0,
+) -> Path:
+    """Keep a dedicated faulthandler descriptor alive for the whole process."""
+
+    global _NATIVE_CRASH_HANDLE, _NATIVE_CRASH_PATH
+    global _NATIVE_TRACEBACK_STOP, _NATIVE_TRACEBACK_THREAD
+    close_native_crash_logging()
+    output_dir.mkdir(parents=True, exist_ok=True)
+    _NATIVE_CRASH_PATH = output_dir / "native_crash_faulthandler.log"
+    _NATIVE_CRASH_HANDLE = _NATIVE_CRASH_PATH.open(
+        "a", encoding="utf-8", buffering=1
+    )
+    faulthandler.enable(file=_NATIVE_CRASH_HANDLE, all_threads=True)
+    if periodic_traceback_seconds > 0.0:
+        if periodic_traceback_seconds != 60.0:
+            raise ValueError("only the audited 60-second traceback interval is supported")
+        _NATIVE_TRACEBACK_STOP = threading.Event()
+        _NATIVE_TRACEBACK_THREAD = threading.Thread(
+            target=_periodic_native_traceback,
+            args=(_NATIVE_TRACEBACK_STOP,),
+            name="fig9-periodic-traceback",
+            daemon=True,
+        )
+        _NATIVE_TRACEBACK_THREAD.start()
+    environment = native_environment()
+    write_json_atomic(output_dir / "native_environment.json", environment)
+    with _NATIVE_LOG_LOCK:
+        _NATIVE_CRASH_HANDLE.write(
+            "NATIVE_ENVIRONMENT " + json.dumps(environment, sort_keys=True) + "\n"
+        )
+        _NATIVE_CRASH_HANDLE.write(
+            "PERIODIC_TRACEBACK "
+            + ("interval_seconds=60\n" if periodic_traceback_seconds else "disabled\n")
+        )
+        _NATIVE_CRASH_HANDLE.flush()
+    return _NATIVE_CRASH_PATH
+
+
+def write_native_crash_breadcrumb(
+    *,
+    current_index: int,
+    rollout_step: int | None,
+    phase: str,
+    model: SequentialMemory,
+) -> None:
+    global _LAST_PROCESS_MEMORY_MB
+    if _NATIVE_CRASH_HANDLE is None:
+        return
+    if phase == "observation_enter":
+        _LAST_PROCESS_MEMORY_MB = working_set_memory_mb()
+    payload = {
+        "timestamp": datetime.now().isoformat(sep=" ", timespec="milliseconds"),
+        "current_index": current_index,
+        "rollout_step": rollout_step,
+        "phase": phase,
+        "segment_count": segment_count(model),
+        "candidate_count": int(
+            model.last_prediction_stats.get("candidate_segment_count", 0)
+        ),
+        "process_memory_mb": _LAST_PROCESS_MEMORY_MB,
+    }
+    with _NATIVE_LOG_LOCK:
+        _NATIVE_CRASH_HANDLE.write(
+            "FIG9_NATIVE_PHASE " + json.dumps(payload, sort_keys=True) + "\n"
+        )
+        _NATIVE_CRASH_HANDLE.flush()
+
+
+atexit.register(close_native_crash_logging)
+
+
 def write_density_trace(path: Path, rows: list[dict[str, object]]) -> None:
     if not rows:
         return
@@ -372,6 +627,7 @@ def save_strict_checkpoint(
     raw_event_counts: list[int],
     raw_column_counts: list[int],
     density_rows: list[dict[str, object]],
+    branch_provenance_payload: dict[str, object] | None = None,
 ) -> None:
     payload = {
         "checkpoint_format": "fig9-strict-v1",
@@ -402,10 +658,15 @@ def save_strict_checkpoint(
         "raw_event_counts": raw_event_counts,
         "raw_column_counts": raw_column_counts,
         "density_rows": density_rows,
+        "branch_provenance": branch_provenance_payload,
     }
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("wb") as handle:
+    temporary = path.with_name(path.name + ".tmp")
+    with temporary.open("wb") as handle:
         pickle.dump(payload, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(temporary, path)
 
 
 class _StrictCheckpointUnpickler(pickle.Unpickler):
@@ -875,6 +1136,7 @@ def rollout_raw_autonomous(
     intracolumn_selection_policy: str = "existing",
     intracolumn_selection_diagnostic: bool = False,
     context_trajectory_tracker: ContextTrajectoryTracker | None = None,
+    native_phase_hook: Callable[[int, str], None] | None = None,
 ) -> RolloutResult:
     """Roll out future SSTD codes using only raw predictive neurons.
 
@@ -976,6 +1238,8 @@ def rollout_raw_autonomous(
     )
     try:
         for _step_index in range(steps):
+            if native_phase_hook is not None:
+                native_phase_hook(_step_index + 1, "rollout_step_enter")
             step_intracolumn_rows: list[dict[str, object]] = []
             # DEBUG WATCH: horizon step start。此时 previous_active_cells
             # 来自上一轮 raw predictive neurons，而不是 decoded passenger。
@@ -1014,6 +1278,8 @@ def rollout_raw_autonomous(
                 intracolumn_selection_policy=intracolumn_selection_policy,
                 intracolumn_selection_trace=intracolumn_trace,
             )
+            if native_phase_hook is not None:
+                native_phase_hook(_step_index + 1, "rollout_predict_complete")
             predict_runtime = time.perf_counter() - predict_started
             if (
                 intracolumn_trace is not None
@@ -1242,6 +1508,8 @@ def rollout_raw_autonomous(
             competition_result: CompetitionResult | None = None
             competition_runtime = 0.0
             if competition.enabled:
+                if native_phase_hook is not None:
+                    native_phase_hook(_step_index + 1, "competition_enter")
                 competition_started = time.perf_counter()
                 competition_candidates = candidates_for_prediction(
                     raw,
@@ -1290,6 +1558,10 @@ def rollout_raw_autonomous(
                     else raw_active
                 )
             if context_trajectory_tracker is not None:
+                if native_phase_hook is not None:
+                    native_phase_hook(
+                        _step_index + 1, "context_trajectory_rollout_enter"
+                    )
                 assert preselection_trace is not None
                 context_trajectory_tracker.record_transition(
                     model=model,
@@ -1499,6 +1771,8 @@ def rollout_raw_autonomous(
                 and future_records is not None
                 and _step_index < len(future_records)
             ):
+                if native_phase_hook is not None:
+                    native_phase_hook(_step_index + 1, "oracle_diagnostic_enter")
                 target_record = future_records[_step_index]
                 target_code = oracle_encoder.encode(
                     record_values(target_record)
@@ -1555,6 +1829,10 @@ def rollout_raw_autonomous(
                     and competition_result is not None
                     and branch_registry is not None
                 ):
+                    if native_phase_hook is not None:
+                        native_phase_hook(
+                            _step_index + 1, "branch_provenance_enter"
+                        )
                     candidate_rows, segment_rows, source_rows = (
                         branch_trace_rows(
                             model=model,
@@ -1591,6 +1869,8 @@ def rollout_raw_autonomous(
                     and preselection_trace is not None
                     and branch_registry is not None
                 ):
+                    if native_phase_hook is not None:
+                        native_phase_hook(_step_index + 1, "preselection_enter")
                     (
                         funnel_row,
                         segment_rows,
@@ -1653,6 +1933,8 @@ def rollout_raw_autonomous(
                 )
             # STATE MUTATION: 下面两行只推进临时检索状态；长期记忆中的
             # segment/synapse/weight/age 不会改变，并会在 finally 中恢复。
+            if native_phase_hook is not None:
+                native_phase_hook(_step_index + 1, "state_propagation_enter")
             model.previous_active_cells = active
             model.previous_winners = active.copy()
             if branch_registry is not None:
@@ -1743,6 +2025,10 @@ def run_strict_stream(
     context_trajectory_diagnostic: bool = False,
     context_trajectory_level: str = "summary",
     lmatch_real_ablation: bool = False,
+    progress_every: int = 0,
+    stream_diagnostic_traces: bool = False,
+    debug_end_index: int | None = None,
+    context_trajectory_compress: bool = True,
 ) -> dict[str, object]:
     """Run one original or perturbed stream under the strict Fig.9 protocol."""
 
@@ -1843,6 +2129,7 @@ def run_strict_stream(
         )
     if len(records) <= config.horizon:
         raise ValueError("Not enough records for the requested horizon.")
+    resume_provenance_audit: dict[str, object] | None = None
     if resume_checkpoint is not None:
         checkpoint = load_strict_checkpoint(resume_checkpoint)
         validate_checkpoint_l_match(checkpoint, config)
@@ -1861,20 +2148,20 @@ def run_strict_stream(
         raw_event_counts = list(checkpoint["raw_event_counts"])  # type: ignore[arg-type]
         raw_column_counts = list(checkpoint["raw_column_counts"])  # type: ignore[arg-type]
         density_rows = list(checkpoint["density_rows"])  # type: ignore[arg-type]
+        embedded_provenance = checkpoint.get("branch_provenance")
+        sidecar = branch_checkpoint_sidecar_path(resume_checkpoint)
+        provenance_payload = (
+            embedded_provenance
+            if isinstance(embedded_provenance, dict)
+            else (
+                json.loads(sidecar.read_text(encoding="utf-8"))
+                if sidecar.exists()
+                else None
+            )
+        )
         branch_registry = (
             BranchProvenanceRegistry.from_checkpoint_payload(
-                model,
-                (
-                    json.loads(
-                        branch_checkpoint_sidecar_path(
-                            resume_checkpoint
-                        ).read_text(encoding="utf-8")
-                    )
-                    if branch_checkpoint_sidecar_path(
-                        resume_checkpoint
-                    ).exists()
-                    else None
-                ),
+                model, provenance_payload
             )
             if (
                 branch_provenance_diagnostic
@@ -1885,6 +2172,28 @@ def run_strict_stream(
             )
             else None
         )
+        if branch_registry is not None:
+            binding = branch_registry.binding_summary(model)
+            if provenance_payload is None:
+                raise ValueError(
+                    "checkpoint resume requires branch provenance payload"
+                )
+            expected = len(provenance_payload.get("segments", ()))
+            if binding["bound_segment_count"] != expected:
+                raise ValueError(
+                    "checkpoint branch provenance rebind mismatch: "
+                    f"expected={expected}, bound={binding['bound_segment_count']}"
+                )
+            resume_provenance_audit = {
+                **binding,
+                "expected_provenance_segments": expected,
+                "checkpoint_next_index": start_index,
+                "source": (
+                    "embedded_checkpoint"
+                    if isinstance(embedded_provenance, dict)
+                    else "sidecar"
+                ),
+            }
         checkpoint_data_hash = checkpoint.get("data_file_sha256")
         current_data_hash = file_sha256(data_path)
         if checkpoint_data_hash != current_data_hash:
@@ -1926,6 +2235,12 @@ def run_strict_stream(
             else None
         )
     passenger_encoder = encoder.encoders[2]
+    if debug_end_index is not None:
+        if debug_end_index <= start_index:
+            raise ValueError("debug end index must be after checkpoint next_index")
+        if debug_end_index - start_index > 10:
+            raise ValueError("debug isolation runs are limited to 10 records")
+        stop_after_index = debug_end_index
     oracle_encoder = (
         build_fig9_encoder(config) if oracle_candidate_diagnostic else None
     )
@@ -1944,6 +2259,49 @@ def run_strict_stream(
     match_overlap_segment_rows: list[dict[str, object]] = []
     match_overlap_source_rows: list[dict[str, object]] = []
     context_trajectory_rows: list[dict[str, object]] = []
+    context_trajectory_row_count = 0
+    context_trajectory_path = output_dir / "context_trajectory_column_trace.csv"
+    streamed_trace_counts = {
+        "branch_segment": 0,
+        "preselection_segment": 0,
+        "preselection_group": 0,
+        "preselection_replacement": 0,
+        "match_overlap_segment": 0,
+    }
+
+    def flush_large_diagnostic_batches() -> None:
+        if not stream_diagnostic_traces:
+            return
+        batches = (
+            (
+                output_dir / "branch_segment_trace.csv",
+                branch_segment_rows,
+                False,
+            ),
+            (
+                output_dir / "preselection_segment_trace.csv",
+                preselection_segment_rows,
+                preselection_segment_compress,
+            ),
+            (
+                output_dir / "preselection_group_trace.csv",
+                preselection_group_rows,
+                preselection_segment_compress,
+            ),
+            (
+                output_dir / "preselection_replacement_trace.csv",
+                preselection_replacement_rows,
+                preselection_segment_compress,
+            ),
+            (
+                output_dir / "match_overlap_segment_trace.csv",
+                match_overlap_segment_rows,
+                match_overlap_compress,
+            ),
+        )
+        for path, batch, compress in batches:
+            append_diagnostic_csv(path, batch, compress=compress)
+            batch.clear()
     context_trajectory_tracker = (
         ContextTrajectoryTracker()
         if context_trajectory_diagnostic
@@ -1974,13 +2332,22 @@ def run_strict_stream(
         print(json.dumps(fingerprint, indent=2, sort_keys=True))
 
     start_time = time.perf_counter()
+    progress_started = start_time
+    progress_path = output_dir / "progress.jsonl"
     target_scale = sum(abs(record.value) for record in records) / len(records)
     interval_rows: list[dict[str, object]] = []
     interval_start_time = start_time
     interval_start_index = start_index
     debug_payload: dict[str, object] | None = None
+    last_completed_index = start_index
 
     for index in range(start_index, len(records) - config.horizon):
+        write_native_crash_breadcrumb(
+            current_index=index,
+            rollout_step=None,
+            phase="observation_enter",
+            model=model,
+        )
         record = records[index]
         code = encoder.encode(record_values(record))
         rollout_diagnostics: tuple[dict[str, object], ...] = ()
@@ -2041,6 +2408,18 @@ def run_strict_stream(
                     intracolumn_selection_diagnostic
                 ),
                 context_trajectory_tracker=context_trajectory_tracker,
+                native_phase_hook=lambda step, phase: write_native_crash_breadcrumb(
+                    current_index=index,
+                    rollout_step=step,
+                    phase=phase,
+                    model=model,
+                ),
+            )
+            write_native_crash_breadcrumb(
+                current_index=index,
+                rollout_step=config.horizon,
+                phase="rollout_complete",
+                model=model,
             )
             if debug_enabled:
                 debug_payload = {
@@ -2085,6 +2464,9 @@ def run_strict_stream(
                 branch_segment_rows.extend(
                     rollout.branch_segment_diagnostics
                 )
+                streamed_trace_counts["branch_segment"] += len(
+                    rollout.branch_segment_diagnostics
+                )
                 branch_source_rows.extend(
                     rollout.branch_source_diagnostics
                 )
@@ -2095,10 +2477,19 @@ def run_strict_stream(
                 preselection_segment_rows.extend(
                     rollout.preselection_segment_diagnostics
                 )
+                streamed_trace_counts["preselection_segment"] += len(
+                    rollout.preselection_segment_diagnostics
+                )
                 preselection_group_rows.extend(
                     rollout.preselection_group_diagnostics
                 )
+                streamed_trace_counts["preselection_group"] += len(
+                    rollout.preselection_group_diagnostics
+                )
                 preselection_replacement_rows.extend(
+                    rollout.preselection_replacement_diagnostics
+                )
+                streamed_trace_counts["preselection_replacement"] += len(
                     rollout.preselection_replacement_diagnostics
                 )
             if intracolumn_selection_diagnostic:
@@ -2158,12 +2549,23 @@ def run_strict_stream(
             }
             rows.append(prediction_row)
         event_hook and event_hook("observe", index)
+        write_native_crash_breadcrumb(
+            current_index=index,
+            rollout_step=None,
+            phase="actual_observation_predict_enter",
+            model=model,
+        )
         # STATE MUTATION: 这里才把真实当前 record 写入长期记忆，触发三种
         # learning scenario、weight/age/segment 变化。预测阶段不能学习。
         observe_started = time.perf_counter()
         previous_segment_ids = (
             branch_registry.segment_object_ids(model)
             if branch_registry is not None
+            and not (
+                teacher_forced_winner_diagnostic
+                or match_overlap_diagnostic
+                or context_trajectory_diagnostic
+            )
             else set()
         )
         pre_observe_segment_count = (
@@ -2252,12 +2654,28 @@ def run_strict_stream(
                 reference_burst_sources = (
                     branch_registry.current_burst_sources.copy()
                 )
-            branch_registry.capture_new_segments(
-                model,
-                previous_segment_ids=previous_segment_ids,
-                creation_transition_index=index,
-                creation_sources=creation_sources,
-            )
+            if teacher_forced_trace is not None:
+                branch_registry.capture_created_segments(
+                    model,
+                    created=(
+                        (
+                            event.target_column,
+                            event.winner_neuron,
+                            event.created_segment,
+                        )
+                        for event in teacher_forced_trace.events
+                        if event.created_segment is not None
+                    ),
+                    creation_transition_index=index,
+                    creation_sources=creation_sources,
+                )
+            else:
+                branch_registry.capture_new_segments(
+                    model,
+                    previous_segment_ids=previous_segment_ids,
+                    creation_transition_index=index,
+                    creation_sources=creation_sources,
+                )
             if (
                 match_overlap_capture is not None
                 and teacher_forced_trace is not None
@@ -2274,19 +2692,29 @@ def run_strict_stream(
                         source_trace_filter,
                     )
                 if context_trajectory_tracker is not None:
-                    context_trajectory_rows.extend(
-                        context_trajectory_tracker.dependency_rows(
-                            source_rows=source_rows,
-                            ranges=match_overlap_ranges,
-                            level=context_trajectory_level,
-                        )
+                    dependency_rows = context_trajectory_tracker.dependency_rows(
+                        source_rows=source_rows,
+                        ranges=match_overlap_ranges,
+                        level=context_trajectory_level,
                     )
+                    context_trajectory_row_count += len(dependency_rows)
+                    if stream_diagnostic_traces:
+                        append_diagnostic_csv(
+                            context_trajectory_path,
+                            dependency_rows,
+                            compress=context_trajectory_compress,
+                        )
+                    else:
+                        context_trajectory_rows.extend(dependency_rows)
                 if match_overlap_diagnostic:
                     match_overlap_column_rows.extend(
                         completed_overlap.column_rows
                     )
                     if match_overlap_level in {"segment", "source"}:
                         match_overlap_segment_rows.extend(
+                            completed_overlap.segment_rows
+                        )
+                        streamed_trace_counts["match_overlap_segment"] += len(
                             completed_overlap.segment_rows
                         )
                     if match_overlap_level == "source":
@@ -2328,6 +2756,12 @@ def run_strict_stream(
                 )
             branch_registry.update_source_labels(model, code)
         observe_runtime = time.perf_counter() - observe_started
+        write_native_crash_breadcrumb(
+            current_index=index,
+            rollout_step=None,
+            phase="actual_observation_complete",
+            model=model,
+        )
         if debug_payload is not None and debug_payload.get("record_index") == index:
             debug_payload["observe_after"] = {
                 "segment_count": segment_count(model),
@@ -2384,6 +2818,42 @@ def run_strict_stream(
             )
             interval_start_time = now
             interval_start_index = index + 1
+        if progress_every > 0 and (index + 1) % progress_every == 0:
+            write_native_crash_breadcrumb(
+                current_index=index,
+                rollout_step=None,
+                phase="diagnostic_flush_enter",
+                model=model,
+            )
+            flush_large_diagnostic_batches()
+            progress_now = time.perf_counter()
+            progress = {
+                "current_index": index + 1,
+                "elapsed_seconds": progress_now - start_time,
+                "segment_count": segment_count(model),
+                "synapse_count": synapse_count(model),
+                "active_source_count": int(
+                    model.last_prediction_stats.get("active_source_count", 0)
+                ),
+                "candidate_segment_count": int(
+                    model.last_prediction_stats.get("candidate_segment_count", 0)
+                ),
+                "working_set_memory_mb": working_set_memory_mb(),
+                "time_for_last_10_rows": progress_now - progress_started,
+            }
+            output_dir.mkdir(parents=True, exist_ok=True)
+            with progress_path.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(progress, sort_keys=True) + "\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+            print("FIG9_PROGRESS " + json.dumps(progress, sort_keys=True), flush=True)
+            progress_started = progress_now
+            write_native_crash_breadcrumb(
+                current_index=index,
+                rollout_step=None,
+                phase="observation_complete",
+                model=model,
+            )
         if (
             checkpoint_path is not None
             and (
@@ -2391,6 +2861,11 @@ def run_strict_stream(
                 or (checkpoint_every > 0 and (index + 1) % checkpoint_every == 0)
             )
         ):
+            provenance_payload = (
+                branch_registry.checkpoint_payload(model)
+                if branch_registry is not None
+                else None
+            )
             save_strict_checkpoint(
                 checkpoint_path,
                 encoder=encoder,
@@ -2410,21 +2885,62 @@ def run_strict_stream(
                 raw_event_counts=raw_event_counts,
                 raw_column_counts=raw_column_counts,
                 density_rows=density_rows,
+                branch_provenance_payload=provenance_payload,
             )
-            if branch_registry is not None and checkpoint_path is not None:
-                write_json(
+            if provenance_payload is not None and checkpoint_path is not None:
+                write_json_atomic(
                     branch_checkpoint_sidecar_path(checkpoint_path),
-                    branch_registry.checkpoint_payload(model),
+                    provenance_payload,
                 )
+        last_completed_index = index + 1
         if stop_after_index is not None and index + 1 >= stop_after_index:
             break
 
+    flush_large_diagnostic_batches()
+    if (
+        checkpoint_path is not None
+        and checkpoint_every > 0
+        and last_completed_index > start_index
+        and last_completed_index % checkpoint_every != 0
+    ):
+        provenance_payload = (
+            branch_registry.checkpoint_payload(model)
+            if branch_registry is not None
+            else None
+        )
+        save_strict_checkpoint(
+            checkpoint_path,
+            encoder=encoder,
+            model=model,
+            fingerprint=fingerprint,
+            config=config,
+            stream_label=stream_label,
+            data_path=data_path,
+            records=records,
+            limit=limit,
+            next_index=last_completed_index,
+            predictions=predictions,
+            targets=targets,
+            rows=rows,
+            recent_errors=recent_errors,
+            missing=missing,
+            raw_event_counts=raw_event_counts,
+            raw_column_counts=raw_column_counts,
+            density_rows=density_rows,
+            branch_provenance_payload=provenance_payload,
+        )
+        if provenance_payload is not None:
+            write_json_atomic(
+                branch_checkpoint_sidecar_path(checkpoint_path),
+                provenance_payload,
+            )
     attempted = len(rows)
     elapsed = time.perf_counter() - start_time
     summary = {
         "diagnostic_label": "strict Fig.9 reproduction attempt",
         "stream_label": stream_label,
         "records_used": len(records),
+        "next_observation_index": last_completed_index,
         "attempted_predictions": attempted,
         "predictions": len(predictions),
         "missing_predictions": missing,
@@ -2456,6 +2972,8 @@ def run_strict_stream(
         "uses_compensation": False,
         "L_match": config.l_match,
     }
+    if resume_provenance_audit is not None:
+        summary["resume_provenance_audit"] = resume_provenance_audit
     if lmatch_real_ablation:
         summary.update(lmatch_ablation_markers(config.l_match))
     if competition.enabled:
@@ -2473,11 +2991,14 @@ def run_strict_stream(
         )
     if context_trajectory_diagnostic:
         summary["context_trajectory_trace_path"] = str(
-            output_dir / "context_trajectory_column_trace.csv.gz"
+            context_trajectory_path.with_suffix(
+                context_trajectory_path.suffix + ".gz"
+            )
+            if context_trajectory_compress
+            else context_trajectory_path
         )
-        summary["context_trajectory_row_count"] = len(
-            context_trajectory_rows
-        )
+        summary["context_trajectory_row_count"] = context_trajectory_row_count
+        summary["context_trajectory_trace_streamed"] = stream_diagnostic_traces
     if density_rows:
         density_summary = summarize_density(density_rows)
         summary["density_summary_path"] = str(
@@ -2625,10 +3146,11 @@ def run_strict_stream(
             branch_candidate_rows,
         )
         if branch_provenance_level in {"candidate", "full"}:
-            write_predictions(
-                output_dir / "branch_segment_trace.csv",
-                branch_segment_rows,
-            )
+            if not stream_diagnostic_traces:
+                write_predictions(
+                    output_dir / "branch_segment_trace.csv",
+                    branch_segment_rows,
+                )
         if branch_provenance_level == "full":
             write_predictions(
                 output_dir / "branch_source_trace.csv",
@@ -2693,21 +3215,22 @@ def run_strict_stream(
             output_dir / "preselection_funnel_trace.csv",
             preselection_funnel_rows,
         )
-        write_diagnostic_csv(
-            output_dir / "preselection_segment_trace.csv",
-            traced_segments,
-            compress=preselection_segment_compress,
-        )
-        write_diagnostic_csv(
-            output_dir / "preselection_group_trace.csv",
-            traced_groups,
-            compress=preselection_segment_compress,
-        )
-        write_diagnostic_csv(
-            output_dir / "preselection_replacement_trace.csv",
-            traced_replacements,
-            compress=preselection_segment_compress,
-        )
+        if not stream_diagnostic_traces:
+            write_diagnostic_csv(
+                output_dir / "preselection_segment_trace.csv",
+                traced_segments,
+                compress=preselection_segment_compress,
+            )
+            write_diagnostic_csv(
+                output_dir / "preselection_group_trace.csv",
+                traced_groups,
+                compress=preselection_segment_compress,
+            )
+            write_diagnostic_csv(
+                output_dir / "preselection_replacement_trace.csv",
+                traced_replacements,
+                compress=preselection_segment_compress,
+            )
         total_inspected = sum(
             int(row["inspected_segment_count"])
             for row in preselection_funnel_rows
@@ -2737,17 +3260,29 @@ def run_strict_stream(
                     int(row["unknown_elimination_count"])
                     for row in preselection_funnel_rows
                 ),
-                "actual_segment_rows": len(traced_segments),
-                "total_segment_rows_before_truncation": len(
-                    preselection_segment_rows
+                "actual_segment_rows": (
+                    streamed_trace_counts["preselection_segment"]
+                    if stream_diagnostic_traces else len(traced_segments)
                 ),
-                "actual_group_rows": len(traced_groups),
-                "total_group_rows_before_truncation": len(
-                    preselection_group_rows
+                "total_segment_rows_before_truncation": (
+                    streamed_trace_counts["preselection_segment"]
+                    if stream_diagnostic_traces else len(preselection_segment_rows)
                 ),
-                "actual_replacement_rows": len(traced_replacements),
-                "total_replacement_rows_before_truncation": len(
-                    preselection_replacement_rows
+                "actual_group_rows": (
+                    streamed_trace_counts["preselection_group"]
+                    if stream_diagnostic_traces else len(traced_groups)
+                ),
+                "total_group_rows_before_truncation": (
+                    streamed_trace_counts["preselection_group"]
+                    if stream_diagnostic_traces else len(preselection_group_rows)
+                ),
+                "actual_replacement_rows": (
+                    streamed_trace_counts["preselection_replacement"]
+                    if stream_diagnostic_traces else len(traced_replacements)
+                ),
+                "total_replacement_rows_before_truncation": (
+                    streamed_trace_counts["preselection_replacement"]
+                    if stream_diagnostic_traces else len(preselection_replacement_rows)
                 ),
             },
         )
@@ -2770,9 +3305,9 @@ def run_strict_stream(
                 ),
                 "requested_max_rows": preselection_max_rows,
                 "actual_rows": {
-                    "segments": len(traced_segments),
-                    "groups": len(traced_groups),
-                    "replacements": len(traced_replacements),
+                    "segments": streamed_trace_counts["preselection_segment"] if stream_diagnostic_traces else len(traced_segments),
+                    "groups": streamed_trace_counts["preselection_group"] if stream_diagnostic_traces else len(traced_groups),
+                    "replacements": streamed_trace_counts["preselection_replacement"] if stream_diagnostic_traces else len(traced_replacements),
                 },
                 "funnel_counts_are_untruncated": True,
                 "selection_stages": [
@@ -2870,11 +3405,12 @@ def run_strict_stream(
             match_overlap_column_rows,
         )
         if match_overlap_level in {"segment", "source"}:
-            write_diagnostic_csv(
-                output_dir / "match_overlap_segment_trace.csv",
-                match_overlap_segment_rows,
-                compress=match_overlap_compress,
-            )
+            if not stream_diagnostic_traces:
+                write_diagnostic_csv(
+                    output_dir / "match_overlap_segment_trace.csv",
+                    match_overlap_segment_rows,
+                    compress=match_overlap_compress,
+                )
         if match_overlap_level == "source":
             write_diagnostic_csv(
                 output_dir / "match_overlap_source_trace.csv",
@@ -2925,10 +3461,27 @@ def run_strict_stream(
             },
         )
     if context_trajectory_diagnostic:
-        trace_path = write_diagnostic_csv(
-            output_dir / "context_trajectory_column_trace.csv",
-            context_trajectory_rows,
-            compress=True,
+        trace_path = (
+            (
+                context_trajectory_path.with_suffix(
+                    context_trajectory_path.suffix + ".gz"
+                )
+                if context_trajectory_compress
+                else context_trajectory_path
+            )
+            if stream_diagnostic_traces
+            and (
+                context_trajectory_path.with_suffix(
+                    context_trajectory_path.suffix + ".gz"
+                )
+                if context_trajectory_compress
+                else context_trajectory_path
+            ).exists()
+            else write_diagnostic_csv(
+                context_trajectory_path,
+                context_trajectory_rows,
+                compress=context_trajectory_compress,
+            )
         )
         write_json(
             output_dir / "context_trajectory_protocol.json",
@@ -2936,9 +3489,10 @@ def run_strict_stream(
                 **CONTEXT_TRAJECTORY_MARKERS,
                 "version": "fig9-context-trajectory-v1",
                 "level": context_trajectory_level,
-                "compressed": True,
+                "compressed": context_trajectory_compress,
                 "trace_path": str(trace_path) if trace_path else "",
-                "rows": len(context_trajectory_rows),
+                "rows": context_trajectory_row_count,
+                "streamed_incrementally": stream_diagnostic_traces,
                 "source_dependency_filter": "SOURCE_COLUMN_NOT_ACTIVE",
                 "source_trace_filter": (
                     asdict(source_trace_filter)
@@ -3192,6 +3746,22 @@ def parse_args() -> argparse.Namespace:
         default="summary",
     )
     parser.add_argument("--interval-every", type=int, default=0)
+    parser.add_argument(
+        "--progress-every",
+        type=int,
+        default=0,
+        help="Flush resource and model-size progress every N records.",
+    )
+    parser.add_argument(
+        "--stream-diagnostic-traces",
+        action="store_true",
+        help="Append the largest read-only traces instead of retaining them in RAM.",
+    )
+    parser.add_argument(
+        "--context-trajectory-uncompressed",
+        action="store_true",
+        help="Debug-only output switch; does not alter model execution.",
+    )
     parser.add_argument("--profile", action="store_true")
     parser.add_argument("--profile-output", default="")
     parser.add_argument("--profile-dir", default="results/fig9_strict/profiling")
@@ -3204,6 +3774,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--stop-after-index", type=int, default=0)
     parser.add_argument("--debug-record-index", type=int, default=-1)
     parser.add_argument("--debug-output-json", default="")
+    parser.add_argument(
+        "--debug-end-index",
+        type=int,
+        default=0,
+        help="Isolation-only stop index; may advance at most 10 records.",
+    )
     parser.add_argument(
         "--continuous-impl",
         choices=("reference", "optimized_v1", "optimized_v2"),
@@ -3283,6 +3859,7 @@ def run_april_branch(args: argparse.Namespace, config: Fig9StrictConfig) -> None
 
 def run_main(args: argparse.Namespace) -> None:
     output_dir = Path(args.output_dir)
+    install_native_crash_logging(output_dir)
     config = Fig9StrictConfig(
         horizon=args.prediction_horizon,
         warmup=args.warmup,
@@ -3460,6 +4037,14 @@ def run_main(args: argparse.Namespace) -> None:
             ),
             context_trajectory_level=args.context_trajectory_level,
             lmatch_real_ablation=args.lmatch_real_ablation,
+            progress_every=args.progress_every,
+            stream_diagnostic_traces=args.stream_diagnostic_traces,
+            debug_end_index=(
+                args.debug_end_index if args.debug_end_index > 0 else None
+            ),
+            context_trajectory_compress=(
+                not args.context_trajectory_uncompressed
+            ),
         )
     if {"original", "perturbed"}.issubset(args.streams):
         runtime["pre_change_comparison"] = compare_pre_change_predictions(
