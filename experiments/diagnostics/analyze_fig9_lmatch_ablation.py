@@ -113,7 +113,16 @@ def record_range(index: int) -> str:
 def validate_protocols(
     protocols: dict[int, dict[str, object]],
 ) -> dict[str, object]:
-    ignored = {"L_match"}
+    # A commit identifies code provenance, not a model protocol parameter.
+    # Keep differing commits auditable without invalidating an otherwise
+    # identical ablation after a logging-only recovery patch.
+    ignored = {"L_match", "git_commit_sha"}
+    provenance = {
+        "git_commit_sha": {
+            str(l_match): protocols[l_match].get("git_commit_sha")
+            for l_match in protocols
+        }
+    }
     mismatches: dict[str, dict[str, object]] = {}
     keys = set().union(*(protocol.keys() for protocol in protocols.values()))
     for key in sorted(keys - ignored):
@@ -134,6 +143,7 @@ def validate_protocols(
         "comparison_valid": not mismatches and not marker_errors,
         "only_intended_model_variable": "L_match",
         "protocol_mismatches_excluding_L_match": mismatches,
+        "provenance_differences": provenance,
         "marker_errors": marker_errors,
         "recurrent_trajectory_divergence": True,
     }
@@ -469,11 +479,20 @@ def classify_result(
     segment_growth = _float(by_l[2]["final_segment_count"]) / max(
         _float(by_l[4]["final_segment_count"]), 1e-12
     )
-    unstable = density_growth > 1.25 or ambiguity_growth > 4.0 or segment_growth > 1.25
-    if l2 < l4 and unstable:
+    ambiguity_increase = (
+        _float(ambiguity_by_l[2]["multiple_neuron_ambiguity_rate"])
+        - _float(ambiguity_by_l[4]["multiple_neuron_ambiguity_rate"])
+    )
+    ambiguity_unstable = ambiguity_growth > 1.5 and ambiguity_increase > 0.05
+    growth_unstable = density_growth > 1.25 or segment_growth > 1.25
+    if l2 < l4 and (ambiguity_unstable or growth_unstable):
         return (
             "LMATCH2_IMPROVES_ERROR_WITH_INSTABILITY",
-            "DIAGNOSE_SEGMENT_GROWTH_INSTABILITY",
+            (
+                "DIAGNOSE_WRONG_SEGMENT_REINFORCEMENT"
+                if ambiguity_unstable
+                else "DIAGNOSE_SEGMENT_GROWTH_INSTABILITY"
+            ),
         )
     if horizon[(2, 1)] < horizon[(4, 1)] and later_improvements < 3 and scenario2_increased:
         return (

@@ -3,7 +3,7 @@ param(
     [string]$SourceRunDirectory,
     [ValidateSet("all", "core-only", "observe", "match", "branch", "preselection", "teacher", "context", "density", "full-no-gzip", "full-gzip")]
     [string]$Profile = "all",
-    [ValidateRange(201, 202)]
+    [ValidateRange(1, 250)]
     [int]$DebugEndIndex = 202
 )
 
@@ -19,14 +19,19 @@ if (-not (Test-Path -LiteralPath $SourceCheckpoint)) {
     throw "Checkpoint not found: $SourceCheckpoint"
 }
 $Inspection = & $Python "experiments\diagnostics\inspect_fig9_checkpoint.py" $SourceCheckpoint | ConvertFrom-Json
-if ([int]$Inspection.L_match -ne 3 -or [int]$Inspection.next_index -ne 200) {
-    throw "Expected a real L_match=3, next_index=200 checkpoint. Found L_match=$($Inspection.L_match), next_index=$($Inspection.next_index)."
+$CheckpointLMatch = [int]$Inspection.L_match
+$CheckpointNextIndex = [int]$Inspection.next_index
+if ($CheckpointLMatch -notin @(2, 3, 4)) {
+    throw "Expected a real L_match ablation checkpoint. Found L_match=$CheckpointLMatch."
+}
+if ($DebugEndIndex -le $CheckpointNextIndex -or $DebugEndIndex -gt ($CheckpointNextIndex + 10)) {
+    throw "DebugEndIndex must be 1..10 records after checkpoint next_index=$CheckpointNextIndex."
 }
 
 $env:PYTHONPATH = "$RepoRoot\src;$RepoRoot"
 $env:PYTHONFAULTHANDLER = "1"
 $env:PYTHONUNBUFFERED = "1"
-$Root = Join-Path $RepoRoot ("results\fig9_diagnostics\lmatch_l3_native_isolation_" + (Get-Date -Format "yyyyMMdd_HHmmss"))
+$Root = Join-Path $RepoRoot ("results\fig9_diagnostics\lmatch_l${CheckpointLMatch}_native_isolation_" + (Get-Date -Format "yyyyMMdd_HHmmss"))
 New-Item -ItemType Directory -Path $Root -Force | Out-Null
 
 $BaseDiagnostics = @("--oracle-candidate-diagnostic")
@@ -58,7 +63,7 @@ $Common = @(
     "-X", "faulthandler", "-u", "experiments\fig9_strict_reproduction.py",
     "--limit", "250", "--warmup", "200", "--streams", "original",
     "--prediction-horizon", "5", "--tie-break-seed", "0",
-    "--l-match", "3", "--lmatch-real-ablation",
+    "--l-match", "$CheckpointLMatch", "--lmatch-real-ablation",
     "--continuous-impl", "reference", "--competition-mode", "competitive_raw",
     "--inhibition-strength", "0.1", "--inhibition-tau", "0.02",
     "--simultaneous-policy", "batched", "--simultaneous-bin-width", "0.005",
@@ -103,5 +108,5 @@ foreach ($Item in $Profiles) {
 
 $Summary = Join-Path $Root "isolation_summary.json"
 $Results | ConvertTo-Json -Depth 8 | Set-Content $Summary -Encoding utf8
-Write-Host "L3 isolation summary: $Summary"
+Write-Host "L$CheckpointLMatch isolation summary: $Summary"
 if ($Results | Where-Object { -not $_.reached_end }) { exit 1 }

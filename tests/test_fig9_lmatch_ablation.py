@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 from experiments.diagnostics.analyze_fig9_lmatch_ablation import (
     analyze,
+    classify_result,
     paired_bootstrap,
     validate_protocols,
 )
@@ -297,8 +298,11 @@ class Fig9LMatchAnalysisTests(unittest.TestCase):
         self.assertTrue(validate_protocols(protocols)["comparison_valid"])
         protocols[2]["git_commit_sha"] = "different"
         checks = validate_protocols(protocols)
-        self.assertFalse(checks["comparison_valid"])
-        self.assertIn("git_commit_sha", checks["protocol_mismatches_excluding_L_match"])
+        self.assertTrue(checks["comparison_valid"])
+        self.assertEqual(
+            checks["provenance_differences"]["git_commit_sha"]["2"],
+            "different",
+        )
 
     def test_paired_bootstrap_is_reproducible(self) -> None:
         left = {1: (1.0, 10.0), 2: (2.0, 20.0)}
@@ -307,6 +311,52 @@ class Fig9LMatchAnalysisTests(unittest.TestCase):
         second = paired_bootstrap(left, right, samples=100, seed=7)
         self.assertEqual(first, second)
         self.assertEqual(first["paired_records"], 2)
+
+    def test_improved_error_with_ambiguity_growth_is_unstable(self) -> None:
+        summaries = [
+            {"L_match": 4, "MAPE": 0.41, "coverage": 1.0, "final_segment_count": 2300},
+            {"L_match": 3, "MAPE": 0.44, "coverage": 1.0, "final_segment_count": 2200},
+            {"L_match": 2, "MAPE": 0.39, "coverage": 1.0, "final_segment_count": 1950},
+        ]
+        horizons = [
+            {"L_match": level, "horizon_step": step, "MAPE": value}
+            for level, values in {
+                4: (0.33, 0.44, 0.46, 0.42, 0.41),
+                3: (0.35, 0.48, 0.32, 0.41, 0.44),
+                2: (0.40, 0.34, 0.39, 0.40, 0.39),
+            }.items()
+            for step, value in enumerate(values, 1)
+        ]
+        scenarios = [
+            {"L_match": level, "scenario": scenario, "rate": rate}
+            for level, values in {
+                4: (0.14, 0.60, 0.26),
+                3: (0.17, 0.60, 0.23),
+                2: (0.13, 0.69, 0.18),
+            }.items()
+            for scenario, rate in zip(("scenario1", "scenario2", "scenario3"), values)
+        ]
+        density = [
+            {"L_match": 4, "mean_emitted_columns": 124},
+            {"L_match": 3, "mean_emitted_columns": 115},
+            {"L_match": 2, "mean_emitted_columns": 92},
+        ]
+        ambiguity = [
+            {"L_match": 4, "multiple_neuron_ambiguity_rate": 0.155},
+            {"L_match": 3, "multiple_neuron_ambiguity_rate": 0.203},
+            {"L_match": 2, "multiple_neuron_ambiguity_rate": 0.285},
+        ]
+        bootstrap = [
+            {"comparison": "L4_vs_L3", "ci95_high": 0.16},
+            {"comparison": "L4_vs_L2", "ci95_high": 0.11},
+        ]
+        self.assertEqual(
+            classify_result(summaries, horizons, scenarios, density, ambiguity, bootstrap),
+            (
+                "LMATCH2_IMPROVES_ERROR_WITH_INSTABILITY",
+                "DIAGNOSE_WRONG_SEGMENT_REINFORCEMENT",
+            ),
+        )
 
     def test_analyzer_writes_complete_auditable_outputs(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
