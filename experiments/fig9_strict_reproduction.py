@@ -104,6 +104,12 @@ from experiments.diagnostics.fig9_context_trajectory import (  # noqa: E402
     CONTEXT_TRAJECTORY_MARKERS,
     ContextTrajectoryTracker,
 )
+from experiments.diagnostics.fig9_segment_reinforcement import (  # noqa: E402
+    DIAGNOSTIC_MARKERS as SEGMENT_REINFORCEMENT_MARKERS,
+    SEGMENT_REINFORCEMENT_LEVELS,
+    build_segment_reinforcement_rows,
+    enrich_segment_reinforcement_rows,
+)
 from seqmem.encoding import (  # noqa: E402
     SSTDCompositeEncoder,
     SSTDPeriodicEncoder,
@@ -628,6 +634,7 @@ def save_strict_checkpoint(
     raw_column_counts: list[int],
     density_rows: list[dict[str, object]],
     branch_provenance_payload: dict[str, object] | None = None,
+    diagnostic_state: dict[str, object] | None = None,
 ) -> None:
     payload = {
         "checkpoint_format": "fig9-strict-v1",
@@ -659,6 +666,7 @@ def save_strict_checkpoint(
         "raw_column_counts": raw_column_counts,
         "density_rows": density_rows,
         "branch_provenance": branch_provenance_payload,
+        "diagnostic_state": diagnostic_state,
     }
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(path.name + ".tmp")
@@ -2029,6 +2037,8 @@ def run_strict_stream(
     stream_diagnostic_traces: bool = False,
     debug_end_index: int | None = None,
     context_trajectory_compress: bool = True,
+    segment_reinforcement_diagnostic: bool = False,
+    segment_reinforcement_level: str = "summary",
 ) -> dict[str, object]:
     """Run one original or perturbed stream under the strict Fig.9 protocol."""
 
@@ -2047,6 +2057,10 @@ def run_strict_stream(
     if context_trajectory_level not in CONTEXT_TRAJECTORY_LEVELS:
         raise ValueError(
             "context trajectory level must be summary, column, or cell"
+        )
+    if segment_reinforcement_level not in SEGMENT_REINFORCEMENT_LEVELS:
+        raise ValueError(
+            "segment reinforcement level must be summary, event, or segment"
         )
     if timing_eligibility_decomposition and (
         not match_overlap_diagnostic or match_overlap_level != "source"
@@ -2148,6 +2162,7 @@ def run_strict_stream(
         raw_event_counts = list(checkpoint["raw_event_counts"])  # type: ignore[arg-type]
         raw_column_counts = list(checkpoint["raw_column_counts"])  # type: ignore[arg-type]
         density_rows = list(checkpoint["density_rows"])  # type: ignore[arg-type]
+        checkpoint_diagnostic_state = checkpoint.get("diagnostic_state") or {}
         embedded_provenance = checkpoint.get("branch_provenance")
         sidecar = branch_checkpoint_sidecar_path(resume_checkpoint)
         provenance_payload = (
@@ -2169,6 +2184,7 @@ def run_strict_stream(
                 or teacher_forced_winner_diagnostic
                 or match_overlap_diagnostic
                 or context_trajectory_diagnostic
+                or segment_reinforcement_diagnostic
             )
             else None
         )
@@ -2223,6 +2239,7 @@ def run_strict_stream(
         raw_event_counts = []
         raw_column_counts = []
         density_rows = []
+        checkpoint_diagnostic_state = {}
         branch_registry = (
             BranchProvenanceRegistry()
             if (
@@ -2231,6 +2248,7 @@ def run_strict_stream(
                 or teacher_forced_winner_diagnostic
                 or match_overlap_diagnostic
                 or context_trajectory_diagnostic
+                or segment_reinforcement_diagnostic
             )
             else None
         )
@@ -2254,11 +2272,19 @@ def run_strict_stream(
     preselection_group_rows: list[dict[str, object]] = []
     preselection_replacement_rows: list[dict[str, object]] = []
     intracolumn_selection_rows: list[dict[str, object]] = []
-    teacher_forced_observation_rows: list[dict[str, object]] = []
+    teacher_forced_observation_rows: list[dict[str, object]] = list(
+        checkpoint_diagnostic_state.get(
+            "teacher_forced_observation_rows",
+            [],
+        )
+    )
     match_overlap_column_rows: list[dict[str, object]] = []
     match_overlap_segment_rows: list[dict[str, object]] = []
     match_overlap_source_rows: list[dict[str, object]] = []
     context_trajectory_rows: list[dict[str, object]] = []
+    segment_reinforcement_rows: list[dict[str, object]] = list(
+        checkpoint_diagnostic_state.get("segment_reinforcement_rows", [])
+    )
     context_trajectory_row_count = 0
     context_trajectory_path = output_dir / "context_trajectory_column_trace.csv"
     streamed_trace_counts = {
@@ -2314,6 +2340,7 @@ def run_strict_stream(
             config.passenger_columns,
         )
         if teacher_forced_winner_diagnostic
+        or segment_reinforcement_diagnostic
         else None
     )
     match_overlap_ranges = (
@@ -2322,7 +2349,9 @@ def run_strict_stream(
             config.time_columns,
             config.passenger_columns,
         )
-        if match_overlap_diagnostic or context_trajectory_diagnostic
+        if match_overlap_diagnostic
+        or context_trajectory_diagnostic
+        or segment_reinforcement_diagnostic
         else None
     )
     validate_strict_fingerprint(fingerprint)
@@ -2587,15 +2616,20 @@ def run_strict_stream(
                     observe_scenario_diagnostic
                     or match_overlap_diagnostic
                     or context_trajectory_diagnostic
+                    or segment_reinforcement_diagnostic
                 ),
             )
             if (
                 teacher_forced_winner_diagnostic
                 or match_overlap_diagnostic
                 or context_trajectory_diagnostic
+                or segment_reinforcement_diagnostic
             )
             else None
         )
+        reinforcement_traces = []
+        if segment_reinforcement_diagnostic:
+            model.reinforcement_trace_callback = reinforcement_traces.append
         match_overlap_capture = None
         actual_prediction_trace = (
             PreselectionTrace()
@@ -2644,6 +2678,8 @@ def run_strict_stream(
                 code,
                 observation_trace=teacher_forced_trace,
             )
+        if segment_reinforcement_diagnostic:
+            model.reinforcement_trace_callback = None
         if branch_registry is not None:
             reference_predicted_sources: set[int] | None = None
             reference_burst_sources: set[int] | None = None
@@ -2733,7 +2769,10 @@ def run_strict_stream(
                     next_winners=model.previous_winners,
                 )
             if (
-                teacher_forced_winner_diagnostic
+                (
+                    teacher_forced_winner_diagnostic
+                    or segment_reinforcement_diagnostic
+                )
                 and teacher_forced_trace is not None
                 and teacher_forced_ranges is not None
             ):
@@ -2749,9 +2788,33 @@ def run_strict_stream(
                         pre_observe_segment_count=(
                             pre_observe_segment_count
                         ),
-                        level=teacher_forced_winner_level,
+                        level=(
+                            "segment"
+                            if segment_reinforcement_diagnostic
+                            else teacher_forced_winner_level
+                        ),
                         predicted_sources=reference_predicted_sources,
                         burst_sources=reference_burst_sources,
+                    )
+                )
+            if segment_reinforcement_diagnostic:
+                if (
+                    teacher_forced_trace is None
+                    or teacher_forced_ranges is None
+                ):
+                    raise RuntimeError(
+                        "segment reinforcement diagnostic state unavailable"
+                    )
+                segment_reinforcement_rows.extend(
+                    build_segment_reinforcement_rows(
+                        model=model,
+                        registry=branch_registry,
+                        observation_trace=teacher_forced_trace,
+                        reinforcement_traces=reinforcement_traces,
+                        actual_record_index=index,
+                        actual_record=record,
+                        ranges=teacher_forced_ranges,
+                        level=segment_reinforcement_level,
                     )
                 )
             branch_registry.update_source_labels(model, code)
@@ -2886,6 +2949,18 @@ def run_strict_stream(
                 raw_column_counts=raw_column_counts,
                 density_rows=density_rows,
                 branch_provenance_payload=provenance_payload,
+                diagnostic_state=(
+                    {
+                        "teacher_forced_observation_rows": (
+                            teacher_forced_observation_rows
+                        ),
+                        "segment_reinforcement_rows": (
+                            segment_reinforcement_rows
+                        ),
+                    }
+                    if segment_reinforcement_diagnostic
+                    else None
+                ),
             )
             if provenance_payload is not None and checkpoint_path is not None:
                 write_json_atomic(
@@ -2928,6 +3003,16 @@ def run_strict_stream(
             raw_column_counts=raw_column_counts,
             density_rows=density_rows,
             branch_provenance_payload=provenance_payload,
+            diagnostic_state=(
+                {
+                    "teacher_forced_observation_rows": (
+                        teacher_forced_observation_rows
+                    ),
+                    "segment_reinforcement_rows": segment_reinforcement_rows,
+                }
+                if segment_reinforcement_diagnostic
+                else None
+            ),
         )
         if provenance_payload is not None:
             write_json_atomic(
@@ -3332,6 +3417,41 @@ def run_strict_stream(
                 ),
                 "column_selection_rule": (
                     "replace only when predicted time < previous time"
+                ),
+                "strict_protocol_sha256": stable_object_sha256(fingerprint),
+            },
+        )
+    if segment_reinforcement_diagnostic:
+        assert branch_registry is not None
+        final_segment_ids = {
+            origin.segment_provenance_id
+            for column in model.columns
+            for neuron in column.neurons
+            for segment in neuron.segments
+            if (origin := branch_registry.provenance_for(segment)) is not None
+        }
+        completed_reinforcement_rows = enrich_segment_reinforcement_rows(
+            segment_reinforcement_rows,
+            observation_rows=teacher_forced_observation_rows,
+            density_rows=density_rows,
+            final_segment_ids=final_segment_ids,
+        )
+        write_diagnostic_csv(
+            output_dir / "segment_reinforcement_event_trace.csv",
+            completed_reinforcement_rows,
+            compress=True,
+        )
+        write_json(
+            output_dir / "segment_reinforcement_protocol.json",
+            {
+                **SEGMENT_REINFORCEMENT_MARKERS,
+                "version": "fig9-segment-reinforcement-v1",
+                "level": segment_reinforcement_level,
+                "rows": len(completed_reinforcement_rows),
+                "selection_behavior_changed": False,
+                "reference_rule": (
+                    "Scenario-1 pre-observation timed predictive identity only; "
+                    "Scenario-2 operational winner is circular and invalid"
                 ),
                 "strict_protocol_sha256": stable_object_sha256(fingerprint),
             },
@@ -3745,6 +3865,16 @@ def parse_args() -> argparse.Namespace:
         choices=tuple(sorted(CONTEXT_TRAJECTORY_LEVELS)),
         default="summary",
     )
+    parser.add_argument(
+        "--segment-reinforcement-diagnostic",
+        action="store_true",
+        help="Trace selected/reinforced segments for offline analysis only.",
+    )
+    parser.add_argument(
+        "--segment-reinforcement-level",
+        choices=tuple(sorted(SEGMENT_REINFORCEMENT_LEVELS)),
+        default="summary",
+    )
     parser.add_argument("--interval-every", type=int, default=0)
     parser.add_argument(
         "--progress-every",
@@ -4045,6 +4175,10 @@ def run_main(args: argparse.Namespace) -> None:
             context_trajectory_compress=(
                 not args.context_trajectory_uncompressed
             ),
+            segment_reinforcement_diagnostic=(
+                args.segment_reinforcement_diagnostic
+            ),
+            segment_reinforcement_level=args.segment_reinforcement_level,
         )
     if {"original", "perturbed"}.issubset(args.streams):
         runtime["pre_change_comparison"] = compare_pre_change_predictions(

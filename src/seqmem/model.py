@@ -320,6 +320,23 @@ class ReinforcementTrace:
     actual_positive_weakened_count: int = 0
     strengthened_synapse_count: int = 0
     weakened_synapse_count: int = 0
+    segment_diagnostic_id: int | None = None
+    source_count_before: int = 0
+    source_count_after: int = 0
+    scenario1_count_before: int = 0
+    scenario1_count_after: int = 0
+    scenario2_count_before: int = 0
+    scenario2_count_after: int = 0
+
+
+@dataclass(frozen=True)
+class MatchingCandidateTrace:
+    """One candidate measured by the real Scenario-2 traversal."""
+
+    target_neuron: int
+    segment: Segment
+    timed_overlap: int
+    candidate_score: float
 
 
 @dataclass(frozen=True)
@@ -425,6 +442,8 @@ class ObservationEventTrace:
     predicted_time_available: bool = False
     predicted_time_valid: bool = False
     matching_response_available: bool = False
+    selected_candidate_score: float = 0.0
+    matching_candidates: tuple[MatchingCandidateTrace, ...] = ()
 
 
 @dataclass
@@ -437,6 +456,7 @@ class BestMatchingTrace:
     best_active_synapse_count: int = 0
     best_neuron: int | None = None
     best_segment: Segment | None = None
+    candidates: list[MatchingCandidateTrace] = field(default_factory=list)
 
 
 @dataclass
@@ -2279,6 +2299,23 @@ class SequentialMemory:
                             best_matching_trace is not None
                             and best_matching_trace.candidate_segment_count
                         ),
+                        selected_candidate_score=(
+                            predicted.score
+                            if predicted is not None
+                            else (
+                                best_matching_trace.best_score
+                                if best_matching_trace is not None
+                                else 0.0
+                            )
+                        ),
+                        matching_candidates=(
+                            tuple(best_matching_trace.candidates)
+                            if (
+                                best_matching_trace is not None
+                                and capture_scenario_details
+                            )
+                            else ()
+                        ),
                     )
                 )
             if was_predicted:
@@ -2428,6 +2465,15 @@ class SequentialMemory:
                 self._dendritic_time(soma_time),
                 self.params.timing_tolerance,
             )
+            if trace is not None:
+                trace.candidates.append(
+                    MatchingCandidateTrace(
+                        target_neuron=neuron_index,
+                        segment=segment,
+                        timed_overlap=timed_overlap,
+                        candidate_score=score,
+                    )
+                )
             if (timed_overlap, score) > (best_overlap, best_score):
                 best = (neuron_index, segment)
                 best_overlap = timed_overlap
@@ -3187,6 +3233,9 @@ class SequentialMemory:
         forgetting/age 在后续 pruning 路径中使用。
         """
 
+        scenario1_count_before = segment.scenario1_reinforcements
+        scenario2_count_before = segment.scenario2_reinforcements
+        source_count_before = len(segment.synapses)
         if segment.diagnostic_id is not None:
             if scenario == "scenario1":
                 segment.scenario1_reinforcements += 1
@@ -3322,6 +3371,13 @@ class SequentialMemory:
                     ),
                     strengthened_synapse_count=len(strengthened),
                     weakened_synapse_count=len(weakened),
+                    segment_diagnostic_id=segment.diagnostic_id,
+                    source_count_before=source_count_before,
+                    source_count_after=len(segment.synapses),
+                    scenario1_count_before=scenario1_count_before,
+                    scenario1_count_after=segment.scenario1_reinforcements,
+                    scenario2_count_before=scenario2_count_before,
+                    scenario2_count_after=segment.scenario2_reinforcements,
                 )
             )
 
