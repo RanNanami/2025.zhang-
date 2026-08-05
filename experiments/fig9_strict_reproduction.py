@@ -110,6 +110,14 @@ from experiments.diagnostics.fig9_segment_reinforcement import (  # noqa: E402
     build_segment_reinforcement_rows,
     enrich_segment_reinforcement_rows,
 )
+from experiments.diagnostics.fig9_independent_reference import (  # noqa: E402
+    IndependentReferenceTracker,
+    capture_before_matching,
+    join_after_observation,
+    protocol as independent_reference_protocol,
+    record_actual_history,
+    write_trace as write_independent_reference_trace,
+)
 from seqmem.encoding import (  # noqa: E402
     SSTDCompositeEncoder,
     SSTDPeriodicEncoder,
@@ -2039,6 +2047,9 @@ def run_strict_stream(
     context_trajectory_compress: bool = True,
     segment_reinforcement_diagnostic: bool = False,
     segment_reinforcement_level: str = "summary",
+    independent_reference_diagnostic: bool = False,
+    independent_reference_level: str = "summary",
+    independent_reference_compress: bool = False,
 ) -> dict[str, object]:
     """Run one original or perturbed stream under the strict Fig.9 protocol."""
 
@@ -2062,6 +2073,8 @@ def run_strict_stream(
         raise ValueError(
             "segment reinforcement level must be summary, event, or segment"
         )
+    if independent_reference_level not in {"summary", "event", "segment"}:
+        raise ValueError("independent reference level must be summary, event, or segment")
     if timing_eligibility_decomposition and (
         not match_overlap_diagnostic or match_overlap_level != "source"
     ):
@@ -2185,6 +2198,7 @@ def run_strict_stream(
                 or match_overlap_diagnostic
                 or context_trajectory_diagnostic
                 or segment_reinforcement_diagnostic
+                or independent_reference_diagnostic
             )
             else None
         )
@@ -2249,6 +2263,7 @@ def run_strict_stream(
                 or match_overlap_diagnostic
                 or context_trajectory_diagnostic
                 or segment_reinforcement_diagnostic
+                or independent_reference_diagnostic
             )
             else None
         )
@@ -2284,6 +2299,15 @@ def run_strict_stream(
     context_trajectory_rows: list[dict[str, object]] = []
     segment_reinforcement_rows: list[dict[str, object]] = list(
         checkpoint_diagnostic_state.get("segment_reinforcement_rows", [])
+    )
+    independent_reference_event_rows: list[dict[str, object]] = list(
+        checkpoint_diagnostic_state.get("independent_reference_event_rows", [])
+    )
+    independent_reference_segment_rows: list[dict[str, object]] = list(
+        checkpoint_diagnostic_state.get("independent_reference_segment_rows", [])
+    )
+    independent_reference_tracker = IndependentReferenceTracker.from_checkpoint_payload(
+        checkpoint_diagnostic_state.get("independent_reference_tracker")
     )
     context_trajectory_row_count = 0
     context_trajectory_path = output_dir / "context_trajectory_column_trace.csv"
@@ -2341,6 +2365,7 @@ def run_strict_stream(
         )
         if teacher_forced_winner_diagnostic
         or segment_reinforcement_diagnostic
+        or independent_reference_diagnostic
         else None
     )
     match_overlap_ranges = (
@@ -2352,6 +2377,7 @@ def run_strict_stream(
         if match_overlap_diagnostic
         or context_trajectory_diagnostic
         or segment_reinforcement_diagnostic
+        or independent_reference_diagnostic
         else None
     )
     validate_strict_fingerprint(fingerprint)
@@ -2594,9 +2620,11 @@ def run_strict_stream(
                 teacher_forced_winner_diagnostic
                 or match_overlap_diagnostic
                 or context_trajectory_diagnostic
+                or independent_reference_diagnostic
             )
             else set()
         )
+        independent_preexisting_ids = set(previous_segment_ids)
         pre_observe_segment_count = (
             segment_count(model)
             if teacher_forced_winner_diagnostic
@@ -2617,6 +2645,7 @@ def run_strict_stream(
                     or match_overlap_diagnostic
                     or context_trajectory_diagnostic
                     or segment_reinforcement_diagnostic
+                    or independent_reference_diagnostic
                 ),
             )
             if (
@@ -2624,6 +2653,7 @@ def run_strict_stream(
                 or match_overlap_diagnostic
                 or context_trajectory_diagnostic
                 or segment_reinforcement_diagnostic
+                or independent_reference_diagnostic
             )
             else None
         )
@@ -2637,10 +2667,12 @@ def run_strict_stream(
             else None
         )
         actual_raw: SymbolCode | None = None
-        if match_overlap_diagnostic or context_trajectory_diagnostic:
+        independent_event_batch: list[dict[str, object]] = []
+        independent_segment_batch: list[dict[str, object]] = []
+        independent_private: dict[int, list[dict[str, object]]] = {}
+        if match_overlap_diagnostic or context_trajectory_diagnostic or independent_reference_diagnostic:
             if (
                 branch_registry is None
-                or match_overlap_ranges is None
                 or teacher_forced_trace is None
             ):
                 raise RuntimeError("match-overlap diagnostic state unavailable")
@@ -2648,23 +2680,41 @@ def run_strict_stream(
             actual_raw = model.predict_code(
                 preselection_trace=actual_prediction_trace,
             )
-            match_overlap_capture = capture_match_overlap(
-                model=model,
-                code=code,
-                registry=branch_registry,
-                stream_label=stream_label,
-                actual_record_index=index,
-                actual_record=record,
-                ranges=match_overlap_ranges,
-                level=(
-                    "source"
-                    if context_trajectory_diagnostic
-                    else match_overlap_level
-                ),
-                timing_eligibility_decomposition=(
-                    timing_eligibility_decomposition
-                ),
-            )
+            if match_overlap_diagnostic or context_trajectory_diagnostic:
+                if match_overlap_ranges is None:
+                    raise RuntimeError("match-overlap ranges unavailable")
+                match_overlap_capture = capture_match_overlap(
+                    model=model,
+                    code=code,
+                    registry=branch_registry,
+                    stream_label=stream_label,
+                    actual_record_index=index,
+                    actual_record=record,
+                    ranges=match_overlap_ranges,
+                    level=(
+                        "source"
+                        if context_trajectory_diagnostic
+                        else match_overlap_level
+                    ),
+                    timing_eligibility_decomposition=(
+                        timing_eligibility_decomposition
+                    ),
+                )
+            if independent_reference_diagnostic:
+                if teacher_forced_ranges is None:
+                    raise RuntimeError("independent reference ranges unavailable")
+                (
+                    independent_event_batch,
+                    independent_segment_batch,
+                    independent_private,
+                ) = capture_before_matching(
+                    model=model,
+                    registry=branch_registry,
+                    tracker=independent_reference_tracker,
+                    code=code,
+                    actual_record_index=index,
+                    ranges=teacher_forced_ranges,
+                )
             model.observe_code(
                 code,
                 learn=True,
@@ -2817,6 +2867,26 @@ def run_strict_stream(
                         level=segment_reinforcement_level,
                     )
                 )
+            if independent_reference_diagnostic:
+                if teacher_forced_trace is None:
+                    raise RuntimeError("independent reference trace unavailable")
+                join_after_observation(
+                    independent_event_batch,
+                    independent_segment_batch,
+                    trace=teacher_forced_trace,
+                    registry=branch_registry,
+                    private=independent_private,
+                    actual_record_index=index,
+                )
+                independent_reference_event_rows.extend(independent_event_batch)
+                independent_reference_segment_rows.extend(independent_segment_batch)
+                record_actual_history(
+                    independent_reference_tracker,
+                    trace=teacher_forced_trace,
+                    registry=branch_registry,
+                    preexisting_ids=independent_preexisting_ids,
+                    actual_record_index=index,
+                )
             branch_registry.update_source_labels(model, code)
         observe_runtime = time.perf_counter() - observe_started
         write_native_crash_breadcrumb(
@@ -2957,8 +3027,11 @@ def run_strict_stream(
                         "segment_reinforcement_rows": (
                             segment_reinforcement_rows
                         ),
+                        "independent_reference_event_rows": independent_reference_event_rows,
+                        "independent_reference_segment_rows": independent_reference_segment_rows,
+                        "independent_reference_tracker": independent_reference_tracker.checkpoint_payload(),
                     }
-                    if segment_reinforcement_diagnostic
+                    if segment_reinforcement_diagnostic or independent_reference_diagnostic
                     else None
                 ),
             )
@@ -3009,8 +3082,11 @@ def run_strict_stream(
                         teacher_forced_observation_rows
                     ),
                     "segment_reinforcement_rows": segment_reinforcement_rows,
+                    "independent_reference_event_rows": independent_reference_event_rows,
+                    "independent_reference_segment_rows": independent_reference_segment_rows,
+                    "independent_reference_tracker": independent_reference_tracker.checkpoint_payload(),
                 }
-                if segment_reinforcement_diagnostic
+                if segment_reinforcement_diagnostic or independent_reference_diagnostic
                 else None
             ),
         )
@@ -3456,6 +3532,28 @@ def run_strict_stream(
                 "strict_protocol_sha256": stable_object_sha256(fingerprint),
             },
         )
+    if independent_reference_diagnostic:
+        event_path = write_independent_reference_trace(
+            output_dir / "independent_reference_event_trace.csv",
+            independent_reference_event_rows,
+            compress=independent_reference_compress,
+        )
+        segment_path = write_independent_reference_trace(
+            output_dir / "independent_reference_segment_trace.csv",
+            independent_reference_segment_rows,
+            compress=independent_reference_compress,
+        )
+        write_json(
+            output_dir / "independent_reference_protocol.json",
+            {
+                **independent_reference_protocol(fingerprint, independent_reference_level, independent_reference_compress),
+                "event_trace_path": str(event_path),
+                "segment_trace_path": str(segment_path),
+                "event_rows": len(independent_reference_event_rows),
+                "segment_rows": len(independent_reference_segment_rows),
+                "actual_history_is_separate_from_autonomous_rollout": True,
+            },
+        )
     if teacher_forced_winner_diagnostic:
         write_diagnostic_csv(
             output_dir / "teacher_forced_observation_trace.csv",
@@ -3875,6 +3973,21 @@ def parse_args() -> argparse.Namespace:
         choices=tuple(sorted(SEGMENT_REINFORCEMENT_LEVELS)),
         default="summary",
     )
+    parser.add_argument(
+        "--independent-reference-diagnostic",
+        action="store_true",
+        help="Capture pre-matching independent segment references for offline analysis.",
+    )
+    parser.add_argument(
+        "--independent-reference-level",
+        choices=("summary", "event", "segment"),
+        default="summary",
+    )
+    parser.add_argument(
+        "--independent-reference-compress",
+        action="store_true",
+        help="Write independent reference traces as CSV.GZ.",
+    )
     parser.add_argument("--interval-every", type=int, default=0)
     parser.add_argument(
         "--progress-every",
@@ -4179,6 +4292,9 @@ def run_main(args: argparse.Namespace) -> None:
                 args.segment_reinforcement_diagnostic
             ),
             segment_reinforcement_level=args.segment_reinforcement_level,
+            independent_reference_diagnostic=args.independent_reference_diagnostic,
+            independent_reference_level=args.independent_reference_level,
+            independent_reference_compress=args.independent_reference_compress,
         )
     if {"original", "perturbed"}.issubset(args.streams):
         runtime["pre_change_comparison"] = compare_pre_change_predictions(
