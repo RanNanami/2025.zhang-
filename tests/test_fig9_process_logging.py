@@ -9,6 +9,38 @@ import unittest
 
 
 class Fig9ProcessLoggingTests(unittest.TestCase):
+    def test_full_traceback_capture_regression(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            stdout_log = root / "stdout.log"
+            stderr_log = root / "stderr.log"
+            combined_log = root / "combined.log"
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    "scripts/run_logged_process.py",
+                    "--stdout-log", str(stdout_log),
+                    "--stderr-log", str(stderr_log),
+                    "--combined-log", str(combined_log),
+                    "--result-json", str(root / "result.json"),
+                    "--failure-json", str(root / "failure.json"),
+                    "--checkpoint", str(root / "checkpoint.pkl"),
+                    "--",
+                    sys.executable,
+                    "-c",
+                    "raise RuntimeError('FULL_TRACEBACK_CAPTURE_TEST')",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertNotEqual(completed.returncode, 0)
+            stderr = stderr_log.read_text(encoding="utf-8")
+            self.assertIn("Traceback (most recent call last)", stderr)
+            self.assertIn("RuntimeError", stderr)
+            self.assertIn("FULL_TRACEBACK_CAPTURE_TEST", stderr)
+            self.assertIn("FULL_TRACEBACK_CAPTURE_TEST", completed.stdout)
+
     def test_stderr_traceback_and_native_exit_code_are_preserved(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

@@ -32,6 +32,39 @@ $PythonArgs = @(
     "--progress-every", "10", "--checkpoint-every", "10", "--stream-diagnostic-traces",
     "--output-dir", $out
 )
-& .\.venv\Scripts\python.exe @PythonArgs 2>&1 | Tee-Object (Join-Path $out "run.log")
-if ($LASTEXITCODE -ne 0) { throw "Fig.9 independent reference run failed with exit code $LASTEXITCODE" }
+$python = (Resolve-Path ".\.venv\Scripts\python.exe").Path
+$runner = (Resolve-Path "scripts\run_logged_process.py").Path
+$stdoutLog = Join-Path $out "stdout.log"
+$stderrLog = Join-Path $out "stderr.log"
+$combinedLog = Join-Path $out "combined.log"
+$resultJson = Join-Path $out "result.json"
+$failureJson = Join-Path $out "failure.json"
+$checkpoint = Join-Path $out "checkpoint.pkl"
+$command = @($python) + $PythonArgs
+@{
+    command = $command
+    python_args = $PythonArgs
+    working_directory = (Get-Location).Path
+    environment = @{
+        PYTHONFAULTHANDLER = $env:PYTHONFAULTHANDLER
+        PYTHONUNBUFFERED = $env:PYTHONUNBUFFERED
+    }
+} | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $out "command.json") -Encoding UTF8
+
+# Do not pipe a native process through PowerShell. The Python supervisor owns
+# both pipes and preserves the real child exit code and complete traceback.
+& $python $runner `
+    --stdout-log $stdoutLog `
+    --stderr-log $stderrLog `
+    --combined-log $combinedLog `
+    --result-json $resultJson `
+    --failure-json $failureJson `
+    --checkpoint $checkpoint `
+    -- $command
+$runnerExitCode = $LASTEXITCODE
+if ($runnerExitCode -ne 0) {
+    $failure = if (Test-Path $failureJson) { Get-Content $failureJson -Raw | ConvertFrom-Json } else { $null }
+    if ($failure) { Write-Host ("Child exit code: " + $failure.exit_code) }
+    throw "Fig.9 independent reference runner failed; see $stderrLog and $failureJson"
+}
 Write-Host "Output directory: $out"

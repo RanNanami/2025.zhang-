@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import threading
 import time
 
 
@@ -46,28 +47,39 @@ def _exception_text(lines: deque[str], exit_code: int) -> str:
 def run(
     command: list[str],
     *,
-    log: Path,
+    log: Path | None = None,
     result: Path,
     failure: Path,
     checkpoint: Path,
     procdump: Path | None = None,
     dump_dir: Path | None = None,
+    stdout_log: Path | None = None,
+    stderr_log: Path | None = None,
+    combined_log: Path | None = None,
 ) -> int:
     started = time.perf_counter()
-    log.parent.mkdir(parents=True, exist_ok=True)
-    log.touch(exist_ok=True)
+    combined_log = combined_log or log or Path("run.log")
+    stdout_log = stdout_log or combined_log
+    stderr_log = stderr_log or combined_log
+    for path in {stdout_log, stderr_log, combined_log, result, failure, checkpoint}:
+        path.parent.mkdir(parents=True, exist_ok=True)
+    combined_log.touch(exist_ok=True)
     env = os.environ.copy()
     env["PYTHONFAULTHANDLER"] = "1"
     env["PYTHONUNBUFFERED"] = "1"
-    tail: deque[str] = deque(maxlen=250)
+    tail: deque[str] = deque(maxlen=300)
     exit_code = -1
     dump_process: subprocess.Popen[str] | None = None
     try:
-        with log.open("a", encoding="utf-8", buffering=1) as handle:
+        with (
+            stdout_log.open("a", encoding="utf-8", buffering=1) as stdout_handle,
+            stderr_log.open("a", encoding="utf-8", buffering=1) as stderr_handle,
+            combined_log.open("a", encoding="utf-8", buffering=1) as combined_handle,
+        ):
             process = subprocess.Popen(
                 command,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
+                stderr=subprocess.PIPE,
                 text=True,
                 encoding="utf-8",
                 errors="replace",
@@ -87,19 +99,48 @@ def run(
                         str(process.pid),
                         str(dump_dir),
                     ],
-                    stdout=handle,
+                    stdout=combined_handle,
                     stderr=subprocess.STDOUT,
                     text=True,
                     env=env,
                 )
-            assert process.stdout is not None
-            for line in process.stdout:
-                tail.append(line)
-                handle.write(line)
-                handle.flush()
-                sys.stdout.write(line)
-                sys.stdout.flush()
+            assert process.stdout is not None and process.stderr is not None
+            write_lock = threading.Lock()
+
+            combined_path = combined_log.resolve()
+
+            def forward(stream, destination, destination_path: Path, label: str) -> None:
+                for line in stream:
+                    if label == "stderr":
+                        tail.append(line)
+                    with write_lock:
+                        destination.write(line)
+                        destination.flush()
+                        if destination_path.resolve() != combined_path:
+                            combined_handle.write(line)
+                            combined_handle.flush()
+                    # Keep child diagnostics visible without PowerShell's
+                    # native stderr error-record conversion.
+                    sys.stdout.write(line)
+                    sys.stdout.flush()
+
+            threads = [
+                threading.Thread(
+                    target=forward,
+                    args=(process.stdout, stdout_handle, stdout_log, "stdout"),
+                    daemon=True,
+                ),
+                threading.Thread(
+                    target=forward,
+                    args=(process.stderr, stderr_handle, stderr_log, "stderr"),
+                    daemon=True,
+                ),
+            ]
+            for thread in threads:
+                thread.start()
             exit_code = process.wait()
+            for thread in threads:
+                thread.join()
     except BaseException as exc:
         tail.append(f"Supervisor exception: {type(exc).__name__}: {exc}\n")
         exit_code = -1
@@ -139,6 +180,9 @@ def run(
     if exit_code != 0:
         payload["exception"] = _exception_text(tail, exit_code)
         failure.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        sys.stdout.write("\n===== child stderr tail (last 300 lines) =====\n")
+        sys.stdout.write("".join(tail))
+        sys.stdout.flush()
         return 1
     if failure.exists():
         failure.unlink()
@@ -147,12 +191,15 @@ def run(
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--log", type=Path, required=True)
+    parser.add_argument("--log", type=Path)
     parser.add_argument("--result-json", type=Path, required=True)
     parser.add_argument("--failure-json", type=Path, required=True)
     parser.add_argument("--checkpoint", type=Path, required=True)
     parser.add_argument("--procdump", type=Path)
     parser.add_argument("--dump-dir", type=Path)
+    parser.add_argument("--stdout-log", type=Path)
+    parser.add_argument("--stderr-log", type=Path)
+    parser.add_argument("--combined-log", type=Path)
     parser.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     command = list(args.command)
@@ -171,6 +218,9 @@ def main() -> None:
             checkpoint=args.checkpoint,
             procdump=args.procdump,
             dump_dir=args.dump_dir,
+            stdout_log=args.stdout_log,
+            stderr_log=args.stderr_log,
+            combined_log=args.combined_log,
         )
     )
 
