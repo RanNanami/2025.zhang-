@@ -32,7 +32,24 @@ class ActualBranchProvenanceTests(unittest.TestCase):
             neuron=2, source_cells={2: 0.5}, reinforced=False,
         )
         self.assertEqual(state["actual_anchor_count"], 2)
+        self.assertEqual(state["actual_branch_count"], 2)
         self.assertTrue(state["mixed_actual_history"])
+        self.assertEqual(state["mixed_history_class"], "ACTUAL_BRANCH_MIXED_HISTORY")
+        self.assertEqual(state["mixture_trigger"], "REINFORCEMENT_ADDED_NEW_ACTUAL_ANCHOR")
+
+    def test_anchor_identity_does_not_depend_on_first_seen_index(self):
+        tracker_a = ActualBranchProvenanceTracker()
+        tracker_b = ActualBranchProvenanceTracker()
+        a = tracker_a.record_actual(
+            segment_id="segment-a", index=10, field="time", column=104,
+            neuron=3, source_cells={1, 2}, reinforced=False,
+        )
+        b = tracker_b.record_actual(
+            segment_id="segment-a", index=999, field="time", column=104,
+            neuron=3, source_cells={1, 2}, reinforced=False,
+        )
+        self.assertEqual(a["actual_anchor_ids_seen"], b["actual_anchor_ids_seen"])
+        self.assertEqual(a["actual_branch_ids_seen"], b["actual_branch_ids_seen"])
 
     def test_checkpoint_round_trip_preserves_stable_ids(self):
         tracker = ActualBranchProvenanceTracker()

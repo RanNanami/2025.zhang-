@@ -175,12 +175,18 @@ class ActualBranchProvenanceTracker:
             "creation_source_signature": sig,
             "first_actual_anchor_id": "",
             "actual_anchor_ids_seen": [],
+            "actual_branch_ids_seen": [],
             "actual_anchor_count": 0,
+            "actual_branch_count": 0,
             "autonomous_anchor_ids_seen": [],
             "reinforcement_history_count": 0,
             "actual_reinforcement_count": 0,
             "autonomous_reinforcement_count": 0,
             "mixed_actual_history": False,
+            "mixed_history_class": "NO_ACTUAL_HISTORY",
+            "first_mixed_index": "",
+            "event_that_created_mixture": "",
+            "mixture_trigger": "",
             "deleted_index": "",
             "recreated_from_prior_id": "",
         })
@@ -189,12 +195,35 @@ class ActualBranchProvenanceTracker:
             neuron=neuron, source_sig=sig,
         )
         anchors = list(state.get("actual_anchor_ids_seen", []))
+        previous_anchor_count = len(anchors)
+        previous_branch_ids = set(str(value) for value in state.get("actual_branch_ids_seen", []))
         if anchor_id not in anchors:
             anchors.append(anchor_id)
         state["actual_anchor_ids_seen"] = anchors
         state["actual_anchor_count"] = len(anchors)
+        branch_ids = list(state.get("actual_branch_ids_seen", []))
+        if branch_id not in branch_ids:
+            branch_ids.append(branch_id)
+        state["actual_branch_ids_seen"] = branch_ids
+        state["actual_branch_count"] = len(branch_ids)
         state["first_actual_anchor_id"] = anchors[0]
-        state["mixed_actual_history"] = len(anchors) > 1
+        state["mixed_actual_history"] = len(branch_ids) > 1
+        if len(anchors) > 1 and len(branch_ids) == 1:
+            state["mixed_history_class"] = "MULTIPLE_ANCHORS_SAME_BRANCH"
+        elif len(branch_ids) > 1:
+            state["mixed_history_class"] = "ACTUAL_BRANCH_MIXED_HISTORY"
+        elif previous_anchor_count == 0:
+            state["mixed_history_class"] = "SINGLE_ACTUAL_ANCHOR"
+        if len(branch_ids) > 1 and not state.get("first_mixed_index"):
+            state["first_mixed_index"] = index
+            state["event_that_created_mixture"] = index
+            state["mixture_trigger"] = (
+                "CREATION_WITH_MULTIPLE_ACTUAL_SOURCES"
+                if previous_anchor_count == 0
+                else "REINFORCEMENT_ADDED_NEW_ACTUAL_ANCHOR"
+            )
+        elif previous_anchor_count and len(anchors) > previous_anchor_count and len(branch_ids) == 1:
+            state["mixture_trigger"] = "DUPLICATE_ANCHOR_ENTRY"
         state["reinforcement_history_count"] = int(state.get("reinforcement_history_count", 0)) + 1
         if reinforced:
             state["actual_reinforcement_count"] = int(state.get("actual_reinforcement_count", 0)) + 1
@@ -259,9 +288,17 @@ def capture_prematch(
                 "reinforced_by_current_observation": False,
                 "actual_anchor_ids_before": "|".join(_state_ids(state, "actual_anchor_ids_seen")),
                 "actual_anchor_count_before": len(_state_ids(state, "actual_anchor_ids_seen")),
-                "actual_branch_ids_before": "",
-                "actual_branch_count_before": 0,
+                "actual_branch_ids_before": "|".join(_state_ids(state, "actual_branch_ids_seen")),
+                "actual_branch_count_before": len(_state_ids(state, "actual_branch_ids_seen")),
                 "mixed_actual_history_before": bool(state and state.get("mixed_actual_history")),
+                "mixed_history_class_before": state.get("mixed_history_class", "NO_ACTUAL_HISTORY") if state else "NO_ACTUAL_HISTORY",
+                "first_mixed_index_before": state.get("first_mixed_index", "") if state else "",
+                "event_that_created_mixture_before": state.get("event_that_created_mixture", "") if state else "",
+                "mixture_trigger_before": state.get("mixture_trigger", "") if state else "",
+                "capture_phase": "PRE_MATCHING",
+                "matching_started_at_capture": False,
+                "selected_segment_known_at_capture": False,
+                "reinforcement_started_at_capture": False,
                 "actual_anchor_ids_after": "",
                 "actual_anchor_count_after": "",
                 "mixed_actual_history_after": "",
@@ -286,6 +323,10 @@ def capture_prematch(
             "current_matching_not_started": True,
             "current_selected_segment_unavailable": True,
             "current_reinforcement_not_started": True,
+            "capture_phase": "PRE_MATCHING",
+            "matching_started_at_capture": False,
+            "selected_segment_known_at_capture": False,
+            "reinforcement_started_at_capture": False,
             "prematch_actual_anchor_count": len(anchor_ids),
             "prematch_unique_actual_anchor": len(anchor_ids) == 1,
             "prematch_actual_anchor_ids": "|".join(anchor_ids),
@@ -298,6 +339,8 @@ def capture_prematch(
             "matching_segment_count": "",
             "matching_neuron_count": "",
             "ambiguous_segment": len(anchor_ids) > 1,
+            "ambiguity_definition": "distinct_actual_anchor_ids_before",
+            "ambiguity_stage": "PRE_THRESHOLD",
             "ambiguous_neuron": "",
             "l2_only_match": "",
             "passes_L2": "",
@@ -339,6 +382,8 @@ def capture_prematch(
             "downstream_step3_error": "",
             "downstream_step4_error": "",
             "downstream_step5_error": "",
+            "prematch_selected_segment_unavailable": True,
+            "post_observation_selected_segment_known": False,
             "_event_index": event_index,
         })
     return event_rows, segment_rows, preexisting_ids
@@ -390,7 +435,11 @@ def join_after_observation(
             status = "ACTUAL_BRANCH_CHAIN_BROKEN"
         row.update({
             "observe_scenario": event.scenario,
-            "current_selected_segment_unavailable": False,
+            # These fields describe the capture point and must not be rewritten
+            # with post-observation values.  Post state has separate fields.
+            "post_observation_selected_segment_known": selected is not None,
+            "post_observation_matching_started": True,
+            "post_observation_reinforcement_started": bool(reinforced),
             "selected_segment_provenance_id": selected_origin.segment_provenance_id if selected_origin else "",
             "selected_target_neuron": event.winner_neuron,
             "selected_overlap": event.best_matching_overlap,
@@ -429,7 +478,13 @@ def join_after_observation(
         state = tracker.state(sid) if sid else None
         row["actual_anchor_ids_after"] = "|".join(_state_ids(state, "actual_anchor_ids_seen"))
         row["actual_anchor_count_after"] = len(_state_ids(state, "actual_anchor_ids_seen"))
+        row["actual_branch_ids_after"] = "|".join(_state_ids(state, "actual_branch_ids_seen"))
+        row["actual_branch_count_after"] = len(_state_ids(state, "actual_branch_ids_seen"))
         row["mixed_actual_history_after"] = bool(state and state.get("mixed_actual_history"))
+        row["mixed_history_class_after"] = state.get("mixed_history_class", "NO_ACTUAL_HISTORY") if state else "NO_ACTUAL_HISTORY"
+        row["first_mixed_index_after"] = state.get("first_mixed_index", "") if state else ""
+        row["event_that_created_mixture_after"] = state.get("event_that_created_mixture", "") if state else ""
+        row["mixture_trigger_after"] = state.get("mixture_trigger", "") if state else ""
 
 
 def record_actual_transition(

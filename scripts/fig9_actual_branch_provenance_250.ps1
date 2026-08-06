@@ -22,6 +22,18 @@ function Invoke-Analysis([string]$Directory) {
         $tool = Join-Path $PSScriptRoot "..\$($job[0])"
         if (-not (Test-Path $tool)) { throw "Missing analyzer: $tool" }
         $prefix = Join-Path $Directory $job[1]
+        $analysisArgs = @($Directory, "--output-dir", $analysis)
+        if ($job[1] -eq "actual_branch_analysis") {
+            $compare = $null
+            if ((Split-Path $Directory -Leaf) -match "L4") {
+                $candidate = Join-Path (Split-Path $Directory -Parent) "independent_reference_250_20260806_091943_L2"
+                if (Test-Path $candidate) { $compare = $candidate }
+            } elseif ((Split-Path $Directory -Leaf) -match "L2") {
+                $candidate = Join-Path (Split-Path $Directory -Parent) "actual_branch_provenance_250_20260806_102928_L4"
+                if (Test-Path $candidate) { $compare = $candidate }
+            }
+            if ($compare) { $analysisArgs += @("--compare-run-dir", $compare) }
+        }
         & $python $runner `
             --stdout-log "$prefix.stdout.log" `
             --stderr-log "$prefix.stderr.log" `
@@ -29,13 +41,14 @@ function Invoke-Analysis([string]$Directory) {
             --result-json "$prefix.result.json" `
             --failure-json "$prefix.failure.json" `
             --checkpoint (Join-Path $Directory "checkpoint.pkl") `
-            -- $python $tool $Directory --output-dir $analysis
+            -- $python $tool @analysisArgs
         if ($LASTEXITCODE -ne 0) {
             throw "Analyzer failed; see $prefix.stderr.log"
         }
     }
     $zip = "$Directory.zip"
-    Compress-Archive -Path (Join-Path $Directory "*") -DestinationPath $zip -Force
+    $archiveItems = Get-ChildItem -LiteralPath $Directory -Force | Where-Object { $_.Extension -ne ".zip" } | Select-Object -ExpandProperty FullName
+    Compress-Archive -Path $archiveItems -DestinationPath $zip -Force
     Write-Host "Analysis directory: $analysis"
     Write-Host "Archive: $zip"
 }

@@ -2,6 +2,7 @@
 
 This document describes the diagnostic path in the current checkout. The
 actual branch tracker is external metadata; it does not enter the model.
+Function names are the stable audit anchors if line numbers move.
 
 ## Call order
 
@@ -13,6 +14,10 @@ actual branch tracker is external metadata; it does not enter the model.
    `model.observe_code()` around lines 2700-2760. The actual-branch prematch
    capture runs after this prediction call and before `observe_code`; therefore
    it sees only pre-existing segments and the previous actual-history tracker.
+   Capture facts are explicitly marked `capture_phase=PRE_MATCHING`, with
+   `matching_started_at_capture=false`,
+   `selected_segment_known_at_capture=false`, and
+   `reinforcement_started_at_capture=false`.
 3. `src/seqmem/model.py:observe_code` (around lines 2000-2460) assigns
    Scenario 1/2/3, selects matching segments, reinforces, creates segments,
    and updates winners. Those results are not read to create prematch anchors.
@@ -23,7 +28,11 @@ actual branch tracker is external metadata; it does not enter the model.
 5. Around lines 2870-2930, the actual-branch trace is joined to the completed
    `ObservationTrace`, then the tracker records the selected pre-existing
    segment as an actual-history event. A segment created by the current
-   observation is excluded from this current anchor update.
+   observation is excluded from this current anchor update. Post-observation
+   facts use separate fields such as
+   `post_observation_selected_segment_known` and
+   `post_observation_reinforcement_started`; they do not overwrite capture
+   semantics.
 6. Around lines 3020-3140, the model checkpoint stores the diagnostic tracker,
    event rows, and segment rows alongside the existing diagnostic state. The
    model checkpoint format and model object are unchanged.
@@ -32,15 +41,24 @@ actual branch tracker is external metadata; it does not enter the model.
 
 An `ACTUAL_HISTORY_ANCHOR` is created only after an earlier actual observation
 selected or reinforced a pre-existing segment with a stable segment provenance
-ID. Its ID is a deterministic hash of the stable segment ID, transition index,
-field, target column/neuron, and source provenance signature. It is not a
+ID. Its ID is a deterministic hash of the stable segment ID, field, target
+column/neuron, and source provenance signature. The first-seen transition is
+metadata, not identity. It is not a
 Python object ID, row number, random UUID, floating-time join, current rank, or
 candidate score.
 
 The first actual source signature creates the first anchor. If the same stable
 segment is later observed with a distinct actual source signature, a second
-anchor is retained and the segment is marked `mixed_actual_history`. The
-tracker never chooses one history to make a segment appear unique.
+anchor is retained. Only two or more distinct actual branch IDs are classified
+as `ACTUAL_BRANCH_MIXED_HISTORY`; multiple anchors under one branch are
+reported as `MULTIPLE_ANCHORS_SAME_BRANCH`. The tracker never chooses one
+history to make a segment appear unique.
+
+The offline analyzer joins `segment_reinforcement_event_trace.csv.gz` on
+`actual_record_index|field|encoded_column` to recover reinforcement counts,
+L-match flags, repeated selection/reinforcement windows, and downstream error
+fields. A field without a deterministic source remains `NA` and is listed in
+`field_recoverability_manifest.csv`.
 
 ## Lifecycle boundaries
 
