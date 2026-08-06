@@ -554,12 +554,18 @@ class SequentialMemory:
         self.reinforcement_trace_callback: (
             Callable[[ReinforcementTrace], None] | None
         ) = None
+        # Debug-only hook.  It receives scalar snapshots around pruning and is
+        # deliberately excluded from checkpoints by ``__getstate__``.
+        self.prune_diagnostic_callback: (
+            Callable[[dict[str, object]], None] | None
+        ) = None
 
     def __getstate__(self) -> dict[str, object]:
         """Exclude the reproducible numeric cache from model checkpoints."""
 
         state = self.__dict__.copy()
         state["_spike_response_cache"] = {}
+        state["prune_diagnostic_callback"] = None
         return state
 
     def reset_state(self) -> None:
@@ -3384,6 +3390,17 @@ class SequentialMemory:
         self._prune_neuron(neuron)
 
     def _punish_wrong_predictions(self, active_events: dict[int, float]) -> None:
+        self._emit_prune_diagnostic(
+            "PUNISH_WRONG_PREDICTIONS_ENTER",
+            target_column=None,
+            neuron_index=None,
+            segment_count=sum(
+                len(neuron.segments)
+                for column in self.columns
+                for neuron in column.neurons
+            ),
+            container_length=len(self.last_prediction_candidates),
+        )
         active_sources = self._active_sources()
         for column_id, candidates in self.last_prediction_candidates.items():
             actual_time = active_events.get(column_id)
@@ -3391,6 +3408,16 @@ class SequentialMemory:
                 predicted_time = candidate.time
                 neuron_index = candidate.neuron_index
                 segment = candidate.segment
+                self._emit_prune_diagnostic(
+                    "PUNISH_WRONG_PREDICTIONS_TARGET_SELECTED",
+                    target_column=column_id,
+                    neuron_index=neuron_index,
+                    candidate_segment=segment,
+                    segment_count=len(
+                        self.columns[column_id].neurons[neuron_index].segments
+                    ),
+                    container_length=len(candidates),
+                )
                 if (
                     actual_time is not None
                     and abs(actual_time - predicted_time)
@@ -3412,11 +3439,104 @@ class SequentialMemory:
                         0.0, synapse.weight - self.params.delta_w_bad
                     )
                     synapse.age += 1
-                self._prune_neuron(
-                    self.columns[column_id].neurons[neuron_index]
+                self._emit_prune_diagnostic(
+                    "PUNISH_WRONG_PREDICTIONS_BEFORE_PRUNE",
+                    target_column=column_id,
+                    neuron_index=neuron_index,
+                    candidate_segment=segment,
+                    segment_count=len(
+                        self.columns[column_id].neurons[neuron_index].segments
+                    ),
+                    container_length=len(segment.synapses),
                 )
+                self._prune_neuron(
+                    self.columns[column_id].neurons[neuron_index],
+                    target_column=column_id,
+                    neuron_index=neuron_index,
+                    candidate_segment=segment,
+                )
+        self._emit_prune_diagnostic(
+            "PUNISH_WRONG_PREDICTIONS_EXIT",
+            target_column=None,
+            neuron_index=None,
+            segment_count=sum(
+                len(neuron.segments)
+                for column in self.columns
+                for neuron in column.neurons
+            ),
+            container_length=len(self.last_prediction_candidates),
+        )
 
-    def _prune_neuron(self, neuron: Neuron) -> None:
+    def _emit_prune_diagnostic(
+        self,
+        phase: str,
+        *,
+        target_column: int | None,
+        neuron_index: int | None,
+        candidate_segment: Segment | None = None,
+        segment_count: int = 0,
+        container_length: int = 0,
+    ) -> None:
+        # Older strict checkpoints predate this optional field.
+        callback = getattr(self, "prune_diagnostic_callback", None)
+        if callback is None:
+            return
+        stable_ids = tuple(
+            str(segment.diagnostic_id)
+            for column in self.columns
+            for neuron in column.neurons
+            for segment in neuron.segments
+            if segment.diagnostic_id is not None
+        )
+        segment_id_hash = hashlib.sha256(
+            ",".join(sorted(stable_ids)).encode("ascii")
+        ).hexdigest()
+        callback(
+            {
+                "phase": phase,
+                "encoded_column": target_column,
+                "target_column": target_column,
+                "neuron_index": neuron_index,
+                "stable_neuron_id": (
+                    f"column:{target_column}:neuron:{neuron_index}"
+                    if target_column is not None and neuron_index is not None
+                    else ""
+                ),
+                "stable_segment_id": (
+                    candidate_segment.diagnostic_id
+                    if candidate_segment is not None
+                    else None
+                ),
+                "segment_count": segment_count,
+                "container_length": container_length,
+                "segment_id_hash": segment_id_hash,
+            }
+        )
+
+    def _prune_neuron(
+        self,
+        neuron: Neuron,
+        *,
+        target_column: int | None = None,
+        neuron_index: int | None = None,
+        candidate_segment: Segment | None = None,
+    ) -> None:
+        self._emit_prune_diagnostic(
+            "PRUNE_NEURON_ENTER",
+            target_column=target_column,
+            neuron_index=neuron_index,
+            candidate_segment=candidate_segment,
+            segment_count=len(neuron.segments),
+            container_length=len(neuron.segments),
+        )
+        self._emit_prune_diagnostic(
+            "PRUNE_NEURON_BEFORE_SEGMENT_SCAN",
+            target_column=target_column,
+            neuron_index=neuron_index,
+            candidate_segment=candidate_segment,
+            segment_count=len(neuron.segments),
+            container_length=len(neuron.segments),
+        )
         kept_segments: list[Segment] = []
         for segment in neuron.segments:
             previous_sources = set(segment.synapses)
@@ -3434,7 +3554,55 @@ class SequentialMemory:
             segment.active = bool(segment.synapses)
             if segment.active:
                 kept_segments.append(segment)
+        self._emit_prune_diagnostic(
+            "PRUNE_NEURON_AFTER_SEGMENT_SCAN",
+            target_column=target_column,
+            neuron_index=neuron_index,
+            candidate_segment=candidate_segment,
+            segment_count=len(neuron.segments),
+            container_length=len(kept_segments),
+        )
+        self._emit_prune_diagnostic(
+            "PRUNE_NEURON_BEFORE_CONTAINER_MUTATION",
+            target_column=target_column,
+            neuron_index=neuron_index,
+            candidate_segment=candidate_segment,
+            segment_count=len(neuron.segments),
+            container_length=len(kept_segments),
+        )
         neuron.segments = kept_segments
+        self._emit_prune_diagnostic(
+            "PRUNE_NEURON_AFTER_CONTAINER_MUTATION",
+            target_column=target_column,
+            neuron_index=neuron_index,
+            candidate_segment=candidate_segment,
+            segment_count=len(neuron.segments),
+            container_length=len(neuron.segments),
+        )
+        self._emit_prune_diagnostic(
+            "PRUNE_NEURON_BEFORE_DIAGNOSTIC_CALLBACK",
+            target_column=target_column,
+            neuron_index=neuron_index,
+            candidate_segment=candidate_segment,
+            segment_count=len(neuron.segments),
+            container_length=len(neuron.segments),
+        )
+        self._emit_prune_diagnostic(
+            "PRUNE_NEURON_AFTER_DIAGNOSTIC_CALLBACK",
+            target_column=target_column,
+            neuron_index=neuron_index,
+            candidate_segment=candidate_segment,
+            segment_count=len(neuron.segments),
+            container_length=len(neuron.segments),
+        )
+        self._emit_prune_diagnostic(
+            "PRUNE_NEURON_EXIT",
+            target_column=target_column,
+            neuron_index=neuron_index,
+            candidate_segment=candidate_segment,
+            segment_count=len(neuron.segments),
+            container_length=len(neuron.segments),
+        )
 
     def _cell_id(self, column_id: int, neuron_index: int) -> int:
         return column_id * len(self.columns[column_id].neurons) + neuron_index

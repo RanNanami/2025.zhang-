@@ -61,6 +61,7 @@ from experiments.diagnostics.fig9_oracle_candidate import (  # noqa: E402
 )
 from experiments.diagnostics.fig9_candidate_score_trace import (  # noqa: E402
     candidate_score_trace_rows,
+    field_for_column,
 )
 from experiments.diagnostics.fig9_branch_provenance import (  # noqa: E402
     BRANCH_LEVELS,
@@ -354,9 +355,10 @@ def write_json_atomic(path: Path, payload: object) -> None:
 
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(path.name + ".tmp")
-    temporary.write_text(
-        json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8"
-    )
+    with temporary.open("w", encoding="utf-8") as handle:
+        handle.write(json.dumps(payload, indent=2, sort_keys=True))
+        handle.flush()
+        os.fsync(handle.fileno())
     os.replace(temporary, path)
 
 
@@ -621,6 +623,65 @@ def write_native_crash_breadcrumb(
         _NATIVE_CRASH_HANDLE.flush()
 
 
+class PruneBreadcrumbRecorder:
+    """Write scalar-only prune breadcrumbs without retaining model objects."""
+
+    def __init__(self, config: Fig9StrictConfig) -> None:
+        self.current_index = -1
+        self.config = config
+        self.sequence = 0
+
+    def set_index(self, current_index: int) -> None:
+        self.current_index = current_index
+
+    def __call__(self, payload: dict[str, object]) -> None:
+        if _NATIVE_CRASH_HANDLE is None:
+            return
+        self.sequence += 1
+        column = payload.get("encoded_column")
+        field = (
+            field_for_column(
+                int(column),
+                FieldColumnRanges.from_sizes(
+                    self.config.weekday_columns,
+                    self.config.time_columns,
+                    self.config.passenger_columns,
+                ),
+            )
+            if isinstance(column, int)
+            else ""
+        )
+        record = {
+            "timestamp": datetime.now().isoformat(
+                sep=" ", timespec="milliseconds"
+            ),
+            "current_index": self.current_index,
+            "rollout_step": None,
+            "phase": payload.get("phase", ""),
+            "field": field,
+            "encoded_column": column,
+            "stable_neuron_id": payload.get("stable_neuron_id", ""),
+            "stable_segment_id": payload.get("stable_segment_id"),
+            "target_column": payload.get("target_column"),
+            "neuron_index": payload.get("neuron_index"),
+            "segment_count": payload.get("segment_count", 0),
+            "container_length": payload.get("container_length", 0),
+            "segment_id_hash": payload.get("segment_id_hash", ""),
+            "actual_branch_provenance_diagnostic": True,
+            "callback_scalar_only": True,
+            "phase_sequence": self.sequence,
+            # Refreshing Windows process memory for every prune callback is
+            # disproportionately expensive.  The observation breadcrumb
+            # updates this scalar once per record; all prune phases reuse it.
+            "process_memory_mb": _LAST_PROCESS_MEMORY_MB,
+        }
+        with _NATIVE_LOG_LOCK:
+            _NATIVE_CRASH_HANDLE.write(
+                "FIG9_NATIVE_PRUNE " + json.dumps(record, sort_keys=True) + "\n"
+            )
+            _NATIVE_CRASH_HANDLE.flush()
+
+
 atexit.register(close_native_crash_logging)
 
 
@@ -692,6 +753,57 @@ def save_strict_checkpoint(
         handle.flush()
         os.fsync(handle.fileno())
     os.replace(temporary, path)
+
+
+def checkpoint_metadata_path(checkpoint_path: Path) -> Path:
+    """Return the final metadata record for a strict checkpoint."""
+
+    return checkpoint_path.with_name(
+        checkpoint_path.stem + ".metadata.json"
+    )
+
+
+def write_checkpoint_metadata(
+    checkpoint_path: Path,
+    *,
+    next_index: int,
+    fingerprint: dict[str, object],
+    model: SequentialMemory,
+    branch_provenance_payload: dict[str, object] | None,
+) -> None:
+    """Publish a durable checkpoint boundary after pickle and sidecar writes."""
+
+    sidecar = branch_checkpoint_sidecar_path(checkpoint_path)
+    sidecar_enabled = (
+        branch_provenance_payload is not None and sidecar.exists()
+    )
+    payload = {
+        "checkpoint_format": "fig9-strict-v1",
+        "checkpoint_path": str(checkpoint_path.resolve()),
+        "checkpoint_sha256": file_sha256(checkpoint_path),
+        "checkpoint_size_bytes": checkpoint_path.stat().st_size,
+        "next_index": next_index,
+        "last_fully_completed_index": next_index,
+        "saved_at": datetime.now().isoformat(sep=" ", timespec="milliseconds"),
+        "model_fingerprint": model_long_term_fingerprint(model),
+        "rng_fingerprint": model_rng_fingerprint(model),
+        "branch_provenance_version": (
+            branch_provenance_payload.get("version")
+            if branch_provenance_payload is not None
+            else None
+        ),
+        "branch_provenance_sidecar_path": (
+            str(sidecar.resolve()) if sidecar_enabled else None
+        ),
+        "branch_provenance_sidecar_sha256": (
+            file_sha256(sidecar) if sidecar_enabled else None
+        ),
+        "trace_boundary": {"next_index": next_index},
+        "protocol_sha256": stable_object_sha256(fingerprint),
+        "git_commit_sha": git_commit_sha(),
+        "atomic_complete": True,
+    }
+    write_json_atomic(checkpoint_metadata_path(checkpoint_path), payload)
 
 
 class _StrictCheckpointUnpickler(pickle.Unpickler):
@@ -2422,8 +2534,18 @@ def run_strict_stream(
     interval_start_index = start_index
     debug_payload: dict[str, object] | None = None
     last_completed_index = start_index
+    prune_breadcrumb_recorder = (
+        PruneBreadcrumbRecorder(config)
+        if actual_branch_provenance_diagnostic
+        else None
+    )
+    # This hook is diagnostic-only.  It receives no Segment/Neuron reference
+    # and is removed by SequentialMemory.__getstate__ during checkpointing.
+    model.prune_diagnostic_callback = prune_breadcrumb_recorder
 
     for index in range(start_index, len(records) - config.horizon):
+        if prune_breadcrumb_recorder is not None:
+            prune_breadcrumb_recorder.set_index(index)
         write_native_crash_breadcrumb(
             current_index=index,
             rollout_step=None,
@@ -3122,6 +3244,13 @@ def run_strict_stream(
                     branch_checkpoint_sidecar_path(checkpoint_path),
                     provenance_payload,
                 )
+            write_checkpoint_metadata(
+                checkpoint_path,
+                next_index=index + 1,
+                fingerprint=fingerprint,
+                model=model,
+                branch_provenance_payload=provenance_payload,
+            )
         last_completed_index = index + 1
         if stop_after_index is not None and index + 1 >= stop_after_index:
             break
@@ -3180,6 +3309,13 @@ def run_strict_stream(
                 branch_checkpoint_sidecar_path(checkpoint_path),
                 provenance_payload,
             )
+        write_checkpoint_metadata(
+            checkpoint_path,
+            next_index=last_completed_index,
+            fingerprint=fingerprint,
+            model=model,
+            branch_provenance_payload=provenance_payload,
+        )
     attempted = len(rows)
     elapsed = time.perf_counter() - start_time
     summary = {

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from collections import deque
 from datetime import datetime
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -25,15 +26,55 @@ def _progress_index(progress_path: Path) -> int | None:
     return None
 
 
-def _checkpoint_index(checkpoint_path: Path) -> int | None:
-    if checkpoint_path.exists():
-        try:
-            from experiments.fig9_strict_reproduction import load_strict_checkpoint
+def _checkpoint_metadata_path(checkpoint_path: Path) -> Path:
+    return checkpoint_path.with_name(checkpoint_path.stem + ".metadata.json")
 
-            return int(load_strict_checkpoint(checkpoint_path)["next_index"])
-        except Exception:
+
+def _checkpoint_index(checkpoint_path: Path) -> int | None:
+    """Read only the atomic metadata; never unpickle a child model here."""
+
+    metadata_path = _checkpoint_metadata_path(checkpoint_path)
+    if metadata_path.exists():
+        try:
+            payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+            digest = hashlib.sha256(checkpoint_path.read_bytes()).hexdigest()
+            if payload.get("atomic_complete") and payload.get("checkpoint_sha256") == digest:
+                return int(payload["next_index"])
+        except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
             pass
     return None
+
+
+def _native_phase(native_log: Path) -> tuple[int | None, str | None]:
+    last_index: int | None = None
+    last_phase: str | None = None
+    if not native_log.exists():
+        return last_index, last_phase
+    try:
+        for line in native_log.read_text(encoding="utf-8", errors="replace").splitlines():
+            if line.startswith("FIG9_NATIVE_PHASE "):
+                payload = json.loads(line.split(" ", 1)[1])
+                last_index = int(payload["current_index"])
+                last_phase = str(payload["phase"])
+    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+        pass
+    return last_index, last_phase
+
+
+def _native_prune_phase(native_log: Path) -> tuple[int | None, str | None]:
+    last_index: int | None = None
+    last_phase: str | None = None
+    if not native_log.exists():
+        return last_index, last_phase
+    try:
+        for line in native_log.read_text(encoding="utf-8", errors="replace").splitlines():
+            if line.startswith("FIG9_NATIVE_PRUNE "):
+                payload = json.loads(line.split(" ", 1)[1])
+                last_index = int(payload["current_index"])
+                last_phase = str(payload["phase"])
+    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+        pass
+    return last_index, last_phase
 
 
 def _exception_text(lines: deque[str], exit_code: int) -> str:
@@ -82,6 +123,33 @@ def run(
     env = os.environ.copy()
     env["PYTHONFAULTHANDLER"] = "1"
     env["PYTHONUNBUFFERED"] = "1"
+    launch_dir = result.parent
+    (launch_dir / "command.json").write_text(
+        json.dumps(
+            {
+                "command": command,
+                "working_directory": os.getcwd(),
+                "python_args": command[1:],
+                "environment": {
+                    key: env[key]
+                    for key in sorted(env)
+                    if key
+                    in {
+                        "PYTHONFAULTHANDLER",
+                        "PYTHONUNBUFFERED",
+                        "PYTHONPATH",
+                        "OMP_NUM_THREADS",
+                        "MKL_NUM_THREADS",
+                        "OPENBLAS_NUM_THREADS",
+                        "NUMEXPR_NUM_THREADS",
+                    }
+                },
+            },
+            indent=2,
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
     tail: deque[str] = deque(maxlen=300)
     exit_code = -1
     dump_process: subprocess.Popen[str] | None = None
@@ -155,6 +223,8 @@ def run(
             exit_code = process.wait()
             for thread in threads:
                 thread.join()
+            process.stdout.close()
+            process.stderr.close()
     except BaseException as exc:
         tail.append(f"Supervisor exception: {type(exc).__name__}: {exc}\n")
         exit_code = -1
@@ -169,22 +239,29 @@ def run(
     elapsed = time.perf_counter() - started
     progress_index = _progress_index(checkpoint.parent / "progress.jsonl")
     checkpoint_index = _checkpoint_index(checkpoint)
+    native_index, native_phase = _native_phase(
+        checkpoint.parent / "native_crash_faulthandler.log"
+    )
+    prune_index, prune_phase = _native_prune_phase(
+        checkpoint.parent / "native_crash_faulthandler.log"
+    )
     payload = {
         "exit_code": exit_code,
         "elapsed_seconds": elapsed,
         "timestamp": datetime.now().isoformat(sep=" ", timespec="seconds"),
         "command": command,
         "checkpoint_path": str(checkpoint.resolve()),
-        # A successful child atomically writes its final checkpoint after the
-        # last progress interval. On failure, progress is the best record of
-        # work completed after the most recent recoverable checkpoint.
+        # Progress is observational only.  The recoverable completion boundary
+        # is the last atomically published checkpoint metadata record.
         "last_completed_index": (
-            checkpoint_index
-            if exit_code == 0 and checkpoint_index is not None
-            else progress_index if progress_index is not None else checkpoint_index
+            checkpoint_index if checkpoint_index is not None else progress_index
         ),
         "last_progress_index": progress_index,
         "checkpoint_next_index": checkpoint_index,
+        "last_native_phase_index": native_index,
+        "last_native_phase": native_phase,
+        "last_native_prune_index": prune_index,
+        "last_native_prune_phase": prune_phase,
         "native_crash_log_path": str(
             (checkpoint.parent / "native_crash_faulthandler.log").resolve()
         ),
