@@ -35,10 +35,8 @@ def grouped(rows: list[dict[str, str]], field: str) -> list[dict[str, object]]:
 def analyze(run_dir: Path, output_dir: Path) -> dict[str, object]:
     event_path = next(run_dir.glob("independent_reference_event_trace.csv*"), None)
     segment_path = next(run_dir.glob("independent_reference_segment_trace.csv*"), None)
-    if event_path is None or segment_path is None:
-        raise FileNotFoundError("independent reference trace files are required")
-    events = read_rows(event_path)
-    segments = read_rows(segment_path)
+    events = read_rows(event_path) if event_path else []
+    segments = read_rows(segment_path) if segment_path else []
     write_csv(output_dir / "independent_reference_coverage_summary.csv", grouped(events, "reference_status"))
     write_csv(output_dir / "independent_reference_tier_summary.csv", grouped(events, "reference_tiers"))
     write_csv(output_dir / "reference_compatibility_summary.csv", grouped(events, "reference_compatible"))

@@ -118,6 +118,15 @@ from experiments.diagnostics.fig9_independent_reference import (  # noqa: E402
     record_actual_history,
     write_trace as write_independent_reference_trace,
 )
+from experiments.diagnostics.fig9_actual_branch_provenance import (  # noqa: E402
+    ActualBranchProvenanceTracker,
+    capture_prematch as capture_actual_branch_prematch,
+    join_after_observation as join_actual_branch_after_observation,
+    record_actual_transition,
+    write_registry as write_actual_branch_registry,
+    write_rows as write_actual_branch_rows,
+    MARKERS as ACTUAL_BRANCH_MARKERS,
+)
 from seqmem.encoding import (  # noqa: E402
     SSTDCompositeEncoder,
     SSTDPeriodicEncoder,
@@ -2050,6 +2059,9 @@ def run_strict_stream(
     independent_reference_diagnostic: bool = False,
     independent_reference_level: str = "summary",
     independent_reference_compress: bool = False,
+    actual_branch_provenance_diagnostic: bool = False,
+    actual_branch_provenance_level: str = "summary",
+    actual_branch_provenance_compress: bool = False,
 ) -> dict[str, object]:
     """Run one original or perturbed stream under the strict Fig.9 protocol."""
 
@@ -2075,6 +2087,8 @@ def run_strict_stream(
         )
     if independent_reference_level not in {"summary", "event", "segment"}:
         raise ValueError("independent reference level must be summary, event, or segment")
+    if actual_branch_provenance_level not in {"summary", "event", "segment"}:
+        raise ValueError("actual branch provenance level must be summary, event, or segment")
     if timing_eligibility_decomposition and (
         not match_overlap_diagnostic or match_overlap_level != "source"
     ):
@@ -2199,6 +2213,7 @@ def run_strict_stream(
                 or context_trajectory_diagnostic
                 or segment_reinforcement_diagnostic
                 or independent_reference_diagnostic
+                or actual_branch_provenance_diagnostic
             )
             else None
         )
@@ -2264,6 +2279,7 @@ def run_strict_stream(
                 or context_trajectory_diagnostic
                 or segment_reinforcement_diagnostic
                 or independent_reference_diagnostic
+                or actual_branch_provenance_diagnostic
             )
             else None
         )
@@ -2308,6 +2324,15 @@ def run_strict_stream(
     )
     independent_reference_tracker = IndependentReferenceTracker.from_checkpoint_payload(
         checkpoint_diagnostic_state.get("independent_reference_tracker")
+    )
+    actual_branch_tracker = ActualBranchProvenanceTracker.from_checkpoint_payload(
+        checkpoint_diagnostic_state.get("actual_branch_tracker")
+    )
+    actual_branch_event_rows: list[dict[str, object]] = list(
+        checkpoint_diagnostic_state.get("actual_branch_event_rows", [])
+    )
+    actual_branch_segment_rows: list[dict[str, object]] = list(
+        checkpoint_diagnostic_state.get("actual_branch_segment_rows", [])
     )
     context_trajectory_row_count = 0
     context_trajectory_path = output_dir / "context_trajectory_column_trace.csv"
@@ -2366,6 +2391,7 @@ def run_strict_stream(
         if teacher_forced_winner_diagnostic
         or segment_reinforcement_diagnostic
         or independent_reference_diagnostic
+        or actual_branch_provenance_diagnostic
         else None
     )
     match_overlap_ranges = (
@@ -2378,6 +2404,7 @@ def run_strict_stream(
         or context_trajectory_diagnostic
         or segment_reinforcement_diagnostic
         or independent_reference_diagnostic
+        or actual_branch_provenance_diagnostic
         else None
     )
     validate_strict_fingerprint(fingerprint)
@@ -2621,6 +2648,7 @@ def run_strict_stream(
                 or match_overlap_diagnostic
                 or context_trajectory_diagnostic
                 or independent_reference_diagnostic
+                or actual_branch_provenance_diagnostic
             )
             else set()
         )
@@ -2646,6 +2674,7 @@ def run_strict_stream(
                     or context_trajectory_diagnostic
                     or segment_reinforcement_diagnostic
                     or independent_reference_diagnostic
+                    or actual_branch_provenance_diagnostic
                 ),
             )
             if (
@@ -2654,6 +2683,7 @@ def run_strict_stream(
                 or context_trajectory_diagnostic
                 or segment_reinforcement_diagnostic
                 or independent_reference_diagnostic
+                or actual_branch_provenance_diagnostic
             )
             else None
         )
@@ -2670,7 +2700,15 @@ def run_strict_stream(
         independent_event_batch: list[dict[str, object]] = []
         independent_segment_batch: list[dict[str, object]] = []
         independent_private: dict[int, list[dict[str, object]]] = {}
-        if match_overlap_diagnostic or context_trajectory_diagnostic or independent_reference_diagnostic:
+        actual_branch_event_batch: list[dict[str, object]] = []
+        actual_branch_segment_batch: list[dict[str, object]] = []
+        actual_branch_preexisting_ids: set[int] = set()
+        if (
+            match_overlap_diagnostic
+            or context_trajectory_diagnostic
+            or independent_reference_diagnostic
+            or actual_branch_provenance_diagnostic
+        ):
             if (
                 branch_registry is None
                 or teacher_forced_trace is None
@@ -2714,6 +2752,23 @@ def run_strict_stream(
                     code=code,
                     actual_record_index=index,
                     ranges=teacher_forced_ranges,
+                )
+            if actual_branch_provenance_diagnostic:
+                if teacher_forced_ranges is None:
+                    raise RuntimeError("actual branch provenance ranges unavailable")
+                (
+                    actual_branch_event_batch,
+                    actual_branch_segment_batch,
+                    actual_branch_preexisting_ids,
+                ) = capture_actual_branch_prematch(
+                    model=model,
+                    registry=branch_registry,
+                    tracker=actual_branch_tracker,
+                    code=code,
+                    actual_record_index=index,
+                    timestamp=record.timestamp.isoformat(sep=" "),
+                    ranges=teacher_forced_ranges,
+                    l_match=config.l_match,
                 )
             model.observe_code(
                 code,
@@ -2887,6 +2942,30 @@ def run_strict_stream(
                     preexisting_ids=independent_preexisting_ids,
                     actual_record_index=index,
                 )
+            if actual_branch_provenance_diagnostic:
+                if teacher_forced_trace is None:
+                    raise RuntimeError("actual branch provenance trace unavailable")
+                join_actual_branch_after_observation(
+                    event_rows=actual_branch_event_batch,
+                    segment_rows=actual_branch_segment_batch,
+                    trace=teacher_forced_trace,
+                    registry=branch_registry,
+                    tracker=actual_branch_tracker,
+                    preexisting_ids=actual_branch_preexisting_ids,
+                    actual_record_index=index,
+                    source_cells=creation_sources,
+                )
+                actual_branch_event_rows.extend(actual_branch_event_batch)
+                actual_branch_segment_rows.extend(actual_branch_segment_batch)
+                record_actual_transition(
+                    actual_branch_tracker,
+                    trace=teacher_forced_trace,
+                    registry=branch_registry,
+                    preexisting_ids=actual_branch_preexisting_ids,
+                    actual_record_index=index,
+                    ranges=teacher_forced_ranges,
+                    source_cells=creation_sources,
+                )
             branch_registry.update_source_labels(model, code)
         observe_runtime = time.perf_counter() - observe_started
         write_native_crash_breadcrumb(
@@ -3030,8 +3109,11 @@ def run_strict_stream(
                         "independent_reference_event_rows": independent_reference_event_rows,
                         "independent_reference_segment_rows": independent_reference_segment_rows,
                         "independent_reference_tracker": independent_reference_tracker.checkpoint_payload(),
+                        "actual_branch_tracker": actual_branch_tracker.checkpoint_payload(),
+                        "actual_branch_event_rows": actual_branch_event_rows,
+                        "actual_branch_segment_rows": actual_branch_segment_rows,
                     }
-                    if segment_reinforcement_diagnostic or independent_reference_diagnostic
+                    if segment_reinforcement_diagnostic or independent_reference_diagnostic or actual_branch_provenance_diagnostic
                     else None
                 ),
             )
@@ -3085,8 +3167,11 @@ def run_strict_stream(
                     "independent_reference_event_rows": independent_reference_event_rows,
                     "independent_reference_segment_rows": independent_reference_segment_rows,
                     "independent_reference_tracker": independent_reference_tracker.checkpoint_payload(),
+                    "actual_branch_tracker": actual_branch_tracker.checkpoint_payload(),
+                    "actual_branch_event_rows": actual_branch_event_rows,
+                    "actual_branch_segment_rows": actual_branch_segment_rows,
                 }
-                if segment_reinforcement_diagnostic or independent_reference_diagnostic
+                if segment_reinforcement_diagnostic or independent_reference_diagnostic or actual_branch_provenance_diagnostic
                 else None
             ),
         )
@@ -3554,6 +3639,40 @@ def run_strict_stream(
                 "actual_history_is_separate_from_autonomous_rollout": True,
             },
         )
+    if actual_branch_provenance_diagnostic:
+        branch_event_path = write_actual_branch_rows(
+            output_dir / "actual_branch_event_trace.csv",
+            actual_branch_event_rows,
+            compress=actual_branch_provenance_compress,
+        )
+        branch_segment_path = write_actual_branch_rows(
+            output_dir / "actual_branch_segment_trace.csv",
+            actual_branch_segment_rows,
+            compress=actual_branch_provenance_compress,
+        )
+        registry_path = write_actual_branch_registry(
+            output_dir / "actual_branch_registry.csv",
+            actual_branch_tracker,
+            compress=actual_branch_provenance_compress,
+        )
+        write_json(
+            output_dir / "actual_branch_provenance_protocol.json",
+            {
+                **ACTUAL_BRANCH_MARKERS,
+                "version": "fig9-actual-branch-provenance-v1",
+                "level": actual_branch_provenance_level,
+                "compressed": actual_branch_provenance_compress,
+                "event_trace_path": str(branch_event_path),
+                "segment_trace_path": str(branch_segment_path),
+                "registry_path": str(registry_path),
+                "event_rows": len(actual_branch_event_rows),
+                "segment_rows": len(actual_branch_segment_rows),
+                "anchor_count": len(actual_branch_tracker.anchors),
+                "branch_count": len(actual_branch_tracker.branches),
+                "actual_history_is_separate_from_autonomous_rollout": True,
+                "current_matching_is_post_observation_join_only": True,
+            },
+        )
     if teacher_forced_winner_diagnostic:
         write_diagnostic_csv(
             output_dir / "teacher_forced_observation_trace.csv",
@@ -3988,6 +4107,21 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Write independent reference traces as CSV.GZ.",
     )
+    parser.add_argument(
+        "--actual-branch-provenance-diagnostic",
+        action="store_true",
+        help="Capture actual-history branch continuity for offline analysis.",
+    )
+    parser.add_argument(
+        "--actual-branch-provenance-level",
+        choices=("summary", "event", "segment"),
+        default="summary",
+    )
+    parser.add_argument(
+        "--actual-branch-provenance-compress",
+        action="store_true",
+        help="Write actual branch traces as CSV.GZ.",
+    )
     parser.add_argument("--interval-every", type=int, default=0)
     parser.add_argument(
         "--progress-every",
@@ -4295,6 +4429,9 @@ def run_main(args: argparse.Namespace) -> None:
             independent_reference_diagnostic=args.independent_reference_diagnostic,
             independent_reference_level=args.independent_reference_level,
             independent_reference_compress=args.independent_reference_compress,
+            actual_branch_provenance_diagnostic=args.actual_branch_provenance_diagnostic,
+            actual_branch_provenance_level=args.actual_branch_provenance_level,
+            actual_branch_provenance_compress=args.actual_branch_provenance_compress,
         )
     if {"original", "perturbed"}.issubset(args.streams):
         runtime["pre_change_comparison"] = compare_pre_change_predictions(

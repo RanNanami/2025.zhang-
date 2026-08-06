@@ -44,6 +44,21 @@ def _exception_text(lines: deque[str], exit_code: int) -> str:
     return f"Native process terminated with exit code {exit_code}; no Python traceback was emitted."
 
 
+def _console_write(text: str) -> None:
+    """Echo diagnostics without letting a legacy Windows code page kill the runner."""
+
+    try:
+        sys.stdout.write(text)
+    except UnicodeEncodeError:
+        encoded = text.encode(sys.stdout.encoding or "utf-8", errors="replace")
+        buffer = getattr(sys.stdout, "buffer", None)
+        if buffer is not None:
+            buffer.write(encoded)
+        else:
+            sys.stdout.write(text.encode("utf-8", errors="replace").decode("utf-8"))
+    sys.stdout.flush()
+
+
 def run(
     command: list[str],
     *,
@@ -121,8 +136,7 @@ def run(
                             combined_handle.flush()
                     # Keep child diagnostics visible without PowerShell's
                     # native stderr error-record conversion.
-                    sys.stdout.write(line)
-                    sys.stdout.flush()
+                    _console_write(line)
 
             threads = [
                 threading.Thread(
@@ -180,9 +194,8 @@ def run(
     if exit_code != 0:
         payload["exception"] = _exception_text(tail, exit_code)
         failure.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-        sys.stdout.write("\n===== child stderr tail (last 300 lines) =====\n")
-        sys.stdout.write("".join(tail))
-        sys.stdout.flush()
+        _console_write("\n===== child stderr tail (last 300 lines) =====\n")
+        _console_write("".join(tail))
         return 1
     if failure.exists():
         failure.unlink()
