@@ -13,7 +13,7 @@ import gzip
 import hashlib
 import json
 from pathlib import Path
-from typing import Mapping
+from typing import Iterable, Mapping
 
 from experiments.diagnostics.fig9_branch_provenance import BranchProvenanceRegistry
 from experiments.diagnostics.fig9_candidate_score_trace import field_for_column
@@ -46,6 +46,16 @@ STATUSES = {
     "POST_OBSERVATION_BRANCH_INVALID",
 }
 
+LINEAGE_CLASSES = {
+    "LINEAGE_ROOT",
+    "LINEAGE_CONTINUATION_UNIQUE",
+    "LINEAGE_CONTINUATION_MULTIPLE",
+    "LINEAGE_MERGE",
+    "LINEAGE_SPLIT",
+    "LINEAGE_UNRESOLVED",
+    "POSTHOC_INVALID",
+}
+
 
 def stable_id(prefix: str, *parts: object) -> str:
     payload = json.dumps([prefix, *parts], sort_keys=False, separators=(",", ":"), default=str)
@@ -60,6 +70,10 @@ def source_signature(source_cells: Mapping[int, float] | set[int] | tuple[int, .
     return stable_id("actual-source", *values)
 
 
+def _ids(value: object) -> set[str]:
+    return {item for item in str(value or "").split("|") if item}
+
+
 def _iter_column_segments(model: SequentialMemory, column: int):
     if 0 <= column < len(model.columns):
         for neuron_index, neuron in enumerate(model.columns[column].neurons):
@@ -70,12 +84,14 @@ def _iter_column_segments(model: SequentialMemory, column: int):
 class ActualBranchProvenanceTracker:
     """Checkpointable history keyed only by stable segment provenance IDs."""
 
-    VERSION = "fig9-actual-branch-provenance-v1"
+    VERSION = "fig9-actual-branch-provenance-v2"
 
     def __init__(self) -> None:
         self.segments: dict[str, dict[str, object]] = {}
         self.anchors: dict[str, dict[str, object]] = {}
         self.branches: dict[str, dict[str, object]] = {}
+        self.lineages: dict[str, dict[str, object]] = {}
+        self.lineage_events: list[dict[str, object]] = []
 
     def state(self, segment_id: str) -> dict[str, object] | None:
         return self.segments.get(segment_id)
@@ -86,6 +102,8 @@ class ActualBranchProvenanceTracker:
             "segments": self.segments,
             "anchors": self.anchors,
             "branches": self.branches,
+            "lineages": self.lineages,
+            "lineage_events": self.lineage_events,
         }
 
     @classmethod
@@ -93,10 +111,13 @@ class ActualBranchProvenanceTracker:
         tracker = cls()
         if not payload:
             return tracker
-        for name in ("segments", "anchors", "branches"):
+        for name in ("segments", "anchors", "branches", "lineages"):
             raw = payload.get(name, {})
             if isinstance(raw, Mapping):
                 setattr(tracker, name, {str(key): dict(value) for key, value in raw.items() if isinstance(value, Mapping)})
+        raw_events = payload.get("lineage_events", [])
+        if isinstance(raw_events, list):
+            tracker.lineage_events = [dict(value) for value in raw_events if isinstance(value, Mapping)]
         return tracker
 
     def _new_anchor(
@@ -108,20 +129,54 @@ class ActualBranchProvenanceTracker:
         column: int,
         neuron: int,
         source_sig: str,
-    ) -> tuple[str, str]:
+        parent_anchor_ids: tuple[str, ...] = (),
+    ) -> tuple[str, str, str, str]:
         # The first observed index is metadata, not part of identity. Repeated
         # reinforcement of the same segment/source must retain one anchor.
         anchor_id = stable_id("actual-anchor", segment_id, field, column, neuron, source_sig)
         branch_id = stable_id("actual-branch", anchor_id, segment_id, source_sig)
+        parent_anchor_ids = tuple(sorted(set(parent_anchor_ids)))
+        parent_lineage_ids = tuple(
+            sorted(
+                {
+                    str(self.anchors[parent_id].get("actual_lineage_id", ""))
+                    for parent_id in parent_anchor_ids
+                    if parent_id in self.anchors
+                    and self.anchors[parent_id].get("actual_lineage_id")
+                }
+            )
+        )
+        if not parent_anchor_ids:
+            lineage_class = "LINEAGE_ROOT"
+            lineage_id = stable_id(
+                "actual-lineage-root", segment_id, field, column, neuron, source_sig
+            )
+        elif len(parent_lineage_ids) != len(parent_anchor_ids):
+            lineage_class = "LINEAGE_UNRESOLVED"
+            lineage_id = ""
+        elif len(parent_lineage_ids) == 1:
+            lineage_class = (
+                "LINEAGE_CONTINUATION_UNIQUE"
+                if len(parent_anchor_ids) == 1
+                else "LINEAGE_CONTINUATION_MULTIPLE"
+            )
+            lineage_id = parent_lineage_ids[0]
+        else:
+            lineage_class = "LINEAGE_MERGE"
+            lineage_id = stable_id("actual-lineage-merge", *parent_lineage_ids)
         if anchor_id not in self.anchors:
             self.anchors[anchor_id] = {
+                "record_type": "ANCHOR",
                 "actual_anchor_id": anchor_id,
                 "anchor_creation_index": index,
                 "anchor_field": field,
                 "anchor_column": column,
                 "anchor_neuron": neuron,
                 "anchor_segment_provenance_id": segment_id,
-                "parent_actual_anchor_ids": "",
+                "parent_actual_anchor_ids": "|".join(parent_anchor_ids),
+                "parent_actual_lineage_ids": "|".join(parent_lineage_ids),
+                "actual_lineage_id": lineage_id,
+                "lineage_class": lineage_class,
                 "source_provenance_signature": source_sig,
                 "first_verified_index": index,
                 "last_seen_index": index,
@@ -129,8 +184,13 @@ class ActualBranchProvenanceTracker:
             }
         else:
             self.anchors[anchor_id]["last_seen_index"] = index
+            # Keep the first causal assignment stable when the same anchor is
+            # observed again with a different surrounding diagnostic state.
+            lineage_id = str(self.anchors[anchor_id].get("actual_lineage_id", lineage_id))
+            lineage_class = str(self.anchors[anchor_id].get("lineage_class", lineage_class))
         if branch_id not in self.branches:
             self.branches[branch_id] = {
+                "record_type": "OLD_BRANCH",
                 "actual_branch_provenance_id": branch_id,
                 "root_actual_anchor_id": anchor_id,
                 "parent_branch_ids": "",
@@ -151,7 +211,29 @@ class ActualBranchProvenanceTracker:
                 "chain_broken": False,
                 "deletion_status": "live",
             }
-        return anchor_id, branch_id
+        if lineage_id:
+            lineage = self.lineages.setdefault(
+                lineage_id,
+                {
+                    "record_type": "LINEAGE",
+                    "actual_lineage_id": lineage_id,
+                    "lineage_class": lineage_class,
+                    "parent_actual_lineage_ids": "|".join(parent_lineage_ids),
+                    "anchor_ids": "",
+                    "segment_ids": "",
+                    "first_seen_index": index,
+                    "last_seen_index": index,
+                    "anchor_count": 0,
+                    "event_count": 0,
+                },
+            )
+            lineage["last_seen_index"] = index
+            lineage["lineage_class"] = lineage_class
+            anchors = set(_ids(lineage.get("anchor_ids")))
+            anchors.add(anchor_id)
+            lineage["anchor_ids"] = "|".join(sorted(anchors))
+            lineage["anchor_count"] = len(anchors)
+        return anchor_id, branch_id, lineage_id, lineage_class
 
     def record_actual(
         self,
@@ -163,8 +245,19 @@ class ActualBranchProvenanceTracker:
         neuron: int,
         source_cells: Mapping[int, float] | set[int] | tuple[int, ...],
         reinforced: bool,
+        parent_anchor_ids: Iterable[str] = (),
     ) -> dict[str, object]:
         sig = source_signature(source_cells)
+        parent_anchor_ids = tuple(sorted(set(str(value) for value in parent_anchor_ids if value)))
+        current_anchor_id = stable_id(
+            "actual-anchor", segment_id, field, column, neuron, sig
+        )
+        # A repeated observation of the exact same anchor is not its own
+        # parent.  Excluding the current identity keeps the causal graph
+        # acyclic while preserving the existing stable anchor ID.
+        parent_anchor_ids = tuple(
+            value for value in parent_anchor_ids if value != current_anchor_id
+        )
         state = self.segments.setdefault(segment_id, {
             "segment_provenance_id": segment_id,
             "segment_creation_index": index,
@@ -178,6 +271,9 @@ class ActualBranchProvenanceTracker:
             "actual_branch_ids_seen": [],
             "actual_anchor_count": 0,
             "actual_branch_count": 0,
+            "actual_lineage_ids_seen": [],
+            "actual_lineage_count": 0,
+            "lineage_level_mixed_history": False,
             "autonomous_anchor_ids_seen": [],
             "reinforcement_history_count": 0,
             "actual_reinforcement_count": 0,
@@ -190,9 +286,19 @@ class ActualBranchProvenanceTracker:
             "deleted_index": "",
             "recreated_from_prior_id": "",
         })
-        anchor_id, branch_id = self._new_anchor(
+        anchor_id, branch_id, lineage_id, lineage_class = self._new_anchor(
             segment_id=segment_id, index=index, field=field, column=column,
-            neuron=neuron, source_sig=sig,
+            neuron=neuron, source_sig=sig, parent_anchor_ids=parent_anchor_ids,
+        )
+        parent_lineage_ids = tuple(
+            sorted(
+                {
+                    str(self.anchors[parent_id].get("actual_lineage_id", ""))
+                    for parent_id in parent_anchor_ids
+                    if parent_id in self.anchors
+                    and self.anchors[parent_id].get("actual_lineage_id")
+                }
+            )
         )
         anchors = list(state.get("actual_anchor_ids_seen", []))
         previous_anchor_count = len(anchors)
@@ -206,6 +312,12 @@ class ActualBranchProvenanceTracker:
             branch_ids.append(branch_id)
         state["actual_branch_ids_seen"] = branch_ids
         state["actual_branch_count"] = len(branch_ids)
+        lineages = list(state.get("actual_lineage_ids_seen", []))
+        if lineage_id and lineage_id not in lineages:
+            lineages.append(lineage_id)
+        state["actual_lineage_ids_seen"] = lineages
+        state["actual_lineage_count"] = len(lineages)
+        state["lineage_level_mixed_history"] = len(lineages) > 1
         state["first_actual_anchor_id"] = anchors[0]
         state["mixed_actual_history"] = len(branch_ids) > 1
         if len(anchors) > 1 and len(branch_ids) == 1:
@@ -232,6 +344,30 @@ class ActualBranchProvenanceTracker:
         branch["reinforcement_count"] = int(branch.get("reinforcement_count", 0)) + int(reinforced)
         branch["mixed_with_other_branch"] = bool(state["mixed_actual_history"])
         branch["branch_is_mixed"] = bool(state["mixed_actual_history"])
+        if lineage_id in self.lineages:
+            lineage = self.lineages[lineage_id]
+            segment_ids = set(_ids(lineage.get("segment_ids")))
+            segment_ids.add(segment_id)
+            lineage["segment_ids"] = "|".join(sorted(segment_ids))
+            lineage["event_count"] = int(lineage.get("event_count", 0)) + 1
+        self.lineage_events.append(
+            {
+                **MARKERS,
+                "actual_record_index": index,
+                "field": field,
+                "encoded_column": column,
+                "target_neuron": neuron,
+                "segment_provenance_id": segment_id,
+                "actual_anchor_id": anchor_id,
+                "actual_branch_provenance_id": branch_id,
+                "parent_actual_anchor_ids": "|".join(parent_anchor_ids),
+                "parent_actual_lineage_ids": "|".join(parent_lineage_ids),
+                "actual_lineage_id": lineage_id,
+                "lineage_class": lineage_class,
+                "reinforced": reinforced,
+                "future_data_used": False,
+            }
+        )
         return state
 
     def live_state_for_segment(self, registry: BranchProvenanceRegistry, segment: Segment) -> dict[str, object] | None:
@@ -512,6 +648,10 @@ def record_actual_transition(
             neuron=event.winner_neuron,
             source_cells=source_cells,
             reinforced=event.reinforced_segment is not None,
+            parent_anchor_ids=_state_ids(
+                tracker.state(origin.segment_provenance_id),
+                "actual_anchor_ids_seen",
+            ),
         )
 
 
@@ -522,7 +662,15 @@ def write_rows(path: Path, rows: list[dict[str, object]], compress: bool) -> Pat
     clean = [{key: value for key, value in row.items() if not key.startswith("_")} for row in rows]
     with opener(destination, "wt", encoding="utf-8", newline="") as handle:
         if clean:
-            writer = csv.DictWriter(handle, fieldnames=list(clean[0]), extrasaction="ignore")
+            # Branch and anchor records have different fields.  Building the
+            # schema from only the first branch row silently discarded all
+            # anchor-only lineage fields from the historical CSV.
+            fieldnames: list[str] = []
+            for row in clean:
+                for key in row:
+                    if key not in fieldnames:
+                        fieldnames.append(key)
+            writer = csv.DictWriter(handle, fieldnames=fieldnames, extrasaction="ignore")
             writer.writeheader()
             writer.writerows(clean)
     return destination
@@ -531,3 +679,7 @@ def write_rows(path: Path, rows: list[dict[str, object]], compress: bool) -> Pat
 def write_registry(path: Path, tracker: ActualBranchProvenanceTracker, compress: bool) -> Path:
     rows = list(tracker.branches.values()) + list(tracker.anchors.values())
     return write_rows(path, rows, compress)
+
+
+def write_lineage_registry(path: Path, tracker: ActualBranchProvenanceTracker, compress: bool) -> Path:
+    return write_rows(path, list(tracker.lineages.values()), compress)

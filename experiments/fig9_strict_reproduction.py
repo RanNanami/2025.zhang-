@@ -124,6 +124,7 @@ from experiments.diagnostics.fig9_actual_branch_provenance import (  # noqa: E40
     capture_prematch as capture_actual_branch_prematch,
     join_after_observation as join_actual_branch_after_observation,
     record_actual_transition,
+    write_lineage_registry,
     write_registry as write_actual_branch_registry,
     write_rows as write_actual_branch_rows,
     MARKERS as ACTUAL_BRANCH_MARKERS,
@@ -3791,20 +3792,34 @@ def run_strict_stream(
             actual_branch_tracker,
             compress=actual_branch_provenance_compress,
         )
+        lineage_event_path = write_actual_branch_rows(
+            output_dir / "actual_lineage_event_trace.csv",
+            actual_branch_tracker.lineage_events,
+            compress=actual_branch_provenance_compress,
+        )
+        lineage_registry_path = write_lineage_registry(
+            output_dir / "actual_lineage_registry.csv",
+            actual_branch_tracker,
+            compress=actual_branch_provenance_compress,
+        )
         write_json(
             output_dir / "actual_branch_provenance_protocol.json",
             {
                 **ACTUAL_BRANCH_MARKERS,
-                "version": "fig9-actual-branch-provenance-v1",
+                "version": "fig9-actual-branch-provenance-v2",
                 "level": actual_branch_provenance_level,
                 "compressed": actual_branch_provenance_compress,
                 "event_trace_path": str(branch_event_path),
                 "segment_trace_path": str(branch_segment_path),
                 "registry_path": str(registry_path),
+                "lineage_event_trace_path": str(lineage_event_path),
+                "lineage_registry_path": str(lineage_registry_path),
                 "event_rows": len(actual_branch_event_rows),
                 "segment_rows": len(actual_branch_segment_rows),
                 "anchor_count": len(actual_branch_tracker.anchors),
                 "branch_count": len(actual_branch_tracker.branches),
+                "lineage_count": len(actual_branch_tracker.lineages),
+                "lineage_event_rows": len(actual_branch_tracker.lineage_events),
                 "actual_history_is_separate_from_autonomous_rollout": True,
                 "current_matching_is_post_observation_join_only": True,
             },
