@@ -319,6 +319,23 @@ class ContextCompositionIndex:
             "context_neuron_entropy": _entropy(neurons),
             "overlap_source_ids": json.dumps(list(overlap_ids), separators=(",", ":")),
             "source_ids": json.dumps(list(source_ids), separators=(",", ":")),
+            "overlap_source_metadata_json": json.dumps(
+                {
+                    str(item.source_id): {
+                        "source_column": item.source_column,
+                        "source_neuron": item.source_neuron,
+                        "source_field": item.source_field,
+                        "incidence": item.incidence,
+                        "idf": item.idf,
+                        "incidence_bin": item.incidence_bin,
+                        "age": item.age,
+                        "origin_labels": list(item.origin_labels),
+                    }
+                    for item in overlap_stats
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
         }
 
 

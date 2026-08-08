@@ -1,0 +1,21 @@
+{
+  "version": "fig9-pairwise-context-coherence-v1",
+  "diagnostic_only": true,
+  "primary_hypothesis": "PAIRWISE_COHERENCE_HAS_SIGNAL_BUT_INSUFFICIENT_SUPPORT",
+  "recommended_next_step": "INVESTIGATE_TEMPORAL_CONTEXT_STRUCTURE",
+  "l4_smoke": {
+    "predictions": 20,
+    "mape": 0.5560516404624676,
+    "pair_rows": 4173604,
+    "unique_pairs": 302931,
+    "pair_mean_pmi_target_minus_false": 0.1097709524564521,
+    "pair_mean_pmi_bootstrap_ci": [0.021987210035747006, 0.19399258502287728],
+    "target_top1_candidate_score": 0.30666666666666664,
+    "target_top1_pair_mean_pmi": 0.39,
+    "support_one_fraction": 0.08608250482225987
+  },
+  "formal_250_status": "not_completed; L2 native termination near index 211 without Python traceback",
+  "strict_defaults_changed": false,
+  "online_mechanism": "not_run",
+  "ground_truth_does_not_affect_model": true
+}

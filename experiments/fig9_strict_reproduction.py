@@ -4400,6 +4400,14 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--pairwise-context-diagnostic",
+        action="store_true",
+        help=(
+            "Capture the read-only candidate/context inputs required by the "
+            "offline source-pair coherence analyzer."
+        ),
+    )
+    parser.add_argument(
         "--timing-eligibility-decomposition",
         action="store_true",
         help="Add read-only timing/eligibility evidence to source rows.",
@@ -4635,6 +4643,19 @@ def run_main(args: argparse.Namespace) -> None:
             }
         )
     summaries: dict[str, object] = {}
+    pairwise_diagnostic = args.pairwise_context_diagnostic
+    oracle_diagnostic = args.oracle_candidate_diagnostic or pairwise_diagnostic
+    branch_diagnostic = args.branch_provenance_diagnostic or pairwise_diagnostic
+    composition_diagnostic = (
+        args.segment_context_composition_diagnostic or pairwise_diagnostic
+    )
+    composition_level = (
+        "source" if pairwise_diagnostic else args.segment_context_composition_level
+    )
+    unified_context_oracle = (
+        args.context_oracle_unified_trace or pairwise_diagnostic
+    )
+    runtime["pairwise_context_diagnostic"] = pairwise_diagnostic
     for stream in args.streams:
         data_path = Path(args.data if stream == "original" else args.perturbed_data)
         records = read_records(data_path, args.limit)
@@ -4692,9 +4713,9 @@ def run_main(args: argparse.Namespace) -> None:
                 Path(args.debug_output_json) if args.debug_output_json else None
             ),
             competition_settings=competition,
-            oracle_candidate_diagnostic=args.oracle_candidate_diagnostic,
+            oracle_candidate_diagnostic=oracle_diagnostic,
             candidate_separability_trace=args.candidate_separability_trace,
-            branch_provenance_diagnostic=args.branch_provenance_diagnostic,
+            branch_provenance_diagnostic=branch_diagnostic,
             branch_provenance_level=args.branch_provenance_level,
             branch_source_top_n=(
                 args.branch_source_top_n
@@ -4779,14 +4800,12 @@ def run_main(args: argparse.Namespace) -> None:
             actual_branch_provenance_diagnostic=args.actual_branch_provenance_diagnostic,
             actual_branch_provenance_level=args.actual_branch_provenance_level,
             actual_branch_provenance_compress=args.actual_branch_provenance_compress,
-            segment_context_composition_diagnostic=(
-                args.segment_context_composition_diagnostic
-            ),
-            segment_context_composition_level=args.segment_context_composition_level,
+            segment_context_composition_diagnostic=composition_diagnostic,
+            segment_context_composition_level=composition_level,
             segment_context_composition_compress=(
                 args.segment_context_composition_compress
             ),
-            context_oracle_unified_trace=args.context_oracle_unified_trace,
+            context_oracle_unified_trace=unified_context_oracle,
         )
     if {"original", "perturbed"}.issubset(args.streams):
         runtime["pre_change_comparison"] = compare_pre_change_predictions(
