@@ -100,6 +100,12 @@ from experiments.diagnostics.fig9_match_overlap import (  # noqa: E402
     filter_source_trace_rows,
     finalize_match_overlap,
 )
+from experiments.diagnostics.fig9_segment_context_composition import (  # noqa: E402
+    LEVELS as SEGMENT_CONTEXT_COMPOSITION_LEVELS,
+    MARKERS as SEGMENT_CONTEXT_COMPOSITION_MARKERS,
+    SegmentContextCompositionTracker,
+    protocol as segment_context_composition_protocol,
+)
 from experiments.diagnostics.fig9_context_trajectory import (  # noqa: E402
     CONTEXT_TRAJECTORY_LEVELS,
     CONTEXT_TRAJECTORY_MARKERS,
@@ -2175,6 +2181,9 @@ def run_strict_stream(
     actual_branch_provenance_diagnostic: bool = False,
     actual_branch_provenance_level: str = "summary",
     actual_branch_provenance_compress: bool = False,
+    segment_context_composition_diagnostic: bool = False,
+    segment_context_composition_level: str = "match",
+    segment_context_composition_compress: bool = False,
 ) -> dict[str, object]:
     """Run one original or perturbed stream under the strict Fig.9 protocol."""
 
@@ -2202,6 +2211,10 @@ def run_strict_stream(
         raise ValueError("independent reference level must be summary, event, or segment")
     if actual_branch_provenance_level not in {"summary", "event", "segment"}:
         raise ValueError("actual branch provenance level must be summary, event, or segment")
+    if segment_context_composition_level not in SEGMENT_CONTEXT_COMPOSITION_LEVELS:
+        raise ValueError(
+            "segment context composition level must be summary, match, or source"
+        )
     if timing_eligibility_decomposition and (
         not match_overlap_diagnostic or match_overlap_level != "source"
     ):
@@ -2327,6 +2340,7 @@ def run_strict_stream(
                 or segment_reinforcement_diagnostic
                 or independent_reference_diagnostic
                 or actual_branch_provenance_diagnostic
+                or segment_context_composition_diagnostic
             )
             else None
         )
@@ -2393,6 +2407,7 @@ def run_strict_stream(
                 or segment_reinforcement_diagnostic
                 or independent_reference_diagnostic
                 or actual_branch_provenance_diagnostic
+                or segment_context_composition_diagnostic
             )
             else None
         )
@@ -2495,6 +2510,19 @@ def run_strict_stream(
         if context_trajectory_diagnostic
         else None
     )
+    segment_context_composition_tracker = (
+        SegmentContextCompositionTracker(
+            registry=branch_registry,
+            level=segment_context_composition_level,
+        )
+        if segment_context_composition_diagnostic and branch_registry is not None
+        else None
+    )
+    if segment_context_composition_tracker is not None:
+        segment_context_composition_tracker.enable_streaming(
+            output_dir,
+            compress=segment_context_composition_compress,
+        )
     teacher_forced_ranges = (
         FieldColumnRanges.from_sizes(
             config.weekday_columns,
@@ -2505,6 +2533,7 @@ def run_strict_stream(
         or segment_reinforcement_diagnostic
         or independent_reference_diagnostic
         or actual_branch_provenance_diagnostic
+        or segment_context_composition_diagnostic
         else None
     )
     match_overlap_ranges = (
@@ -2518,6 +2547,7 @@ def run_strict_stream(
         or segment_reinforcement_diagnostic
         or independent_reference_diagnostic
         or actual_branch_provenance_diagnostic
+        or segment_context_composition_diagnostic
         else None
     )
     validate_strict_fingerprint(fingerprint)
@@ -2798,6 +2828,7 @@ def run_strict_stream(
                     or segment_reinforcement_diagnostic
                     or independent_reference_diagnostic
                     or actual_branch_provenance_diagnostic
+                    or segment_context_composition_diagnostic
                 ),
             )
             if (
@@ -2807,6 +2838,7 @@ def run_strict_stream(
                 or segment_reinforcement_diagnostic
                 or independent_reference_diagnostic
                 or actual_branch_provenance_diagnostic
+                or segment_context_composition_diagnostic
             )
             else None
         )
@@ -2831,6 +2863,7 @@ def run_strict_stream(
             or context_trajectory_diagnostic
             or independent_reference_diagnostic
             or actual_branch_provenance_diagnostic
+            or segment_context_composition_diagnostic
         ):
             if (
                 branch_registry is None
@@ -2841,7 +2874,19 @@ def run_strict_stream(
             actual_raw = model.predict_code(
                 preselection_trace=actual_prediction_trace,
             )
-            if match_overlap_diagnostic or context_trajectory_diagnostic:
+            if segment_context_composition_tracker is not None:
+                if match_overlap_ranges is None:
+                    raise RuntimeError("segment context composition ranges unavailable")
+                segment_context_composition_tracker.capture_pre_observation(
+                    model=model,
+                    ranges=match_overlap_ranges,
+                    actual_record_index=index,
+                )
+            if (
+                match_overlap_diagnostic
+                or context_trajectory_diagnostic
+                or segment_context_composition_diagnostic
+            ):
                 if match_overlap_ranges is None:
                     raise RuntimeError("match-overlap ranges unavailable")
                 match_overlap_capture = capture_match_overlap(
@@ -2855,6 +2900,7 @@ def run_strict_stream(
                     level=(
                         "source"
                         if context_trajectory_diagnostic
+                        or segment_context_composition_diagnostic
                         else match_overlap_level
                     ),
                     timing_eligibility_decomposition=(
@@ -2949,6 +2995,13 @@ def run_strict_stream(
                     teacher_forced_trace,
                     branch_registry,
                 )
+                if segment_context_composition_tracker is not None:
+                    segment_context_composition_tracker.consume_transition(
+                        capture=match_overlap_capture,
+                        completed=completed_overlap,
+                        actual_record_index=index,
+                        stream_label=stream_label,
+                    )
                 source_rows = completed_overlap.source_rows
                 if source_trace_filter is not None:
                     source_rows = filter_source_trace_rows(
@@ -3090,6 +3143,11 @@ def run_strict_stream(
                     source_cells=creation_sources,
                 )
             branch_registry.update_source_labels(model, code)
+            if segment_context_composition_tracker is not None:
+                segment_context_composition_tracker.record_observation(
+                    model=model,
+                    actual_record_index=index,
+                )
         observe_runtime = time.perf_counter() - observe_started
         write_native_crash_breadcrumb(
             current_index=index,
@@ -3372,6 +3430,22 @@ def run_strict_stream(
                 "simultaneous_bin_width": competition.simultaneous_bin_width,
             }
         )
+    if segment_context_composition_tracker is not None:
+        composition_paths = segment_context_composition_tracker.write_outputs(
+            output_dir,
+            compress=segment_context_composition_compress,
+        )
+        write_json(
+            output_dir / "segment_context_composition_protocol.json",
+            {
+                **segment_context_composition_protocol(
+                    level=segment_context_composition_level,
+                    compressed=segment_context_composition_compress,
+                ),
+                "output_paths": composition_paths,
+                "strict_protocol_sha256": stable_object_sha256(fingerprint),
+            },
+        )
     if context_trajectory_diagnostic:
         summary["context_trajectory_trace_path"] = str(
             context_trajectory_path.with_suffix(
@@ -3382,6 +3456,10 @@ def run_strict_stream(
         )
         summary["context_trajectory_row_count"] = context_trajectory_row_count
         summary["context_trajectory_trace_streamed"] = stream_diagnostic_traces
+    if segment_context_composition_tracker is not None:
+        summary["segment_context_composition"] = (
+            segment_context_composition_tracker.summary()
+        )
     if density_rows:
         density_summary = summarize_density(density_rows)
         summary["density_summary_path"] = str(
@@ -4204,6 +4282,21 @@ def parse_args() -> argparse.Namespace:
         help="Write segment/source match-overlap traces as CSV.GZ.",
     )
     parser.add_argument(
+        "--segment-context-composition-diagnostic",
+        action="store_true",
+        help="Capture read-only source composition and segment-context quality.",
+    )
+    parser.add_argument(
+        "--segment-context-composition-level",
+        choices=tuple(sorted(SEGMENT_CONTEXT_COMPOSITION_LEVELS)),
+        default="match",
+    )
+    parser.add_argument(
+        "--segment-context-composition-compress",
+        action="store_true",
+        help="Write segment-context composition traces as CSV.GZ.",
+    )
+    parser.add_argument(
         "--timing-eligibility-decomposition",
         action="store_true",
         help="Add read-only timing/eligibility evidence to source rows.",
@@ -4583,6 +4676,13 @@ def run_main(args: argparse.Namespace) -> None:
             actual_branch_provenance_diagnostic=args.actual_branch_provenance_diagnostic,
             actual_branch_provenance_level=args.actual_branch_provenance_level,
             actual_branch_provenance_compress=args.actual_branch_provenance_compress,
+            segment_context_composition_diagnostic=(
+                args.segment_context_composition_diagnostic
+            ),
+            segment_context_composition_level=args.segment_context_composition_level,
+            segment_context_composition_compress=(
+                args.segment_context_composition_compress
+            ),
         )
     if {"original", "perturbed"}.issubset(args.streams):
         runtime["pre_change_comparison"] = compare_pre_change_predictions(

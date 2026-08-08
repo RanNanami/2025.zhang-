@@ -1,0 +1,57 @@
+{
+  "primary_hypothesis": "H3_MIXED_REGIME",
+  "recommended_next_step": "SEGMENT_CONTEXT_REPRESENTATION_FIX_REQUIRED",
+  "strict_defaults_unchanged": true,
+  "mechanism_experiment_run": false,
+  "reason_no_mechanism_experiment": "Formal composition evidence shows both relaxed useful matching and shared-context ambiguity; selecting an IDF/common-source mechanism before a controlled target-vs-false join would mix diagnosis with intervention.",
+  "formal_runs": {
+    "L2": {
+      "run_dir": "results/fig9_diagnostics/context_representation_audit_20260808/L2_stream",
+      "mape": 0.3927571082122346,
+      "coverage": 1.0,
+      "segments": 1945,
+      "synapses": 115473,
+      "candidate_rows": 22015,
+      "l2_only_rows": 1398,
+      "selected_l2_only_rows": 402,
+      "l2_only_ambiguity_rate": 0.7854077253218884,
+      "l2_only_very_common_fraction": 0.7804005722460658,
+      "l2_only_mean_idf": 2.0657032574373306,
+      "runtime_seconds": 1011.2110205999925,
+      "step_mape": [0.3992400262528836, 0.3408843282015881, 0.3905636903992828, 0.4015402437815643, 0.3927571082122346]
+    },
+    "L4": {
+      "run_dir": "results/fig9_diagnostics/context_representation_audit_20260808/L4_stream",
+      "mape": 0.4086558112184448,
+      "coverage": 1.0,
+      "segments": 2377,
+      "synapses": 130270,
+      "candidate_rows": 28260,
+      "l2_only_rows": 2005,
+      "selected_l2_only_rows": 124,
+      "l2_only_ambiguity_rate": 0.17556109725685787,
+      "l2_only_very_common_fraction": 0.7733167082294264,
+      "l2_only_mean_idf": 2.44755368693605,
+      "runtime_seconds": 1165.8652975999867,
+      "step_mape": [0.32929366433298524, 0.43704308614831405, 0.4639933523858774, 0.4239008639100095, 0.4086558112184448]
+    }
+  },
+  "interpretation": {
+    "step1": "L2 is worse at the first prediction step.",
+    "step2_to_5": "L2 is better after rollout begins, alongside lower raw/emitted density.",
+    "scenario_direction": "L2 increases Scenario 2 and reduces Scenario 3 in the composition-trace event unit.",
+    "source_representation": "L2-only contexts are not purely sparse; they are dominated by very-common sources and high ambiguity.",
+    "causal_claim": false,
+    "target_vs_false_trace": "not available in these formal composition runs"
+  },
+  "validation": {
+    "tests_passed": 356,
+    "smoke20_on_off_equal": true,
+    "smoke50_on_off_equal": true,
+    "formal_L2_exit_code": 0,
+    "formal_L4_exit_code": 0,
+    "coverage_L2": 1.0,
+    "coverage_L4": 1.0,
+    "gzip_eof_validated": true
+  }
+}
