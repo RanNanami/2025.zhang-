@@ -372,12 +372,13 @@ class SegmentContextCompositionTracker:
         completed: MatchOverlapCapture,
         actual_record_index: int,
         stream_label: str,
-    ) -> None:
+    ) -> list[dict[str, object]]:
         """Join pre-match composition to the already-finished observation."""
 
         snapshot = self._pending
         if snapshot is None:
             raise RuntimeError("composition transition was consumed without a snapshot")
+        transition_rows: list[dict[str, object]] = []
         column_by_key = {
             (int(row["actual_record_index"]), int(row["encoded_column"])): row
             for row in completed.column_rows
@@ -454,6 +455,7 @@ class SegmentContextCompositionTracker:
                 **self._quality_projection(quality, prefix="missing", sources=missing_sources),
             }
             self.match_rows.append(match_row)
+            transition_rows.append(dict(match_row))
             self.quality_rows.append(
                 {
                     **MARKERS,
@@ -526,6 +528,7 @@ class SegmentContextCompositionTracker:
         )
         self._flush_if_needed()
         self._pending = None
+        return transition_rows
 
     def record_observation(self, *, model: SequentialMemory, actual_record_index: int) -> None:
         """Update offline activation history after the real observation returns."""

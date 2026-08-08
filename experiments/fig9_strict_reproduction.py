@@ -63,6 +63,11 @@ from experiments.diagnostics.fig9_candidate_score_trace import (  # noqa: E402
     candidate_score_trace_rows,
     field_for_column,
 )
+from experiments.diagnostics.fig9_candidate_context_oracle import (  # noqa: E402
+    ContextCompositionIndex,
+    project_actual_composition_rows,
+    write_join_outputs,
+)
 from experiments.diagnostics.fig9_branch_provenance import (  # noqa: E402
     BRANCH_LEVELS,
     DIAGNOSTIC_MARKERS as BRANCH_DIAGNOSTIC_MARKERS,
@@ -1280,6 +1285,7 @@ def rollout_raw_autonomous(
     intracolumn_selection_policy: str = "existing",
     intracolumn_selection_diagnostic: bool = False,
     context_trajectory_tracker: ContextTrajectoryTracker | None = None,
+    context_oracle_unified_trace: bool = False,
     native_phase_hook: Callable[[int, str], None] | None = None,
 ) -> RolloutResult:
     """Roll out future SSTD codes using only raw predictive neurons.
@@ -1396,6 +1402,7 @@ def rollout_raw_autonomous(
                 if (
                     branch_provenance_diagnostic
                     or preselection_segment_diagnostic
+                    or context_oracle_unified_trace
                 )
                 else {}
             )
@@ -1424,6 +1431,21 @@ def rollout_raw_autonomous(
             )
             if native_phase_hook is not None:
                 native_phase_hook(_step_index + 1, "rollout_predict_complete")
+            autonomous_context_index = None
+            if (
+                context_oracle_unified_trace
+                and branch_registry is not None
+                and oracle_ranges is not None
+            ):
+                autonomous_context_index = ContextCompositionIndex.from_model(
+                    model=model,
+                    registry=branch_registry,
+                    ranges=oracle_ranges,
+                    actual_record_index=(
+                        record_index if record_index is not None else 0
+                    ),
+                    active_sources=branch_active_sources,
+                )
             predict_runtime = time.perf_counter() - predict_started
             if (
                 intracolumn_trace is not None
@@ -2003,6 +2025,7 @@ def rollout_raw_autonomous(
                             active_sources=branch_active_sources,
                             level=branch_provenance_level,
                             source_top_n=branch_source_top_n,
+                            context_index=autonomous_context_index,
                         )
                     )
                     branch_candidate_diagnostics.extend(candidate_rows)
@@ -2184,6 +2207,7 @@ def run_strict_stream(
     segment_context_composition_diagnostic: bool = False,
     segment_context_composition_level: str = "match",
     segment_context_composition_compress: bool = False,
+    context_oracle_unified_trace: bool = False,
 ) -> dict[str, object]:
     """Run one original or perturbed stream under the strict Fig.9 protocol."""
 
@@ -2214,6 +2238,15 @@ def run_strict_stream(
     if segment_context_composition_level not in SEGMENT_CONTEXT_COMPOSITION_LEVELS:
         raise ValueError(
             "segment context composition level must be summary, match, or source"
+        )
+    if context_oracle_unified_trace and not (
+        oracle_candidate_diagnostic
+        and branch_provenance_diagnostic
+        and segment_context_composition_diagnostic
+    ):
+        raise ValueError(
+            "context-oracle unified trace requires oracle, branch provenance, "
+            "and segment context composition diagnostics"
         )
     if timing_eligibility_decomposition and (
         not match_overlap_diagnostic or match_overlap_level != "source"
@@ -2462,6 +2495,7 @@ def run_strict_stream(
     actual_branch_segment_rows: list[dict[str, object]] = list(
         checkpoint_diagnostic_state.get("actual_branch_segment_rows", [])
     )
+    unified_actual_candidate_rows: list[dict[str, object]] = []
     context_trajectory_row_count = 0
     context_trajectory_path = output_dir / "context_trajectory_column_trace.csv"
     streamed_trace_counts = {
@@ -2643,6 +2677,7 @@ def run_strict_stream(
                     intracolumn_selection_diagnostic
                 ),
                 context_trajectory_tracker=context_trajectory_tracker,
+                context_oracle_unified_trace=context_oracle_unified_trace,
                 native_phase_hook=lambda step, phase: write_native_crash_breadcrumb(
                     current_index=index,
                     rollout_step=step,
@@ -2996,12 +3031,18 @@ def run_strict_stream(
                     branch_registry,
                 )
                 if segment_context_composition_tracker is not None:
-                    segment_context_composition_tracker.consume_transition(
+                    composition_transition_rows = segment_context_composition_tracker.consume_transition(
                         capture=match_overlap_capture,
                         completed=completed_overlap,
                         actual_record_index=index,
                         stream_label=stream_label,
                     )
+                    if context_oracle_unified_trace:
+                        unified_actual_candidate_rows.extend(
+                            project_actual_composition_rows(
+                                composition_transition_rows
+                            )
+                        )
                 source_rows = completed_overlap.source_rows
                 if source_trace_filter is not None:
                     source_rows = filter_source_trace_rows(
@@ -3656,6 +3697,60 @@ def run_strict_stream(
                 "strict_protocol_sha256": stable_object_sha256(fingerprint),
             },
         )
+    if context_oracle_unified_trace:
+        unified_rows = [
+            *unified_actual_candidate_rows,
+            *branch_candidate_rows,
+        ]
+        join_dir = output_dir / "context_oracle_join"
+        join_consistency = write_join_outputs(join_dir, rows=unified_rows)
+        summary["context_oracle_unified_trace"] = {
+            "version": "fig9-candidate-context-oracle-v1",
+            "trajectory_kinds": [
+                "actual_observation",
+                "autonomous_rollout",
+            ],
+            "row_unit": "CANDIDATE_SEGMENT",
+            "candidate_rows": len(unified_rows),
+            "actual_observation_rows": len(unified_actual_candidate_rows),
+            "autonomous_rollout_rows": len(branch_candidate_rows),
+            "join_consistency": join_consistency,
+            "oracle_label_posthoc_only": True,
+            "ground_truth_does_not_affect_model": True,
+            "step2_plus_recurrent_trajectory_divergence": True,
+            "path": str(join_dir),
+        }
+        write_json(
+            output_dir / "context_oracle_unified_protocol.json",
+            {
+                "version": "fig9-candidate-context-oracle-v1",
+                "diagnostic_only": True,
+                "offline_analysis_only": True,
+                "row_unit": "CANDIDATE_SEGMENT",
+                "trajectory_kinds": [
+                    "actual_observation",
+                    "autonomous_rollout",
+                ],
+                "candidate_event_id_fields": [
+                    "actual_record_index",
+                    "horizon_step",
+                    "field",
+                    "observed_encoded_column",
+                    "candidate_target_column",
+                    "candidate_target_neuron",
+                    "stable_segment_provenance_id",
+                    "candidate_generation_ordinal",
+                    "observed_event_time",
+                ],
+                "oracle_target_column_posthoc_only": True,
+                "ground_truth_does_not_affect_matching": True,
+                "ground_truth_does_not_affect_selection": True,
+                "ground_truth_does_not_affect_competition": True,
+                "ground_truth_does_not_affect_learning": True,
+                "ground_truth_does_not_affect_rng": True,
+                "join_consistency": join_consistency,
+            },
+        )
     if preselection_segment_diagnostic:
         traced_segments = (
             preselection_segment_rows[:preselection_max_rows]
@@ -4297,6 +4392,14 @@ def parse_args() -> argparse.Namespace:
         help="Write segment-context composition traces as CSV.GZ.",
     )
     parser.add_argument(
+        "--context-oracle-unified-trace",
+        action="store_true",
+        help=(
+            "Write stable candidate/context/oracle projections for offline "
+            "lossless-join analysis."
+        ),
+    )
+    parser.add_argument(
         "--timing-eligibility-decomposition",
         action="store_true",
         help="Add read-only timing/eligibility evidence to source rows.",
@@ -4683,6 +4786,7 @@ def run_main(args: argparse.Namespace) -> None:
             segment_context_composition_compress=(
                 args.segment_context_composition_compress
             ),
+            context_oracle_unified_trace=args.context_oracle_unified_trace,
         )
     if {"original", "perturbed"}.issubset(args.streams):
         runtime["pre_change_comparison"] = compare_pre_change_predictions(

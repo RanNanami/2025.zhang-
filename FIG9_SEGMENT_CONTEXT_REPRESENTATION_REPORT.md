@@ -136,10 +136,17 @@ mechanism experiment was enabled because this evidence is mixed and a choice
 such as IDF weighting or common-source downweighting would be a separate
 nonpaper ablation.
 
-Target-vs-false context quality was not claimed here: the formal composition
-runs did not enable the oracle candidate trace, and the existing oracle trace
-does not carry a lossless join to these source-composition rows. This is an
-explicit data gap, not an invented label.
+The earlier composition-only runs did not claim target-vs-false context
+quality because they had no lossless candidate identity join. That gap is now
+closed by the separate `context_oracle_join_20260808` diagnostic: its formal
+L2 and L4 traces use `row_unit=CANDIDATE_SEGMENT`, stable candidate IDs, and
+zero duplicate/orphan rows. The new offline result is mixed rather than a
+uniform context-quality signal. In particular, Passenger score favors false
+candidates in both L2 and L4, Weekday favors targets, and Time is near zero or
+changes sign. The oracle label remains posthoc and never enters prediction,
+selection, competition, reinforcement, or RNG. See the generated
+`FIG9_CONTEXT_ORACLE_DISCRIMINATION_REPORT.md` for the paired bootstrap
+intervals and the exact formal output paths.
 
 ## Files Added Or Changed
 

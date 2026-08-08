@@ -8,6 +8,10 @@ from dataclasses import asdict, dataclass
 from typing import Iterable, Mapping, Sequence
 
 from experiments.diagnostics.fig9_candidate_score_trace import field_for_column
+from experiments.diagnostics.fig9_candidate_context_oracle import (
+    ContextCompositionIndex,
+    enrich_autonomous_candidate_row,
+)
 from experiments.diagnostics.fig9_competitive_inhibition import (
     CompetitionDecision,
     CompetitionResult,
@@ -404,6 +408,7 @@ def branch_trace_rows(
     active_sources: Mapping[int, float],
     level: str,
     source_top_n: int | None = None,
+    context_index: ContextCompositionIndex | None = None,
 ) -> tuple[
     list[dict[str, object]],
     list[dict[str, object]],
@@ -414,6 +419,12 @@ def branch_trace_rows(
     if level not in BRANCH_LEVELS:
         raise ValueError(f"unsupported branch provenance level: {level}")
     target_columns = set(target_code.columns)
+    target_columns_by_field: dict[str, list[int]] = {}
+    for target_column in sorted(target_columns):
+        target_columns_by_field.setdefault(
+            field_for_column(target_column, ranges),
+            [],
+        ).append(target_column)
     decisions_by_candidate = {
         id(decision.candidate.candidate): decision
         for decision in competition_result.decisions
@@ -507,6 +518,12 @@ def branch_trace_rows(
             "field": field_for_column(column, ranges),
             "column": column,
             "neuron": candidate.neuron_index,
+            "segment_provenance_id": (
+                origin.segment_provenance_id if origin is not None else ""
+            ),
+            "segment_creation_transition_index": (
+                origin.creation_transition_index if origin is not None else ""
+            ),
             "predicted_time": candidate.time,
             "batch_index": decision.batch_index if decision else "",
             "original_score": candidate.score,
@@ -566,6 +583,14 @@ def branch_trace_rows(
                 "" if origin is not None else "segment_not_seen_at_creation"
             ),
         }
+        if context_index is not None:
+            candidate_row = enrich_autonomous_candidate_row(
+                candidate_row,
+                candidate=candidate,
+                context_index=context_index,
+                ranges=ranges,
+                target_columns_by_field=target_columns_by_field,
+            )
         candidate_rows.append(candidate_row)
         if level == "summary":
             continue
