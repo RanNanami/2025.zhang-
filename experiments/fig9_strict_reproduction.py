@@ -116,6 +116,10 @@ from experiments.diagnostics.fig9_context_trajectory import (  # noqa: E402
     CONTEXT_TRAJECTORY_MARKERS,
     ContextTrajectoryTracker,
 )
+from experiments.diagnostics.fig9_temporal_context import (  # noqa: E402
+    TemporalContextTracker,
+    protocol as temporal_context_protocol,
+)
 from experiments.diagnostics.fig9_segment_reinforcement import (  # noqa: E402
     DIAGNOSTIC_MARKERS as SEGMENT_REINFORCEMENT_MARKERS,
     SEGMENT_REINFORCEMENT_LEVELS,
@@ -1286,6 +1290,7 @@ def rollout_raw_autonomous(
     intracolumn_selection_diagnostic: bool = False,
     context_trajectory_tracker: ContextTrajectoryTracker | None = None,
     context_oracle_unified_trace: bool = False,
+    temporal_context_tracker: TemporalContextTracker | None = None,
     native_phase_hook: Callable[[int, str], None] | None = None,
 ) -> RolloutResult:
     """Roll out future SSTD codes using only raw predictive neurons.
@@ -1387,6 +1392,8 @@ def rollout_raw_autonomous(
         else set()
     )
     try:
+        if temporal_context_tracker is not None and record_index is not None:
+            temporal_context_tracker.begin_record(record_index)
         for _step_index in range(steps):
             if native_phase_hook is not None:
                 native_phase_hook(_step_index + 1, "rollout_step_enter")
@@ -1943,6 +1950,43 @@ def rollout_raw_autonomous(
                 target_code = oracle_encoder.encode(
                     record_values(target_record)
                 )
+                if temporal_context_tracker is not None:
+                    target_columns_by_field: dict[str, int] = {}
+                    for target_column in sorted(target_code.columns):
+                        target_columns_by_field.setdefault(
+                            field_for_column(target_column, oracle_ranges),
+                            int(target_column),
+                        )
+                    temporal_context_tracker.record_autonomous_candidates(
+                        model=model,
+                        registry=branch_registry,
+                        actual_record_index=(
+                            record_index if record_index is not None else 0
+                        ),
+                        horizon_step=_step_index + 1,
+                        field_for_column=lambda column: field_for_column(
+                            int(column), oracle_ranges
+                        ),
+                        target_columns=target_code.columns,
+                        target_column_by_field=target_columns_by_field,
+                        input_index=(
+                            record_index + 1 if record_index is not None else 0
+                        ),
+                        input_timestamp=(
+                            timestamp.isoformat(sep=" ")
+                            if timestamp is not None
+                            else ""
+                        ),
+                        candidates=model.last_prediction_candidates,
+                        emitted_candidate_ids=(
+                            id(item.candidate)
+                            for item in (
+                                competition_result.emitted_candidates
+                                if competition_result is not None
+                                else ()
+                            )
+                        ),
+                    )
                 oracle_diagnostics.append(
                     analyze_oracle_step(
                         prediction_input_index=(
@@ -2104,6 +2148,11 @@ def rollout_raw_autonomous(
                 native_phase_hook(_step_index + 1, "state_propagation_enter")
             model.previous_active_cells = active
             model.previous_winners = active.copy()
+            if temporal_context_tracker is not None:
+                temporal_context_tracker.record_autonomous_state(
+                    active,
+                    _step_index + 1,
+                )
             if branch_registry is not None:
                 branch_registry.set_autonomous_sources(active)
             prediction = propagated
@@ -2191,6 +2240,8 @@ def run_strict_stream(
     source_trace_filter: SourceTraceFilter | None = None,
     context_trajectory_diagnostic: bool = False,
     context_trajectory_level: str = "summary",
+    temporal_context_diagnostic: bool = False,
+    temporal_context_level: str = "summary",
     lmatch_real_ablation: bool = False,
     progress_every: int = 0,
     stream_diagnostic_traces: bool = False,
@@ -2227,6 +2278,8 @@ def run_strict_stream(
         raise ValueError(
             "context trajectory level must be summary, column, or cell"
         )
+    if temporal_context_level not in {"summary", "candidate"}:
+        raise ValueError("temporal context level must be summary or candidate")
     if segment_reinforcement_level not in SEGMENT_REINFORCEMENT_LEVELS:
         raise ValueError(
             "segment reinforcement level must be summary, event, or segment"
@@ -2370,6 +2423,7 @@ def run_strict_stream(
                 or teacher_forced_winner_diagnostic
                 or match_overlap_diagnostic
                 or context_trajectory_diagnostic
+                or temporal_context_diagnostic
                 or segment_reinforcement_diagnostic
                 or independent_reference_diagnostic
                 or actual_branch_provenance_diagnostic
@@ -2437,6 +2491,7 @@ def run_strict_stream(
                 or teacher_forced_winner_diagnostic
                 or match_overlap_diagnostic
                 or context_trajectory_diagnostic
+                or temporal_context_diagnostic
                 or segment_reinforcement_diagnostic
                 or independent_reference_diagnostic
                 or actual_branch_provenance_diagnostic
@@ -2544,6 +2599,19 @@ def run_strict_stream(
         if context_trajectory_diagnostic
         else None
     )
+    temporal_context_tracker = (
+        TemporalContextTracker.from_checkpoint_payload(
+            checkpoint_diagnostic_state.get("temporal_context_tracker")
+        )
+        if temporal_context_diagnostic and checkpoint_diagnostic_state
+        else TemporalContextTracker()
+        if temporal_context_diagnostic
+        else None
+    )
+    if temporal_context_tracker is not None:
+        temporal_context_tracker.enable_streaming(output_dir, compress=True)
+        for pending_row in temporal_context_tracker.pending_rows():
+            temporal_context_tracker._emit(pending_row)
     segment_context_composition_tracker = (
         SegmentContextCompositionTracker(
             registry=branch_registry,
@@ -2568,6 +2636,7 @@ def run_strict_stream(
         or independent_reference_diagnostic
         or actual_branch_provenance_diagnostic
         or segment_context_composition_diagnostic
+        or temporal_context_diagnostic
         else None
     )
     match_overlap_ranges = (
@@ -2582,6 +2651,7 @@ def run_strict_stream(
         or independent_reference_diagnostic
         or actual_branch_provenance_diagnostic
         or segment_context_composition_diagnostic
+        or temporal_context_diagnostic
         else None
     )
     validate_strict_fingerprint(fingerprint)
@@ -2619,6 +2689,9 @@ def run_strict_stream(
         )
         record = records[index]
         code = encoder.encode(record_values(record))
+        temporal_actual_capture = (
+            temporal_context_diagnostic and index >= config.warmup
+        )
         rollout_diagnostics: tuple[dict[str, object], ...] = ()
         if index >= config.warmup:
             target_record = records[index + config.horizon]
@@ -2678,6 +2751,7 @@ def run_strict_stream(
                 ),
                 context_trajectory_tracker=context_trajectory_tracker,
                 context_oracle_unified_trace=context_oracle_unified_trace,
+                temporal_context_tracker=temporal_context_tracker,
                 native_phase_hook=lambda step, phase: write_native_crash_breadcrumb(
                     current_index=index,
                     rollout_step=step,
@@ -2860,6 +2934,7 @@ def run_strict_stream(
                     observe_scenario_diagnostic
                     or match_overlap_diagnostic
                     or context_trajectory_diagnostic
+                    or temporal_actual_capture
                     or segment_reinforcement_diagnostic
                     or independent_reference_diagnostic
                     or actual_branch_provenance_diagnostic
@@ -2870,6 +2945,7 @@ def run_strict_stream(
                 teacher_forced_winner_diagnostic
                 or match_overlap_diagnostic
                 or context_trajectory_diagnostic
+                or temporal_actual_capture
                 or segment_reinforcement_diagnostic
                 or independent_reference_diagnostic
                 or actual_branch_provenance_diagnostic
@@ -2899,6 +2975,7 @@ def run_strict_stream(
             or independent_reference_diagnostic
             or actual_branch_provenance_diagnostic
             or segment_context_composition_diagnostic
+            or temporal_actual_capture
         ):
             if (
                 branch_registry is None
@@ -2920,6 +2997,7 @@ def run_strict_stream(
             if (
                 match_overlap_diagnostic
                 or context_trajectory_diagnostic
+                or temporal_actual_capture
                 or segment_context_composition_diagnostic
             ):
                 if match_overlap_ranges is None:
@@ -2935,6 +3013,7 @@ def run_strict_stream(
                     level=(
                         "source"
                         if context_trajectory_diagnostic
+                        or temporal_actual_capture
                         or segment_context_composition_diagnostic
                         else match_overlap_level
                     ),
@@ -3044,6 +3123,15 @@ def run_strict_stream(
                             )
                         )
                 source_rows = completed_overlap.source_rows
+                if temporal_context_tracker is not None:
+                    temporal_context_tracker.record_actual_source_rows(
+                        source_rows=completed_overlap.source_rows,
+                        actual_record_index=index,
+                        target_field_by_column=lambda column: field_for_column(
+                            int(column), match_overlap_ranges
+                        ),
+                        l_match=config.l_match,
+                    )
                 if source_trace_filter is not None:
                     source_rows = filter_source_trace_rows(
                         source_rows,
@@ -3188,6 +3276,11 @@ def run_strict_stream(
                 segment_context_composition_tracker.record_observation(
                     model=model,
                     actual_record_index=index,
+                )
+            if temporal_context_tracker is not None:
+                temporal_context_tracker.record_actual_observation(
+                    model.previous_winners,
+                    index,
                 )
         observe_runtime = time.perf_counter() - observe_started
         write_native_crash_breadcrumb(
@@ -3334,8 +3427,13 @@ def run_strict_stream(
                         "actual_branch_tracker": actual_branch_tracker.checkpoint_payload(),
                         "actual_branch_event_rows": actual_branch_event_rows,
                         "actual_branch_segment_rows": actual_branch_segment_rows,
+                        "temporal_context_tracker": (
+                            temporal_context_tracker.checkpoint_payload()
+                            if temporal_context_tracker is not None
+                            else None
+                        ),
                     }
-                    if segment_reinforcement_diagnostic or independent_reference_diagnostic or actual_branch_provenance_diagnostic
+                    if segment_reinforcement_diagnostic or independent_reference_diagnostic or actual_branch_provenance_diagnostic or temporal_context_diagnostic
                     else None
                 ),
             )
@@ -3356,6 +3454,8 @@ def run_strict_stream(
             break
 
     flush_large_diagnostic_batches()
+    if temporal_context_tracker is not None:
+        temporal_context_tracker.close()
     if (
         checkpoint_path is not None
         and checkpoint_every > 0
@@ -3399,8 +3499,13 @@ def run_strict_stream(
                     "actual_branch_tracker": actual_branch_tracker.checkpoint_payload(),
                     "actual_branch_event_rows": actual_branch_event_rows,
                     "actual_branch_segment_rows": actual_branch_segment_rows,
+                    "temporal_context_tracker": (
+                        temporal_context_tracker.checkpoint_payload()
+                        if temporal_context_tracker is not None
+                        else None
+                    ),
                 }
-                if segment_reinforcement_diagnostic or independent_reference_diagnostic or actual_branch_provenance_diagnostic
+                if segment_reinforcement_diagnostic or independent_reference_diagnostic or actual_branch_provenance_diagnostic or temporal_context_diagnostic
                 else None
             ),
         )
@@ -3497,6 +3602,16 @@ def run_strict_stream(
         )
         summary["context_trajectory_row_count"] = context_trajectory_row_count
         summary["context_trajectory_trace_streamed"] = stream_diagnostic_traces
+    if temporal_context_tracker is not None:
+        summary["temporal_context_diagnostic"] = {
+            "enabled": True,
+            "level": temporal_context_level,
+            "candidate_rows": temporal_context_tracker.candidate_row_count,
+            "actual_rows": temporal_context_tracker.actual_row_count,
+            "trace_path": str(output_dir / "temporal_candidate_trace.csv.gz"),
+            "protocol_version": temporal_context_protocol()["version"],
+            "strict_default_unchanged": True,
+        }
     if segment_context_composition_tracker is not None:
         summary["segment_context_composition"] = (
             segment_context_composition_tracker.summary()
@@ -4173,6 +4288,18 @@ def run_strict_stream(
                 "strict_protocol_sha256": stable_object_sha256(fingerprint),
             },
         )
+    if temporal_context_tracker is not None:
+        write_json(
+            output_dir / "temporal_context_protocol.json",
+            {
+                **temporal_context_protocol(),
+                "level": temporal_context_level,
+                "trace_path": str(output_dir / "temporal_candidate_trace.csv.gz"),
+                "candidate_rows": temporal_context_tracker.candidate_row_count,
+                "actual_rows": temporal_context_tracker.actual_row_count,
+                "strict_protocol_sha256": stable_object_sha256(fingerprint),
+            },
+        )
     if interval_rows:
         write_predictions(
             output_dir / f"{stream_label}_interval_summary.csv",
@@ -4406,6 +4533,17 @@ def parse_args() -> argparse.Namespace:
             "Capture the read-only candidate/context inputs required by the "
             "offline source-pair coherence analyzer."
         ),
+    )
+    parser.add_argument(
+        "--temporal-context-diagnostic",
+        action="store_true",
+        help="Capture bounded causal candidate temporal summaries for offline analysis.",
+    )
+    parser.add_argument(
+        "--temporal-context-level",
+        choices=("summary", "candidate"),
+        default="summary",
+        help="Temporal summary granularity; source-debug rows are intentionally unsupported.",
     )
     parser.add_argument(
         "--timing-eligibility-decomposition",
@@ -4644,8 +4782,16 @@ def run_main(args: argparse.Namespace) -> None:
         )
     summaries: dict[str, object] = {}
     pairwise_diagnostic = args.pairwise_context_diagnostic
-    oracle_diagnostic = args.oracle_candidate_diagnostic or pairwise_diagnostic
-    branch_diagnostic = args.branch_provenance_diagnostic or pairwise_diagnostic
+    temporal_diagnostic = args.temporal_context_diagnostic
+    oracle_diagnostic = (
+        args.oracle_candidate_diagnostic
+        or pairwise_diagnostic
+        or temporal_diagnostic
+    )
+    branch_diagnostic = (
+        args.branch_provenance_diagnostic
+        or pairwise_diagnostic
+    )
     composition_diagnostic = (
         args.segment_context_composition_diagnostic or pairwise_diagnostic
     )
@@ -4656,6 +4802,7 @@ def run_main(args: argparse.Namespace) -> None:
         args.context_oracle_unified_trace or pairwise_diagnostic
     )
     runtime["pairwise_context_diagnostic"] = pairwise_diagnostic
+    runtime["temporal_context_diagnostic"] = temporal_diagnostic
     for stream in args.streams:
         data_path = Path(args.data if stream == "original" else args.perturbed_data)
         records = read_records(data_path, args.limit)
@@ -4781,6 +4928,8 @@ def run_main(args: argparse.Namespace) -> None:
                 args.context_trajectory_diagnostic
             ),
             context_trajectory_level=args.context_trajectory_level,
+            temporal_context_diagnostic=temporal_diagnostic,
+            temporal_context_level=args.temporal_context_level,
             lmatch_real_ablation=args.lmatch_real_ablation,
             progress_every=args.progress_every,
             stream_diagnostic_traces=args.stream_diagnostic_traces,
