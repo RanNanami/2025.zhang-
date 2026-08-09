@@ -140,6 +140,13 @@ def _predictions_path(path: Path) -> Path | None:
     return None
 
 
+def _is_formal_250_complete(summary: Mapping[str, object]) -> bool:
+    records_used = _int(summary.get("records_used"))
+    attempted = _int(summary.get("attempted_predictions"))
+    predictions = _int(summary.get("predictions"))
+    return records_used >= 250 and attempted > 0 and predictions == attempted
+
+
 def _noninterference(on_dir: Path | None, off_dir: Path | None) -> dict[str, object]:
     """Compare diagnostic on/off artifacts without invoking the model."""
     if on_dir is None or off_dir is None:
@@ -403,6 +410,9 @@ def _write_report(
     output_dir: Path,
     noninterference: Mapping[str, object],
 ) -> dict[str, object]:
+    formal_250_completed = all(
+        _is_formal_250_complete(summary) for summary in summaries.values()
+    )
     passenger = [row for row in pairs if row.get("field") == "passenger"]
     temporal_pairs = [
         row for row in passenger if row.get("feature") in TEMPORAL_FEATURES
@@ -496,6 +506,7 @@ def _write_report(
         "- Runtime is allowed to differ; model outputs and state fingerprints are not.",
         "",
         "## Run status",
+        f"- Formal 250 completed for all compared runs: {'yes' if formal_250_completed else 'no'}.",
     ]
     for label, summary in summaries.items():
         lines.append(
@@ -518,6 +529,7 @@ def _write_report(
         "candidate_rows": len(rows),
         "context_drift_evidence": bool(context_drift),
         "strongest_temporal_feature": strongest.get("feature") if strongest else None,
+        "formal_250_completed": formal_250_completed,
     }
 
 
@@ -584,7 +596,7 @@ def analyze(*, l2_dir: Path, l4_dir: Path, output_dir: Path, on_dir: Path | None
         })
     _write_csv(output_dir / "EXPERIMENT_LEDGER.csv", ledger)
     final = _write_report(output_dir / "FIG9_TEMPORAL_CONTEXT_STRUCTURE_REPORT.md", rows=rows, pairs=pairs, rankings=rankings, summaries={"L2": l2_summary, "L4": l4_summary}, output_dir=output_dir, noninterference=noninterference)
-    final.update({"version": VERSION, "l2_summary": l2_summary, "l4_summary": l4_summary, "actual_rows": sum(row.get("trajectory_kind") == TRAJECTORY_ACTUAL for row in rows), "autonomous_rows": sum(row.get("trajectory_kind") == TRAJECTORY_AUTONOMOUS for row in rows), "formal_250_completed": False, "noninterference": noninterference})
+    final.update({"version": VERSION, "l2_summary": l2_summary, "l4_summary": l4_summary, "actual_rows": sum(row.get("trajectory_kind") == TRAJECTORY_ACTUAL for row in rows), "autonomous_rows": sum(row.get("trajectory_kind") == TRAJECTORY_AUTONOMOUS for row in rows), "noninterference": noninterference})
     (output_dir / "FINAL_TEMPORAL_CONTEXT_SUMMARY.json").write_text(json.dumps(final, indent=2, sort_keys=True), encoding="utf-8")
     return final
 
