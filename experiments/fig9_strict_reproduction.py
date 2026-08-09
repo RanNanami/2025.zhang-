@@ -120,6 +120,10 @@ from experiments.diagnostics.fig9_temporal_context import (  # noqa: E402
     TemporalContextTracker,
     protocol as temporal_context_protocol,
 )
+from experiments.diagnostics.fig9_autonomous_context_provenance import (  # noqa: E402
+    AutonomousContextProvenanceTracker,
+    protocol as autonomous_context_provenance_protocol,
+)
 from experiments.diagnostics.fig9_segment_reinforcement import (  # noqa: E402
     DIAGNOSTIC_MARKERS as SEGMENT_REINFORCEMENT_MARKERS,
     SEGMENT_REINFORCEMENT_LEVELS,
@@ -1291,6 +1295,7 @@ def rollout_raw_autonomous(
     context_trajectory_tracker: ContextTrajectoryTracker | None = None,
     context_oracle_unified_trace: bool = False,
     temporal_context_tracker: TemporalContextTracker | None = None,
+    autonomous_context_provenance_tracker: AutonomousContextProvenanceTracker | None = None,
     native_phase_hook: Callable[[int, str], None] | None = None,
 ) -> RolloutResult:
     """Roll out future SSTD codes using only raw predictive neurons.
@@ -1362,7 +1367,7 @@ def rollout_raw_autonomous(
             config.time_columns,
             config.passenger_columns,
         )
-        if oracle_candidate_diagnostic and config is not None
+        if (oracle_candidate_diagnostic or autonomous_context_provenance_tracker is not None) and config is not None
         else None
     )
     prediction: SymbolCode | None = None
@@ -1394,6 +1399,7 @@ def rollout_raw_autonomous(
     try:
         if temporal_context_tracker is not None and record_index is not None:
             temporal_context_tracker.begin_record(record_index)
+        provenance_rollout_started = False
         for _step_index in range(steps):
             if native_phase_hook is not None:
                 native_phase_hook(_step_index + 1, "rollout_step_enter")
@@ -1410,9 +1416,35 @@ def rollout_raw_autonomous(
                     branch_provenance_diagnostic
                     or preselection_segment_diagnostic
                     or context_oracle_unified_trace
+                    or autonomous_context_provenance_tracker is not None
                 )
                 else {}
             )
+            if (
+                autonomous_context_provenance_tracker is not None
+                and record_index is not None
+                and not provenance_rollout_started
+            ):
+                autonomous_context_provenance_tracker.begin_rollout(
+                    anchor_record_index=record_index,
+                    anchor_timestamp=(
+                        timestamp.isoformat(sep=" ")
+                        if timestamp is not None
+                        else ""
+                    ),
+                    pre_rollout_active=branch_active_sources,
+                    pre_rollout_predicted=(
+                        branch_registry.current_predicted_sources
+                        if branch_registry is not None
+                        else set()
+                    ),
+                    pre_rollout_burst=(
+                        branch_registry.current_burst_sources
+                        if branch_registry is not None
+                        else set()
+                    ),
+                )
+                provenance_rollout_started = True
             predict_started = time.perf_counter()
             prediction_trace = (
                 PredictionTrace() if branch_provenance_diagnostic else None
@@ -1438,6 +1470,28 @@ def rollout_raw_autonomous(
             )
             if native_phase_hook is not None:
                 native_phase_hook(_step_index + 1, "rollout_predict_complete")
+            provenance_target_columns: tuple[int, ...] = ()
+            provenance_target_by_field: dict[str, int] = {}
+            provenance_target_timestamp = ""
+            if (
+                autonomous_context_provenance_tracker is not None
+                and oracle_encoder is not None
+                and future_records is not None
+                and _step_index < len(future_records)
+            ):
+                provenance_target = oracle_encoder.encode(
+                    record_values(future_records[_step_index])
+                )
+                provenance_target_columns = tuple(
+                    int(event.column) for event in provenance_target.events
+                )
+                provenance_target_by_field = {
+                    field_for_column(event.column, oracle_ranges): int(event.column)
+                    for event in provenance_target.events
+                }
+                provenance_target_timestamp = future_records[
+                    _step_index
+                ].timestamp.isoformat(sep=" ")
             autonomous_context_index = None
             if (
                 context_oracle_unified_trace
@@ -1476,6 +1530,33 @@ def rollout_raw_autonomous(
                     ranges=oracle_ranges,
                 )
             if raw is None:
+                if autonomous_context_provenance_tracker is not None:
+                    autonomous_context_provenance_tracker.record_step(
+                        model=model,
+                        raw=None,
+                        propagated=None,
+                        next_active_cells={},
+                        competition_result=None,
+                        actual_record_index=(
+                            record_index if record_index is not None else 0
+                        ),
+                        horizon_step=_step_index + 1,
+                        field_for_column=(
+                            lambda column: field_for_column(column, oracle_ranges)
+                        ),
+                        target_columns=provenance_target_columns,
+                        target_column_by_field=provenance_target_by_field,
+                        input_index=(
+                            record_index + 1 if record_index is not None else 0
+                        ),
+                        input_timestamp=(
+                            timestamp.isoformat(sep=" ")
+                            if timestamp is not None
+                            else ""
+                        ),
+                        target_timestamp=provenance_target_timestamp,
+                        registry=branch_registry,
+                    )
                 if context_trajectory_tracker is not None:
                     assert preselection_trace is not None
                     context_trajectory_tracker.record_transition(
@@ -1729,6 +1810,31 @@ def rollout_raw_autonomous(
                     model.prediction_active_cells(propagated)
                     if competition.enabled
                     else raw_active
+                )
+            if autonomous_context_provenance_tracker is not None:
+                autonomous_context_provenance_tracker.record_step(
+                    model=model,
+                    raw=raw,
+                    propagated=propagated,
+                    next_active_cells=active,
+                    competition_result=competition_result,
+                    actual_record_index=(
+                        record_index if record_index is not None else 0
+                    ),
+                    horizon_step=_step_index + 1,
+                    field_for_column=(
+                        lambda column: field_for_column(column, oracle_ranges)
+                    ),
+                    target_columns=provenance_target_columns,
+                    target_column_by_field=provenance_target_by_field,
+                    input_index=(
+                        record_index + 1 if record_index is not None else 0
+                    ),
+                    input_timestamp=(
+                        timestamp.isoformat(sep=" ") if timestamp is not None else ""
+                    ),
+                    target_timestamp=provenance_target_timestamp,
+                    registry=branch_registry,
                 )
             if context_trajectory_tracker is not None:
                 if native_phase_hook is not None:
@@ -2242,6 +2348,8 @@ def run_strict_stream(
     context_trajectory_level: str = "summary",
     temporal_context_diagnostic: bool = False,
     temporal_context_level: str = "summary",
+    autonomous_context_provenance_diagnostic: bool = False,
+    autonomous_context_provenance_level: str = "candidate",
     lmatch_real_ablation: bool = False,
     progress_every: int = 0,
     stream_diagnostic_traces: bool = False,
@@ -2280,6 +2388,10 @@ def run_strict_stream(
         )
     if temporal_context_level not in {"summary", "candidate"}:
         raise ValueError("temporal context level must be summary or candidate")
+    if autonomous_context_provenance_level not in {"summary", "candidate", "source"}:
+        raise ValueError(
+            "autonomous context provenance level must be summary, candidate, or source"
+        )
     if segment_reinforcement_level not in SEGMENT_REINFORCEMENT_LEVELS:
         raise ValueError(
             "segment reinforcement level must be summary, event, or segment"
@@ -2424,6 +2536,7 @@ def run_strict_stream(
                 or match_overlap_diagnostic
                 or context_trajectory_diagnostic
                 or temporal_context_diagnostic
+                or autonomous_context_provenance_diagnostic
                 or segment_reinforcement_diagnostic
                 or independent_reference_diagnostic
                 or actual_branch_provenance_diagnostic
@@ -2492,6 +2605,7 @@ def run_strict_stream(
                 or match_overlap_diagnostic
                 or context_trajectory_diagnostic
                 or temporal_context_diagnostic
+                or autonomous_context_provenance_diagnostic
                 or segment_reinforcement_diagnostic
                 or independent_reference_diagnostic
                 or actual_branch_provenance_diagnostic
@@ -2507,7 +2621,9 @@ def run_strict_stream(
             raise ValueError("debug isolation runs are limited to 10 records")
         stop_after_index = debug_end_index
     oracle_encoder = (
-        build_fig9_encoder(config) if oracle_candidate_diagnostic else None
+        build_fig9_encoder(config)
+        if (oracle_candidate_diagnostic or autonomous_context_provenance_diagnostic)
+        else None
     )
     oracle_rows: list[dict[str, object]] = []
     candidate_score_rows: list[dict[str, object]] = []
@@ -2608,6 +2724,20 @@ def run_strict_stream(
         if temporal_context_diagnostic
         else None
     )
+    autonomous_context_provenance_tracker = (
+        AutonomousContextProvenanceTracker.from_checkpoint_payload(
+            checkpoint_diagnostic_state.get(
+                "autonomous_context_provenance_tracker"
+            ),
+            stream_label=stream_label,
+            level=autonomous_context_provenance_level,
+            seed=config.seed,
+        )
+        if autonomous_context_provenance_diagnostic
+        else None
+    )
+    if autonomous_context_provenance_tracker is not None:
+        autonomous_context_provenance_tracker.enable_streaming(output_dir)
     if temporal_context_tracker is not None:
         temporal_context_tracker.enable_streaming(output_dir, compress=True)
         for pending_row in temporal_context_tracker.pending_rows():
@@ -2752,6 +2882,9 @@ def run_strict_stream(
                 context_trajectory_tracker=context_trajectory_tracker,
                 context_oracle_unified_trace=context_oracle_unified_trace,
                 temporal_context_tracker=temporal_context_tracker,
+                autonomous_context_provenance_tracker=(
+                    autonomous_context_provenance_tracker
+                ),
                 native_phase_hook=lambda step, phase: write_native_crash_breadcrumb(
                     current_index=index,
                     rollout_step=step,
@@ -3282,6 +3415,12 @@ def run_strict_stream(
                     model.previous_winners,
                     index,
                 )
+            if autonomous_context_provenance_tracker is not None:
+                autonomous_context_provenance_tracker.record_actual_observation(
+                    model._active_sources(),
+                    model.previous_winners,
+                    index,
+                )
         observe_runtime = time.perf_counter() - observe_started
         write_native_crash_breadcrumb(
             current_index=index,
@@ -3432,8 +3571,13 @@ def run_strict_stream(
                             if temporal_context_tracker is not None
                             else None
                         ),
+                        "autonomous_context_provenance_tracker": (
+                            autonomous_context_provenance_tracker.checkpoint_payload()
+                            if autonomous_context_provenance_tracker is not None
+                            else None
+                        ),
                     }
-                    if segment_reinforcement_diagnostic or independent_reference_diagnostic or actual_branch_provenance_diagnostic or temporal_context_diagnostic
+                    if segment_reinforcement_diagnostic or independent_reference_diagnostic or actual_branch_provenance_diagnostic or temporal_context_diagnostic or autonomous_context_provenance_diagnostic
                     else None
                 ),
             )
@@ -3456,6 +3600,9 @@ def run_strict_stream(
     flush_large_diagnostic_batches()
     if temporal_context_tracker is not None:
         temporal_context_tracker.close()
+    if autonomous_context_provenance_tracker is not None:
+        autonomous_context_provenance_tracker.close()
+        autonomous_context_provenance_tracker.write_run_outputs(output_dir)
     if (
         checkpoint_path is not None
         and checkpoint_every > 0
@@ -3504,8 +3651,13 @@ def run_strict_stream(
                         if temporal_context_tracker is not None
                         else None
                     ),
+                    "autonomous_context_provenance_tracker": (
+                        autonomous_context_provenance_tracker.checkpoint_payload()
+                        if autonomous_context_provenance_tracker is not None
+                        else None
+                    ),
                 }
-                if segment_reinforcement_diagnostic or independent_reference_diagnostic or actual_branch_provenance_diagnostic or temporal_context_diagnostic
+                if segment_reinforcement_diagnostic or independent_reference_diagnostic or actual_branch_provenance_diagnostic or temporal_context_diagnostic or autonomous_context_provenance_diagnostic
                 else None
             ),
         )
@@ -3611,6 +3763,21 @@ def run_strict_stream(
             "trace_path": str(output_dir / "temporal_candidate_trace.csv.gz"),
             "protocol_version": temporal_context_protocol()["version"],
             "strict_default_unchanged": True,
+        }
+    if autonomous_context_provenance_tracker is not None:
+        summary["autonomous_context_provenance_diagnostic"] = {
+            "enabled": True,
+            "level": autonomous_context_provenance_level,
+            "candidate_rows": autonomous_context_provenance_tracker.candidate_row_count,
+            "source_rows": autonomous_context_provenance_tracker.source_row_count,
+            "candidate_trace_path": str(
+                output_dir / "autonomous_candidate_provenance_trace.csv.gz"
+            ),
+            "protocol_version": autonomous_context_provenance_protocol(
+                autonomous_context_provenance_level
+            )["version"],
+            "strict_default_unchanged": True,
+            "read_only": True,
         }
     if segment_context_composition_tracker is not None:
         summary["segment_context_composition"] = (
@@ -4300,6 +4467,21 @@ def run_strict_stream(
                 "strict_protocol_sha256": stable_object_sha256(fingerprint),
             },
         )
+    if autonomous_context_provenance_tracker is not None:
+        write_json(
+            output_dir / "autonomous_context_provenance_protocol.json",
+            {
+                **autonomous_context_provenance_protocol(
+                    autonomous_context_provenance_level
+                ),
+                "candidate_trace_path": str(
+                    output_dir / "autonomous_candidate_provenance_trace.csv.gz"
+                ),
+                "candidate_rows": autonomous_context_provenance_tracker.candidate_row_count,
+                "source_rows": autonomous_context_provenance_tracker.source_row_count,
+                "strict_protocol_sha256": stable_object_sha256(fingerprint),
+            },
+        )
     if interval_rows:
         write_predictions(
             output_dir / f"{stream_label}_interval_summary.csv",
@@ -4546,6 +4728,17 @@ def parse_args() -> argparse.Namespace:
         help="Temporal summary granularity; source-debug rows are intentionally unsupported.",
     )
     parser.add_argument(
+        "--autonomous-context-provenance-diagnostic",
+        action="store_true",
+        help="Capture read-only source identity and activation provenance during autonomous rollout.",
+    )
+    parser.add_argument(
+        "--autonomous-context-provenance-level",
+        choices=("summary", "candidate", "source"),
+        default="candidate",
+        help="Provenance output level; source rows are bounded smoke-test detail.",
+    )
+    parser.add_argument(
         "--timing-eligibility-decomposition",
         action="store_true",
         help="Add read-only timing/eligibility evidence to source rows.",
@@ -4783,10 +4976,14 @@ def run_main(args: argparse.Namespace) -> None:
     summaries: dict[str, object] = {}
     pairwise_diagnostic = args.pairwise_context_diagnostic
     temporal_diagnostic = args.temporal_context_diagnostic
+    autonomous_context_provenance_diagnostic = (
+        args.autonomous_context_provenance_diagnostic
+    )
     oracle_diagnostic = (
         args.oracle_candidate_diagnostic
         or pairwise_diagnostic
         or temporal_diagnostic
+        or autonomous_context_provenance_diagnostic
     )
     branch_diagnostic = (
         args.branch_provenance_diagnostic
@@ -4803,6 +5000,9 @@ def run_main(args: argparse.Namespace) -> None:
     )
     runtime["pairwise_context_diagnostic"] = pairwise_diagnostic
     runtime["temporal_context_diagnostic"] = temporal_diagnostic
+    runtime["autonomous_context_provenance_diagnostic"] = (
+        autonomous_context_provenance_diagnostic
+    )
     for stream in args.streams:
         data_path = Path(args.data if stream == "original" else args.perturbed_data)
         records = read_records(data_path, args.limit)
@@ -4930,6 +5130,12 @@ def run_main(args: argparse.Namespace) -> None:
             context_trajectory_level=args.context_trajectory_level,
             temporal_context_diagnostic=temporal_diagnostic,
             temporal_context_level=args.temporal_context_level,
+            autonomous_context_provenance_diagnostic=(
+                autonomous_context_provenance_diagnostic
+            ),
+            autonomous_context_provenance_level=(
+                args.autonomous_context_provenance_level
+            ),
             lmatch_real_ablation=args.lmatch_real_ablation,
             progress_every=args.progress_every,
             stream_diagnostic_traces=args.stream_diagnostic_traces,
