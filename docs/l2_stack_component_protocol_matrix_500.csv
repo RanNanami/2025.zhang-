@@ -1,0 +1,5 @@
+limit,cell,L_match,competition,simultaneous,selector,label
+500,P0_RAW_L2,2,off,sequential,existing,nonpaper raw L_match=2 baseline
+500,P1_SELECTOR_ONLY_L2,2,off,sequential,max_candidate_score,selector-only diagnostic
+500,P2_COMPETITION_ONLY_L2,2,competitive_raw,batched,existing,competition-only diagnostic
+500,P3_FULL_STACK_L2,2,competitive_raw,batched,max_candidate_score,full diagnostic stack
