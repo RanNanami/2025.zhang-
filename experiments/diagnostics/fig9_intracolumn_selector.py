@@ -5,10 +5,12 @@ from __future__ import annotations
 import hashlib
 import json
 import csv
-from collections.abc import Iterable
+import math
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 
 from experiments.diagnostics.fig9_candidate_score_trace import field_for_column
+from experiments.diagnostics.fig9_ambiguity import stable_context_signature
 from experiments.diagnostics.fig9_oracle_candidate import FieldColumnRanges
 from seqmem.model import IntracolumnSelectionTrace
 
@@ -33,6 +35,14 @@ SELECTION_TRACE_FIELDS = [
     "column",
     "field",
     "group_candidate_count",
+    "within_column_candidate_segment_count",
+    "within_column_candidate_neuron_count",
+    "local_top1_score",
+    "local_top2_score",
+    "local_score_margin",
+    "normalized_score_margin",
+    "candidate_score_entropy",
+    "top_score_tie_count",
     "selected_candidate_original_index",
     "selected_neuron",
     "selected_segment_id",
@@ -50,6 +60,8 @@ SELECTION_TRACE_FIELDS = [
     "emitted_after_competition",
     "suppressed_intercolumn",
     "candidate_pool_fingerprint",
+    "context_signature",
+    "context_source_count",
     "selector_primary_key",
     "selector_secondary_keys",
     "tie_count",
@@ -66,6 +78,7 @@ def selection_trace_rows(
     input_timestamp: str,
     horizon_step: int,
     ranges: FieldColumnRanges,
+    active_sources: Mapping[int, float] | None = None,
 ) -> list[dict[str, object]]:
     """Project the trace captured by the same predict_code call into CSV rows."""
 
@@ -76,6 +89,27 @@ def selection_trace_rows(
         }
         selected = candidates[group.selected_candidate_original_index]
         existing = candidates[group.existing_policy_candidate_index]
+        scores = sorted(
+            (float(candidate.candidate_score) for candidate in group.candidates),
+            reverse=True,
+        )
+        top1 = scores[0] if scores else math.nan
+        top2 = scores[1] if len(scores) > 1 else math.nan
+        margin = top1 - top2 if len(scores) > 1 else math.nan
+        denominator = max(abs(top1), abs(top2)) if len(scores) > 1 else math.nan
+        normalized_margin = (
+            margin / (denominator + 1e-12) if len(scores) > 1 else math.nan
+        )
+        if scores:
+            shifted = [math.exp(score - top1) for score in scores]
+            total = sum(shifted)
+            entropy = -sum(
+                (value / total) * math.log(value / total)
+                for value in shifted
+                if value > 0.0
+            )
+        else:
+            entropy = math.nan
         rows.append(
             {
                 **DIAGNOSTIC_MARKERS,
@@ -87,6 +121,18 @@ def selection_trace_rows(
                 "column": group.column,
                 "field": field_for_column(group.column, ranges),
                 "group_candidate_count": len(group.candidates),
+                "within_column_candidate_segment_count": len(group.candidates),
+                "within_column_candidate_neuron_count": len(
+                    {candidate.neuron_index for candidate in group.candidates}
+                ),
+                "local_top1_score": top1,
+                "local_top2_score": top2,
+                "local_score_margin": margin,
+                "normalized_score_margin": normalized_margin,
+                "candidate_score_entropy": entropy,
+                "top_score_tie_count": sum(
+                    score == top1 for score in scores
+                ),
                 "selected_candidate_original_index": selected.original_index,
                 "selected_neuron": selected.neuron_index,
                 "selected_segment_id": (
@@ -121,6 +167,14 @@ def selection_trace_rows(
                 "suppressed_intercolumn": "",
                 "candidate_pool_fingerprint": (
                     group.candidate_pool_fingerprint
+                ),
+                "context_signature": (
+                    stable_context_signature(active_sources)
+                    if active_sources is not None
+                    else ""
+                ),
+                "context_source_count": (
+                    len(active_sources) if active_sources is not None else ""
                 ),
                 "selector_primary_key": group.selector_primary_key,
                 "selector_secondary_keys": "|".join(

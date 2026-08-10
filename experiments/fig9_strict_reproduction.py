@@ -130,6 +130,12 @@ from experiments.diagnostics.fig9_segment_reinforcement import (  # noqa: E402
     build_segment_reinforcement_rows,
     enrich_segment_reinforcement_rows,
 )
+from experiments.diagnostics.fig9_ambiguity import (  # noqa: E402
+    AmbiguityReuseState,
+    build_actual_observation_rows,
+    build_autonomous_rollout_rows,
+    protocol as ambiguity_protocol,
+)
 from experiments.diagnostics.fig9_independent_reference import (  # noqa: E402
     IndependentReferenceTracker,
     capture_before_matching,
@@ -228,6 +234,7 @@ class RolloutResult:
     preselection_group_diagnostics: tuple[dict[str, object], ...] = ()
     preselection_replacement_diagnostics: tuple[dict[str, object], ...] = ()
     intracolumn_selection_diagnostics: tuple[dict[str, object], ...] = ()
+    candidate_contributor_counts: tuple[int, ...] = ()
 
 
 @dataclass
@@ -416,6 +423,73 @@ def write_diagnostic_csv(
     return actual_path
 
 
+class _PendingCsvAppendSink:
+    """Write diagnostic batches without invoking zlib during model execution.
+
+    Opening and flushing a gzip stream for every small batch made the long
+    Windows diagnostic process depend on repeated zlib state transitions.  A
+    plain-text pending file keeps the rows durable while the model runs.  It
+    is compressed once at a normal process boundary, so the public output is
+    still ``.csv.gz`` and the model path never sees this I/O detail.
+    """
+
+    def __init__(self, path: Path, fieldnames: list[str]) -> None:
+        existed = path.exists() and path.stat().st_size > 0
+        self._pending = path.with_suffix(path.suffix + ".pending")
+        self._handle = self._pending.open(
+            "a",
+            encoding="utf-8",
+            newline="",
+            buffering=1,
+        )
+        self._writer = csv.DictWriter(self._handle, fieldnames=fieldnames)
+        if not existed and self._pending.stat().st_size == 0:
+            self._writer.writeheader()
+        self.flush()
+
+    def write(self, rows: list[dict[str, object]]) -> None:
+        self._writer.writerows(rows)
+        self.flush()
+
+    def flush(self) -> None:
+        self._handle.flush()
+
+    def close(self) -> None:
+        self._handle.close()
+
+    def commit(self, path: Path) -> None:
+        """Compress the pending rows once, after the model call path ends."""
+
+        self.close()
+        if not self._pending.exists() or self._pending.stat().st_size == 0:
+            return
+        final_exists = path.exists() and path.stat().st_size > 0
+        mode = "at" if final_exists else "wt"
+        with self._pending.open("r", encoding="utf-8", newline="") as source:
+            with gzip.open(path, mode, encoding="utf-8", newline="") as target:
+                while True:
+                    chunk = source.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    target.write(chunk)
+        self._pending.unlink()
+
+
+_GZIP_CSV_APPEND_SINKS: dict[Path, _PendingCsvAppendSink] = {}
+
+
+def close_diagnostic_writers() -> None:
+    """Close process-local gzip sinks before summaries or process exit."""
+
+    items = list(_GZIP_CSV_APPEND_SINKS.items())
+    _GZIP_CSV_APPEND_SINKS.clear()
+    for path, sink in items:
+        sink.commit(path)
+
+
+atexit.register(close_diagnostic_writers)
+
+
 def append_diagnostic_csv(
     path: Path,
     rows: list[dict[str, object]],
@@ -427,6 +501,15 @@ def append_diagnostic_csv(
     if not rows:
         return None
     actual_path = path.with_suffix(path.suffix + ".gz") if compress else path
+    if compress:
+        actual_path.parent.mkdir(parents=True, exist_ok=True)
+        key = actual_path.resolve()
+        sink = _GZIP_CSV_APPEND_SINKS.get(key)
+        if sink is None:
+            sink = _PendingCsvAppendSink(key, list(rows[0]))
+            _GZIP_CSV_APPEND_SINKS[key] = sink
+        sink.write(rows)
+        return actual_path
     actual_path.parent.mkdir(parents=True, exist_ok=True)
     write_header = not actual_path.exists() or actual_path.stat().st_size == 0
     opener = gzip.open if compress else Path.open
@@ -711,6 +794,16 @@ def write_density_trace(path: Path, rows: list[dict[str, object]]) -> None:
     write_predictions(path, rows)
 
 
+def write_long_sequence_activity_trace(
+    path: Path, rows: list[dict[str, object]]
+) -> None:
+    """Write one bounded, read-only activity row per actual observation."""
+
+    if not rows:
+        return
+    write_predictions(path, rows)
+
+
 def save_strict_checkpoint(
     path: Path,
     *,
@@ -731,6 +824,7 @@ def save_strict_checkpoint(
     raw_event_counts: list[int],
     raw_column_counts: list[int],
     density_rows: list[dict[str, object]],
+    long_sequence_rows: list[dict[str, object]] | None = None,
     branch_provenance_payload: dict[str, object] | None = None,
     diagnostic_state: dict[str, object] | None = None,
 ) -> None:
@@ -763,6 +857,7 @@ def save_strict_checkpoint(
         "raw_event_counts": raw_event_counts,
         "raw_column_counts": raw_column_counts,
         "density_rows": density_rows,
+        "long_sequence_rows": long_sequence_rows or [],
         "branch_provenance": branch_provenance_payload,
         "diagnostic_state": diagnostic_state,
     }
@@ -1367,7 +1462,14 @@ def rollout_raw_autonomous(
             config.time_columns,
             config.passenger_columns,
         )
-        if (oracle_candidate_diagnostic or autonomous_context_provenance_tracker is not None) and config is not None
+        if (
+            (
+                oracle_candidate_diagnostic
+                or autonomous_context_provenance_tracker is not None
+                or intracolumn_selection_diagnostic
+            )
+            and config is not None
+        )
         else None
     )
     prediction: SymbolCode | None = None
@@ -1386,6 +1488,7 @@ def rollout_raw_autonomous(
     preselection_group_diagnostics: list[dict[str, object]] = []
     preselection_replacement_diagnostics: list[dict[str, object]] = []
     intracolumn_selection_diagnostics: list[dict[str, object]] = []
+    candidate_contributor_counts: list[int] = []
     registry_predicted_before = (
         branch_registry.current_predicted_sources.copy()
         if branch_registry is not None
@@ -1415,6 +1518,7 @@ def rollout_raw_autonomous(
                 if (
                     branch_provenance_diagnostic
                     or preselection_segment_diagnostic
+                    or intracolumn_selection_diagnostic
                     or context_oracle_unified_trace
                     or autonomous_context_provenance_tracker is not None
                 )
@@ -1528,8 +1632,10 @@ def rollout_raw_autonomous(
                     ),
                     horizon_step=_step_index + 1,
                     ranges=oracle_ranges,
+                    active_sources=branch_active_sources,
                 )
             if raw is None:
+                candidate_contributor_counts.append(0)
                 if autonomous_context_provenance_tracker is not None:
                     autonomous_context_provenance_tracker.record_step(
                         model=model,
@@ -1752,6 +1858,7 @@ def rollout_raw_autonomous(
                     tuple(preselection_group_diagnostics),
                     tuple(preselection_replacement_diagnostics),
                     tuple(intracolumn_selection_diagnostics),
+                    tuple(candidate_contributor_counts),
                 )
             # DEBUG WATCH: after predict_code。raw_event_counts/raw_column_counts
             # 是定位“预测列密度膨胀”的最直接指标。
@@ -1924,6 +2031,16 @@ def rollout_raw_autonomous(
                     if competition_result is not None
                     else [event.time for event in raw.events]
                 )
+                candidate_values = [
+                    candidate
+                    for candidates_for_column in model.last_prediction_candidates.values()
+                    for candidate in candidates_for_column
+                ]
+                candidate_contributor_count = sum(
+                    len(candidate.crossing_synapse_contributions)
+                    for candidate in candidate_values
+                )
+                candidate_contributor_counts.append(candidate_contributor_count)
                 diagnostics.append(
                     {
                         "record_index": record_index if record_index is not None else "",
@@ -2279,6 +2396,7 @@ def rollout_raw_autonomous(
             tuple(preselection_group_diagnostics),
             tuple(preselection_replacement_diagnostics),
             tuple(intracolumn_selection_diagnostics),
+            tuple(candidate_contributor_counts),
         )
     finally:
         # DEBUG WATCH: before/after transient restore。比较 restore 前后的
@@ -2346,12 +2464,14 @@ def run_strict_stream(
     source_trace_filter: SourceTraceFilter | None = None,
     context_trajectory_diagnostic: bool = False,
     context_trajectory_level: str = "summary",
+    ambiguity_diagnostic: bool = False,
     temporal_context_diagnostic: bool = False,
     temporal_context_level: str = "summary",
     autonomous_context_provenance_diagnostic: bool = False,
     autonomous_context_provenance_level: str = "candidate",
     lmatch_real_ablation: bool = False,
     progress_every: int = 0,
+    long_sequence_ledger: bool = False,
     stream_diagnostic_traces: bool = False,
     debug_end_index: int | None = None,
     context_trajectory_compress: bool = True,
@@ -2513,6 +2633,7 @@ def run_strict_stream(
         raw_event_counts = list(checkpoint["raw_event_counts"])  # type: ignore[arg-type]
         raw_column_counts = list(checkpoint["raw_column_counts"])  # type: ignore[arg-type]
         density_rows = list(checkpoint["density_rows"])  # type: ignore[arg-type]
+        long_sequence_rows = list(checkpoint.get("long_sequence_rows", []))  # type: ignore[arg-type]
         checkpoint_diagnostic_state = checkpoint.get("diagnostic_state") or {}
         embedded_provenance = checkpoint.get("branch_provenance")
         sidecar = branch_checkpoint_sidecar_path(resume_checkpoint)
@@ -2535,6 +2656,7 @@ def run_strict_stream(
                 or teacher_forced_winner_diagnostic
                 or match_overlap_diagnostic
                 or context_trajectory_diagnostic
+                or ambiguity_diagnostic
                 or temporal_context_diagnostic
                 or autonomous_context_provenance_diagnostic
                 or segment_reinforcement_diagnostic
@@ -2595,6 +2717,7 @@ def run_strict_stream(
         raw_event_counts = []
         raw_column_counts = []
         density_rows = []
+        long_sequence_rows = []
         checkpoint_diagnostic_state = {}
         branch_registry = (
             BranchProvenanceRegistry()
@@ -2604,6 +2727,7 @@ def run_strict_stream(
                 or teacher_forced_winner_diagnostic
                 or match_overlap_diagnostic
                 or context_trajectory_diagnostic
+                or ambiguity_diagnostic
                 or temporal_context_diagnostic
                 or autonomous_context_provenance_diagnostic
                 or segment_reinforcement_diagnostic
@@ -2635,6 +2759,11 @@ def run_strict_stream(
     preselection_group_rows: list[dict[str, object]] = []
     preselection_replacement_rows: list[dict[str, object]] = []
     intracolumn_selection_rows: list[dict[str, object]] = []
+    ambiguity_trace_rows: list[dict[str, object]] = []
+    ambiguity_trace_row_count = 0
+    ambiguity_reuse_state = AmbiguityReuseState.from_checkpoint_payload(
+        checkpoint_diagnostic_state.get("ambiguity_reuse_state")
+    )
     teacher_forced_observation_rows: list[dict[str, object]] = list(
         checkpoint_diagnostic_state.get(
             "teacher_forced_observation_rows",
@@ -2669,6 +2798,7 @@ def run_strict_stream(
     unified_actual_candidate_rows: list[dict[str, object]] = []
     context_trajectory_row_count = 0
     context_trajectory_path = output_dir / "context_trajectory_column_trace.csv"
+    ambiguity_trace_path = output_dir / "ambiguity_event_trace.csv"
     streamed_trace_counts = {
         "branch_segment": 0,
         "preselection_segment": 0,
@@ -2766,6 +2896,7 @@ def run_strict_stream(
         or independent_reference_diagnostic
         or actual_branch_provenance_diagnostic
         or segment_context_composition_diagnostic
+        or ambiguity_diagnostic
         or temporal_context_diagnostic
         else None
     )
@@ -2779,9 +2910,10 @@ def run_strict_stream(
         or context_trajectory_diagnostic
         or segment_reinforcement_diagnostic
         or independent_reference_diagnostic
-        or actual_branch_provenance_diagnostic
-        or segment_context_composition_diagnostic
-        or temporal_context_diagnostic
+                or actual_branch_provenance_diagnostic
+                or segment_context_composition_diagnostic
+                or ambiguity_diagnostic
+                or temporal_context_diagnostic
         else None
     )
     validate_strict_fingerprint(fingerprint)
@@ -2858,6 +2990,8 @@ def run_strict_stream(
                         or density_summary_path
                         or debug_enabled
                         or competition.enabled
+                        or long_sequence_ledger
+                        or ambiguity_diagnostic
                     )
                     else None
                 ),
@@ -2868,6 +3002,8 @@ def run_strict_stream(
                         or density_summary_path
                         or debug_enabled
                         or competition.enabled
+                        or long_sequence_ledger
+                        or ambiguity_diagnostic
                     )
                     else None
                 ),  # type: ignore[arg-type]
@@ -2878,6 +3014,7 @@ def run_strict_stream(
                 intracolumn_selection_policy=intracolumn_selection_policy,
                 intracolumn_selection_diagnostic=(
                     intracolumn_selection_diagnostic
+                    or ambiguity_diagnostic
                 ),
                 context_trajectory_tracker=context_trajectory_tracker,
                 context_oracle_unified_trace=context_oracle_unified_trace,
@@ -2972,6 +3109,14 @@ def run_strict_stream(
             if intracolumn_selection_diagnostic:
                 intracolumn_selection_rows.extend(
                     rollout.intracolumn_selection_diagnostics
+                )
+            if ambiguity_diagnostic:
+                ambiguity_trace_rows.extend(
+                    build_autonomous_rollout_rows(
+                        selection_rows=rollout.intracolumn_selection_diagnostics,
+                        actual_record_index=index,
+                        input_timestamp=record.timestamp.isoformat(sep=" "),
+                    )
                 )
             if density_trace_path or density_summary_path or competition.enabled:
                 density_rows.extend(rollout.diagnostics)
@@ -3072,6 +3217,7 @@ def run_strict_stream(
                     or independent_reference_diagnostic
                     or actual_branch_provenance_diagnostic
                     or segment_context_composition_diagnostic
+                    or ambiguity_diagnostic
                 ),
             )
             if (
@@ -3083,6 +3229,7 @@ def run_strict_stream(
                 or independent_reference_diagnostic
                 or actual_branch_provenance_diagnostic
                 or segment_context_composition_diagnostic
+                or ambiguity_diagnostic
             )
             else None
         )
@@ -3404,6 +3551,19 @@ def run_strict_stream(
                     ranges=teacher_forced_ranges,
                     source_cells=creation_sources,
                 )
+            if ambiguity_diagnostic:
+                if teacher_forced_trace is None or teacher_forced_ranges is None:
+                    raise RuntimeError("ambiguity diagnostic trace unavailable")
+                actual_ambiguity_rows = build_actual_observation_rows(
+                    observation_trace=teacher_forced_trace,
+                    registry=branch_registry,
+                    active_sources=teacher_forced_trace.pre_observe_active_sources,
+                    actual_record_index=index,
+                    input_timestamp=record.timestamp.isoformat(sep=" "),
+                    ranges=teacher_forced_ranges,
+                )
+                ambiguity_reuse_state.annotate(actual_ambiguity_rows)
+                ambiguity_trace_rows.extend(actual_ambiguity_rows)
             branch_registry.update_source_labels(model, code)
             if segment_context_composition_tracker is not None:
                 segment_context_composition_tracker.record_observation(
@@ -3421,6 +3581,14 @@ def run_strict_stream(
                     model.previous_winners,
                     index,
                 )
+        if ambiguity_diagnostic:
+            ambiguity_trace_row_count += len(ambiguity_trace_rows)
+            append_diagnostic_csv(
+                ambiguity_trace_path,
+                ambiguity_trace_rows,
+                compress=True,
+            )
+            ambiguity_trace_rows.clear()
         observe_runtime = time.perf_counter() - observe_started
         write_native_crash_breadcrumb(
             current_index=index,
@@ -3440,6 +3608,71 @@ def run_strict_stream(
                     "scenario3": model.last_observe_stats.get("scenario3", 0),
                 },
             }
+        if long_sequence_ledger and index >= config.warmup:
+            step_rows = {
+                int(row["horizon_step"]): row
+                for row in rollout_diagnostics
+            }
+            step_values = {
+                step: step_rows.get(step, {}) for step in range(1, config.horizon + 1)
+            }
+            raw_by_step = {
+                step: row.get("raw_predicted_column_count", "")
+                for step, row in step_values.items()
+            }
+            emitted_by_step = {
+                step: row.get("emitted_column_count", "")
+                for step, row in step_values.items()
+            }
+            contributor_by_step = {
+                step: (
+                    rollout.candidate_contributor_counts[step - 1]
+                    if step - 1 < len(rollout.candidate_contributor_counts)
+                    else ""
+                )
+                for step in range(1, config.horizon + 1)
+            }
+            error_by_step = {
+                step: row.get("absolute_percentage_error", "")
+                for step, row in step_values.items()
+            }
+            contributor_values = [
+                float(value)
+                for value in contributor_by_step.values()
+                if value not in (None, "")
+            ]
+            long_sequence_row: dict[str, object] = {
+                "record_index": index,
+                "input_index": index + 1,
+                "timestamp": record.timestamp.isoformat(sep=" "),
+                "L_match": config.l_match,
+                "scenario1_count": int(model.last_observe_stats.get("scenario1", 0)),
+                "scenario2_count": int(model.last_observe_stats.get("scenario2", 0)),
+                "scenario3_count": int(model.last_observe_stats.get("scenario3", 0)),
+                "live_segments": segment_count(model),
+                "live_synapses": synapse_count(model),
+                "mean_contributors": (
+                    sum(contributor_values) / len(contributor_values)
+                    if contributor_values
+                    else 0.0
+                ),
+                "peak_contributors": max(contributor_values, default=0.0),
+                "actual_root_contributors": "",
+                "generated_root_contributors": "",
+                "actual_history_retention": "",
+                "generated_fraction": "",
+                "self_generated_depth_mean": "",
+                "self_generated_depth_max": "",
+                "rolling_MAPE": rolling_value,
+                "runtime_so_far": time.perf_counter() - start_time,
+                "memory_RSS": working_set_memory_mb(),
+            }
+            for step in range(1, config.horizon + 1):
+                long_sequence_row[f"raw_predicted_columns_step{step}"] = raw_by_step[step]
+                long_sequence_row[f"emitted_columns_step{step}"] = emitted_by_step[step]
+                long_sequence_row[f"total_contributors_step{step}"] = contributor_by_step[step]
+                long_sequence_row[f"prediction_error_step{step}"] = error_by_step[step]
+            long_sequence_rows.append(long_sequence_row)
         if rollout_diagnostics:
             for row in density_rows[-len(rollout_diagnostics) :]:
                 row["observe_runtime"] = observe_runtime
@@ -3551,6 +3784,7 @@ def run_strict_stream(
                 raw_event_counts=raw_event_counts,
                 raw_column_counts=raw_column_counts,
                 density_rows=density_rows,
+                long_sequence_rows=long_sequence_rows,
                 branch_provenance_payload=provenance_payload,
                 diagnostic_state=(
                     {
@@ -3576,8 +3810,13 @@ def run_strict_stream(
                             if autonomous_context_provenance_tracker is not None
                             else None
                         ),
+                        "ambiguity_reuse_state": (
+                            ambiguity_reuse_state.checkpoint_payload()
+                            if ambiguity_diagnostic
+                            else None
+                        ),
                     }
-                    if segment_reinforcement_diagnostic or independent_reference_diagnostic or actual_branch_provenance_diagnostic or temporal_context_diagnostic or autonomous_context_provenance_diagnostic
+                    if segment_reinforcement_diagnostic or independent_reference_diagnostic or actual_branch_provenance_diagnostic or temporal_context_diagnostic or autonomous_context_provenance_diagnostic or ambiguity_diagnostic
                     else None
                 ),
             )
@@ -3633,6 +3872,7 @@ def run_strict_stream(
             raw_event_counts=raw_event_counts,
             raw_column_counts=raw_column_counts,
             density_rows=density_rows,
+            long_sequence_rows=long_sequence_rows,
             branch_provenance_payload=provenance_payload,
             diagnostic_state=(
                 {
@@ -3656,8 +3896,13 @@ def run_strict_stream(
                         if autonomous_context_provenance_tracker is not None
                         else None
                     ),
+                    "ambiguity_reuse_state": (
+                        ambiguity_reuse_state.checkpoint_payload()
+                        if ambiguity_diagnostic
+                        else None
+                    ),
                 }
-                if segment_reinforcement_diagnostic or independent_reference_diagnostic or actual_branch_provenance_diagnostic or temporal_context_diagnostic or autonomous_context_provenance_diagnostic
+                if segment_reinforcement_diagnostic or independent_reference_diagnostic or actual_branch_provenance_diagnostic or temporal_context_diagnostic or autonomous_context_provenance_diagnostic or ambiguity_diagnostic
                 else None
             ),
         )
@@ -3754,6 +3999,15 @@ def run_strict_stream(
         )
         summary["context_trajectory_row_count"] = context_trajectory_row_count
         summary["context_trajectory_trace_streamed"] = stream_diagnostic_traces
+    if ambiguity_diagnostic:
+        summary["ambiguity_diagnostic"] = {
+            "enabled": True,
+            "trace_path": str(ambiguity_trace_path.with_suffix(".csv.gz")),
+            "rows": ambiguity_trace_row_count,
+            "protocol_version": ambiguity_protocol(fingerprint)["version"],
+            "read_only": True,
+            "strict_default_unchanged": True,
+        }
     if temporal_context_tracker is not None:
         summary["temporal_context_diagnostic"] = {
             "enabled": True,
@@ -3837,6 +4091,19 @@ def run_strict_stream(
         )
     if interval_rows:
         summary["interval_rows"] = interval_rows
+    if long_sequence_ledger:
+        ledger_path = (
+            output_dir / "long_sequence_activity_trace.csv"
+            if stream_label == "original"
+            else output_dir / f"{stream_label}_long_sequence_activity_trace.csv"
+        )
+        summary["long_sequence_activity_ledger"] = {
+            "enabled": True,
+            "path": str(ledger_path),
+            "rows": len(long_sequence_rows),
+            "read_only": True,
+            "model_protocol_unchanged": True,
+        }
 
     output_dir.mkdir(parents=True, exist_ok=True)
     write_predictions(output_dir / f"{stream_label}_predictions.csv", rows)
@@ -3844,6 +4111,24 @@ def run_strict_stream(
         json.dumps(summary, indent=2, sort_keys=True),
         encoding="utf-8",
     )
+    if long_sequence_ledger:
+        write_long_sequence_activity_trace(
+            ledger_path,
+            long_sequence_rows,
+        )
+        write_json(
+            output_dir / "long_sequence_activity_protocol.json",
+            {
+                "version": "fig9-long-sequence-activity-v1",
+                "row_unit": "actual_observation_after_learning",
+                "read_only": True,
+                "model_protocol_unchanged": True,
+                "horizon": config.horizon,
+                "L_match": config.l_match,
+                "stream_label": stream_label,
+                "rows": len(long_sequence_rows),
+            },
+        )
     (output_dir / f"{stream_label}_protocol.json").write_text(
         json.dumps(fingerprint, indent=2, sort_keys=True),
         encoding="utf-8",
@@ -3909,6 +4194,11 @@ def run_strict_stream(
                 ),
                 "strict_protocol_sha256": stable_object_sha256(fingerprint),
             },
+        )
+    if ambiguity_diagnostic:
+        write_json(
+            output_dir / "ambiguity_protocol.json",
+            ambiguity_protocol(fingerprint),
         )
     if oracle_candidate_diagnostic:
         write_predictions(
@@ -4504,6 +4794,7 @@ def run_strict_stream(
             rows,
             datetime(2015, 3, 25),
         )
+    close_diagnostic_writers()
     return summary
 
 
@@ -4671,6 +4962,14 @@ def parse_args() -> argparse.Namespace:
         help="Write the same-call per-column selector trace.",
     )
     parser.add_argument(
+        "--ambiguity-diagnostic",
+        action="store_true",
+        help=(
+            "Write read-only actual/autonomous ambiguity traces for offline "
+            "L2/L4 analysis."
+        ),
+    )
+    parser.add_argument(
         "--match-overlap-diagnostic",
         action="store_true",
         help="Capture read-only Scenario-3 overlap decomposition inputs.",
@@ -4809,6 +5108,11 @@ def parse_args() -> argparse.Namespace:
         help="Write actual branch traces as CSV.GZ.",
     )
     parser.add_argument("--interval-every", type=int, default=0)
+    parser.add_argument(
+        "--long-sequence-ledger",
+        action="store_true",
+        help="Write one read-only activity ledger row per actual observation.",
+    )
     parser.add_argument(
         "--progress-every",
         type=int,
@@ -5097,6 +5401,7 @@ def run_main(args: argparse.Namespace) -> None:
             intracolumn_selection_diagnostic=(
                 args.intracolumn_selection_diagnostic
             ),
+            ambiguity_diagnostic=args.ambiguity_diagnostic,
             match_overlap_diagnostic=args.match_overlap_diagnostic,
             match_overlap_level=args.match_overlap_level,
             match_overlap_compress=args.match_overlap_compress,
@@ -5138,6 +5443,7 @@ def run_main(args: argparse.Namespace) -> None:
             ),
             lmatch_real_ablation=args.lmatch_real_ablation,
             progress_every=args.progress_every,
+            long_sequence_ledger=args.long_sequence_ledger,
             stream_diagnostic_traces=args.stream_diagnostic_traces,
             debug_end_index=(
                 args.debug_end_index if args.debug_end_index > 0 else None
