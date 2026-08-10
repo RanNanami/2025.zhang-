@@ -4,6 +4,7 @@ from pathlib import Path
 
 from experiments.diagnostics.analyze_fig9_l2_stack_component_2x2 import (
     CELLS,
+    _read_density_metrics,
     effects,
     protocol_matrix,
 )
@@ -48,8 +49,25 @@ class Fig9L2StackComponentTests(unittest.TestCase):
         mape = next(item for item in effects(metrics) if item["metric"] == "MAPE")
         self.assertEqual(mape["selector_effect_P1_minus_P0"], -1)
         self.assertEqual(mape["competition_effect_P2_minus_P0"], -2)
+        self.assertEqual(mape["selector_effect_with_competition_P3_minus_P2"], -2)
+        self.assertEqual(mape["competition_effect_with_selector_P3_minus_P1"], -3)
         self.assertEqual(mape["full_stack_effect_P3_minus_P0"], -4)
         self.assertEqual(mape["selector_competition_interaction"], -1)
+
+    def test_density_trace_candidate_fields_are_aggregated_without_model_access(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            run_dir = Path(temp_dir)
+            (run_dir / "original_density_trace.csv").write_text(
+                "candidate_segment_count,accepted_candidate_count,raw_predicted_neuron_count\n"
+                "10,4,3\n20,6,5\n",
+                encoding="utf-8",
+            )
+            metrics = _read_density_metrics(run_dir)
+            self.assertEqual(metrics["candidate_segment_mean"], 15)
+            self.assertEqual(metrics["candidate_segment_peak"], 20)
+            self.assertEqual(metrics["accepted_candidate_mean"], 5)
+            self.assertEqual(metrics["accepted_candidate_peak"], 6)
+            self.assertEqual(metrics["candidate_neuron_mean"], 4)
 
     def test_native_history_combines_distinct_attempt_directories(self):
         with tempfile.TemporaryDirectory() as temp_dir:

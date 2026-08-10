@@ -1,6 +1,8 @@
 param(
     [ValidateSet("P1_SELECTOR_ONLY_L2", "P2_COMPETITION_ONLY_L2")]
     [string]$Cell = "P1_SELECTOR_ONLY_L2",
+    [ValidateSet(250, 500)]
+    [int]$Limit = 250,
     [string]$OutputRoot = "",
     [switch]$Run
 )
@@ -27,11 +29,11 @@ function Invoke-ComponentCell([string]$CellName) {
         (Resolve-Path $OutputRoot).Path
     } else {
         $stamp = Get-Date -Format "yyyyMMdd_HHmmss"
-        $path = Join-Path $RepoRoot "results\fig9_diagnostics\l2_stack_component_250_$stamp"
+        $path = Join-Path $RepoRoot "results\fig9_diagnostics\l2_stack_component_${Limit}_$stamp"
         New-Item -ItemType Directory -Path $path -Force | Out-Null
         (Resolve-Path $path).Path
     }
-    $runDirectory = Join-Path $root "250\$CellName"
+    $runDirectory = Join-Path $root "$Limit\$CellName"
     New-Item -ItemType Directory -Path $runDirectory -Force | Out-Null
     $runDirectory = (Resolve-Path $runDirectory).Path
     $checkpoint = Join-Path $runDirectory "checkpoint.pkl"
@@ -39,7 +41,7 @@ function Invoke-ComponentCell([string]$CellName) {
     $audit = [ordered]@{
         cell = $CellName
         L_match = 2
-        limit = 250
+        limit = $Limit
         warmup = 200
         stream = "original"
         competition_mode = if ($isP1) { "off" } else { "competitive_raw" }
@@ -68,7 +70,7 @@ function Invoke-ComponentCell([string]$CellName) {
     $pythonArgs = @(
         "-X", "faulthandler", "-u",
         "experiments\fig9_strict_reproduction.py",
-        "--limit", "250", "--warmup", "200", "--streams", "original",
+        "--limit", "$Limit", "--warmup", "200", "--streams", "original",
         "--prediction-horizon", "5", "--tie-break-seed", "0",
         "--l-match", "2", "--lmatch-real-ablation",
         "--continuous-impl", "reference",
@@ -85,7 +87,19 @@ function Invoke-ComponentCell([string]$CellName) {
     $env:PYTHONPATH = "$RepoRoot\src;$RepoRoot"
     $env:PYTHONFAULTHANDLER = "1"
     $env:PYTHONUNBUFFERED = "1"
+    # Never reuse an attempt filename when a run is resumed.  This keeps
+    # native-crash and Python-failure evidence auditable across restarts.
     $attempt = 0
+    foreach ($existing in (Get-ChildItem -LiteralPath $runDirectory -Filter "process_attempt_*.json" -ErrorAction SilentlyContinue)) {
+        if ($existing.BaseName -match '^process_attempt_(\d+)$') {
+            $attempt = [math]::Max($attempt, [int]$Matches[1])
+        }
+    }
+    foreach ($existing in (Get-ChildItem -LiteralPath $runDirectory -Filter "failure_attempt_*.json" -ErrorAction SilentlyContinue)) {
+        if ($existing.BaseName -match '^failure_attempt_(\d+)$') {
+            $attempt = [math]::Max($attempt, [int]$Matches[1])
+        }
+    }
     while ($true) {
         $attempt++
         $suffix = "attempt_{0:D2}" -f $attempt

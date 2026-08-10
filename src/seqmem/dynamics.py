@@ -12,6 +12,13 @@ from dataclasses import dataclass
 from functools import lru_cache
 
 
+# Keep the standard-library implementation bound locally.  Long diagnostic
+# runs can load third-party extensions and checkpoint state for many hours;
+# using this private binding prevents an accidental module-attribute mutation
+# from changing the PSP calculation halfway through a process.
+_EXP = math.exp
+
+
 def unscaled_kernel_peak(tau_m: float, tau_s: float) -> tuple[float, float]:
     """Return the peak time and value of the unscaled double exponential."""
 
@@ -23,7 +30,7 @@ def unscaled_kernel_peak(tau_m: float, tau_s: float) -> tuple[float, float]:
         / (tau_m - tau_s)
         * math.log(tau_m / tau_s)
     )
-    peak = math.exp(-peak_time / tau_m) - math.exp(-peak_time / tau_s)
+    peak = _EXP(-peak_time / tau_m) - _EXP(-peak_time / tau_s)
     return peak_time, peak
 
 
@@ -97,7 +104,7 @@ def spike_response(elapsed: float, params: DSDynamicsParams) -> float:
     if elapsed < 0:
         return 0.0
     return params.kernel_scale * (
-        math.exp(-elapsed / params.tau_m) - math.exp(-elapsed / params.tau_s)
+        _EXP(-elapsed / params.tau_m) - _EXP(-elapsed / params.tau_s)
     )
 
 
