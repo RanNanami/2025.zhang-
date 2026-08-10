@@ -224,6 +224,25 @@ def _native_attempts(run_dir: Path) -> tuple[int, int, int]:
     return len(attempts), native, resumes
 
 
+def _native_attempts_for_paths(paths: list[Path]) -> tuple[int, int, int]:
+    """Combine process histories when a completed run was resumed elsewhere."""
+
+    unique_paths: list[Path] = []
+    seen: set[Path] = set()
+    for path in paths:
+        resolved = path.resolve()
+        if resolved not in seen:
+            seen.add(resolved)
+            unique_paths.append(path)
+    attempts = native = resumes = 0
+    for path in unique_paths:
+        current_attempts, current_native, current_resumes = _native_attempts(path)
+        attempts += current_attempts
+        native += current_native
+        resumes += current_resumes
+    return attempts, native, resumes
+
+
 def inventory_runs(root: Path, output_dir: Path, docs_dir: Path) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for summary_path in sorted(root.rglob("original_summary.json")):
@@ -458,6 +477,7 @@ def _write_derived_tables(
     output_dir: Path,
     metrics: dict[str, dict[str, Any]],
     effects: list[dict[str, Any]],
+    native_history: dict[str, list[Path]] | None = None,
 ) -> None:
     """Write stable, small tables used by the report and later analyses."""
     for limit in (250, 500):
@@ -560,15 +580,20 @@ def _write_derived_tables(
     ledger_rows = []
     for run_id, row in metrics.items():
         cell = run_id.rsplit("_", 1)[0]
+        history_paths = [Path(row["run_directory"])]
+        if native_history and run_id in native_history:
+            history_paths.extend(native_history[run_id])
+        attempts, native, resumes = _native_attempts_for_paths(history_paths)
         native_rows.append({
             "cell": cell,
             "limit": row["limit"],
             "run_directory": row["run_directory"],
             "complete": row["complete"],
             "runtime_seconds": row["runtime_seconds"],
-            "native_crashes": row["native_crashes"],
-            "attempt_count": row["attempt_count"],
-            "resume_count": row["resume_count"],
+            "native_crashes": native,
+            "attempt_count": attempts,
+            "resume_count": resumes,
+            "history_directories": ";".join(str(path) for path in history_paths),
             "peak_RSS_MB": row["peak_RSS_MB"],
         })
         ledger_rows.append({
@@ -583,10 +608,84 @@ def _write_derived_tables(
             "reuse_or_new": "historical/reused" if "context_representation" in row["run_directory"] or "ambiguity_accumulation" in row["run_directory"] else "new/current",
         })
     _write_rows(output_dir / "native_stability_2x2.csv", native_rows)
+    _write_rows(output_dir / "native_stability_raw_vs_stack.csv", [
+        {
+            "limit": row["limit"],
+            "cell": row["cell"],
+            "stack": "DIAGNOSTIC_STACK" if row["cell"].startswith("DIAGNOSTIC") else "STRICT_RAW",
+            "complete": row["complete"],
+            "native_crashes": row["native_crashes"],
+            "resume_count": row["resume_count"],
+            "attempt_count": row["attempt_count"],
+            "runtime_seconds_last_attempt": row["runtime_seconds"],
+            "peak_RSS_MB": row["peak_RSS_MB"],
+            "history_directories": row["history_directories"],
+        }
+        for row in native_rows
+    ])
     _write_rows(output_dir / "EXPERIMENT_LEDGER.csv", ledger_rows)
 
+    length_rows: list[dict[str, Any]] = []
+    for cell in CELL_NAMES:
+        row_250 = _cell_rows(metrics, 250).get(cell)
+        row_500 = _cell_rows(metrics, 500).get(cell)
+        if not row_250 or not row_500:
+            continue
+        for metric in ("MAPE", "final_rolling_MAPE", "step1", "step2", "step3", "step4", "step5", "segments", "synapses", "raw_mean", "emitted_mean"):
+            value_250 = _number(row_250.get(metric))
+            value_500 = _number(row_500.get(metric))
+            length_rows.append({
+                "cell": cell,
+                "metric": metric,
+                "value_250": value_250,
+                "value_500": value_500,
+                "delta_500_minus_250": value_500 - value_250,
+            })
+    _write_rows(output_dir / "lmatch_stack_250_500_length_interaction.csv", length_rows)
 
-def analyze_runs(run_mapping: dict[str, Path], output_dir: Path) -> dict[str, Any]:
+    network_metrics = {"segments", "synapses", "raw_mean", "emitted_mean", "scenario1_mean", "scenario2_mean", "scenario3_mean"}
+    _write_rows(output_dir / "lmatch_network_main_effect.csv", [
+        {
+            "limit": row["limit"],
+            "metric": row["metric"],
+            "raw_L2_minus_L4": row["L2_effect_raw_B_minus_A"],
+            "stack_L2_minus_L4": row["L2_effect_stack_D_minus_C"],
+            "stack_minus_raw": row["L2_effect_stack_D_minus_C"] - row["L2_effect_raw_B_minus_A"],
+        }
+        for row in effects
+        if row["metric"] in network_metrics
+    ])
+    _write_rows(output_dir / "lmatch_error_interaction.csv", [
+        {
+            "limit": row["limit"],
+            "metric": row["metric"],
+            "raw_L2_effect": row["L2_effect_raw_B_minus_A"],
+            "stack_L2_effect": row["L2_effect_stack_D_minus_C"],
+            "raw_stack_interaction": row["interaction_D_minus_C_minus_B_minus_A"],
+            "stack_effect_L4": row["stack_effect_L4_C_minus_A"],
+            "stack_effect_L2": row["stack_effect_L2_D_minus_B"],
+        }
+        for row in effects
+        if row["metric"] == "MAPE" or row["metric"].startswith("step")
+    ])
+    _write_rows(output_dir / "stepwise_raw_stack_interaction.csv", [
+        {
+            "limit": row["limit"],
+            "step": row["metric"].replace("step", ""),
+            "raw_L2_effect": row["L2_effect_raw_B_minus_A"],
+            "stack_L2_effect": row["L2_effect_stack_D_minus_C"],
+            "interaction": row["interaction_D_minus_C_minus_B_minus_A"],
+        }
+        for row in effects
+        if row["metric"].startswith("step")
+    ])
+
+
+def analyze_runs(
+    run_mapping: dict[str, Path],
+    output_dir: Path,
+    native_history: dict[str, list[Path]] | None = None,
+) -> dict[str, Any]:
     metrics = {cell: _run_metrics(path) for cell, path in run_mapping.items()}
     flat_rows = []
     for cell, row in metrics.items():
@@ -631,7 +730,7 @@ def analyze_runs(run_mapping: dict[str, Path], output_dir: Path) -> dict[str, An
                     mean, low, high = _bootstrap(values)
                     pairs.append({"limit": limit, "path": "raw" if left.startswith("STRICT") else "stack", "metric": metric, "mean_L4_minus_L2": -mean, "ci_low": -high, "ci_high": -low, "n": len(values)})
             summary.setdefault("bootstrap", []).extend(pairs)
-    _write_derived_tables(output_dir, metrics, effects)
+    _write_derived_tables(output_dir, metrics, effects, native_history)
     (output_dir / "FINAL_LMATCH_STACK_2X2_SUMMARY.json").write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8")
     report = _report(metrics, effects, summary)
     (output_dir / "FIG9_LMATCH_STACK_2X2_DECOMPOSITION_REPORT.md").write_text(report, encoding="utf-8")
@@ -694,13 +793,25 @@ def main() -> None:
     parser.add_argument("--inventory-root", type=Path, default=Path("results/fig9_diagnostics"))
     parser.add_argument("--docs-dir", type=Path, default=Path("docs"))
     parser.add_argument("--run", action="append", default=[], help="CELL=PATH; may be repeated for completed cells")
+    parser.add_argument(
+        "--native-history",
+        action="append",
+        default=[],
+        help="CELL[_250|_500]=PATH; add a prior process-attempt directory to stability counts",
+    )
     args = parser.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
     write_protocol_audit(args.output_dir / "protocol_audit", args.docs_dir)
     inventory_runs(args.inventory_root, args.output_dir / "existing_runs", args.docs_dir)
     mapping = _parse_mapping(args.run)
     if mapping:
-        analyze_runs(mapping, args.output_dir / "analysis")
+        native_history: dict[str, list[Path]] = defaultdict(list)
+        for value in args.native_history:
+            run_id, separator, path = value.partition("=")
+            if not separator or run_id not in mapping:
+                raise ValueError(f"native history key must match a supplied run id, got {value!r}")
+            native_history[run_id].append(Path(path))
+        analyze_runs(mapping, args.output_dir / "analysis", native_history)
 
 
 if __name__ == "__main__":

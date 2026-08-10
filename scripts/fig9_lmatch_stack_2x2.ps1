@@ -4,6 +4,7 @@ param(
     [int]$Limit = 250,
     [int]$Warmup = 200,
     [string]$OutputRoot = "",
+    [string]$ResumeCheckpoint = "",
     [switch]$Run,
     [switch]$ReuseDiagnosticCells
 )
@@ -47,6 +48,21 @@ function Invoke-RawCell([string]$CellName) {
     }
     $runDirectory = Get-CellPath $root $CellName
     $checkpoint = Join-Path $runDirectory "checkpoint.pkl"
+    if ($ResumeCheckpoint) {
+        $sourceCheckpoint = (Resolve-Path -LiteralPath $ResumeCheckpoint).Path
+        if (Test-Path -LiteralPath $checkpoint) {
+            throw "Refusing to overwrite destination checkpoint: $checkpoint"
+        }
+        Copy-Item -LiteralPath $sourceCheckpoint -Destination $checkpoint
+        $sourceMetadata = "$sourceCheckpoint.metadata.json"
+        if (Test-Path -LiteralPath $sourceMetadata) {
+            Copy-Item -LiteralPath $sourceMetadata -Destination "$checkpoint.metadata.json"
+        }
+        $sourceSidecar = "$sourceCheckpoint.branch_provenance.json"
+        if (Test-Path -LiteralPath $sourceSidecar) {
+            Copy-Item -LiteralPath $sourceSidecar -Destination "$checkpoint.branch_provenance.json"
+        }
+    }
     $audit = [ordered]@{
         cell = $CellName
         stack = "STRICT_RAW"
