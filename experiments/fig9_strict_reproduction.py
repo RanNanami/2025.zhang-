@@ -195,6 +195,7 @@ _LAST_PROCESS_MEMORY_MB = 0.0
 _NATIVE_RUNTIME_DEBUG_HANDLE: io.TextIOWrapper | None = None
 _NATIVE_RUNTIME_DEBUG_PATH: Path | None = None
 _NATIVE_RUNTIME_DEBUG_ENABLED = False
+_NATIVE_RUNTIME_SEGMENT_TRACE_ENABLED = False
 _EXPECTED_MATH_EXP = math.exp
 _EXPECTED_DYNAMICS_PARAMS_TYPE = DSDynamicsParams
 _MODULE_STATE_BASELINES: dict[int, dict[str, object]] = {}
@@ -807,6 +808,7 @@ def close_native_crash_logging() -> None:
     global _NATIVE_CRASH_HANDLE, _NATIVE_TRACEBACK_STOP, _NATIVE_TRACEBACK_THREAD
     global _NATIVE_RUNTIME_DEBUG_HANDLE, _NATIVE_RUNTIME_DEBUG_PATH
     global _NATIVE_RUNTIME_DEBUG_ENABLED
+    global _NATIVE_RUNTIME_SEGMENT_TRACE_ENABLED
     _MODULE_STATE_BASELINES.clear()
     if _NATIVE_TRACEBACK_STOP is not None:
         _NATIVE_TRACEBACK_STOP.set()
@@ -827,6 +829,7 @@ def close_native_crash_logging() -> None:
         _NATIVE_RUNTIME_DEBUG_HANDLE = None
         _NATIVE_RUNTIME_DEBUG_PATH = None
     _NATIVE_RUNTIME_DEBUG_ENABLED = False
+    _NATIVE_RUNTIME_SEGMENT_TRACE_ENABLED = False
 
 
 def _periodic_native_traceback(stop: threading.Event) -> None:
@@ -851,6 +854,7 @@ def install_native_crash_logging(
     *,
     periodic_traceback_seconds: float = 0.0,
     native_runtime_debug: bool = False,
+    native_runtime_segment_trace: bool = False,
     native_runtime_debug_dir: Path | None = None,
 ) -> Path:
     """Keep a dedicated faulthandler descriptor alive for the whole process."""
@@ -859,13 +863,19 @@ def install_native_crash_logging(
     global _NATIVE_TRACEBACK_STOP, _NATIVE_TRACEBACK_THREAD
     global _NATIVE_RUNTIME_DEBUG_HANDLE, _NATIVE_RUNTIME_DEBUG_PATH
     global _NATIVE_RUNTIME_DEBUG_ENABLED
+    global _NATIVE_RUNTIME_SEGMENT_TRACE_ENABLED
     close_native_crash_logging()
+    if native_runtime_segment_trace and not native_runtime_debug:
+        raise ValueError(
+            "native runtime segment trace requires native runtime debug"
+        )
     output_dir.mkdir(parents=True, exist_ok=True)
     _NATIVE_CRASH_PATH = output_dir / "native_crash_faulthandler.log"
     _NATIVE_CRASH_HANDLE = _NATIVE_CRASH_PATH.open(
         "a", encoding="utf-8", buffering=1
     )
     _NATIVE_RUNTIME_DEBUG_ENABLED = native_runtime_debug
+    _NATIVE_RUNTIME_SEGMENT_TRACE_ENABLED = native_runtime_segment_trace
     if native_runtime_debug:
         debug_dir = native_runtime_debug_dir or output_dir
         debug_dir.mkdir(parents=True, exist_ok=True)
@@ -905,6 +915,7 @@ def install_native_crash_logging(
                             sep=" ", timespec="milliseconds"
                         ),
                         "native_environment": environment,
+                        "segment_trace_enabled": native_runtime_segment_trace,
                     },
                     sort_keys=True,
                 )
@@ -931,6 +942,16 @@ def write_native_crash_breadcrumb(
             current_index=current_index,
             rollout_step=rollout_step,
             stream=stream if isinstance(stream, str) else "",
+        )
+    if _NATIVE_RUNTIME_DEBUG_ENABLED:
+        runtime_context = getattr(model, "_runtime_debug_context", {})
+        stream = runtime_context.get("stream", "")
+        write_native_runtime_debug_breadcrumb(
+            current_index=current_index,
+            rollout_step=rollout_step,
+            phase=phase,
+            stream=stream if isinstance(stream, str) else "",
+            model=model,
         )
     if _NATIVE_CRASH_HANDLE is None:
         return
@@ -3329,7 +3350,9 @@ def run_strict_stream(
         )
 
     model.runtime_debug_callback = (
-        runtime_debug_callback if _NATIVE_RUNTIME_DEBUG_ENABLED else None
+        runtime_debug_callback
+        if _NATIVE_RUNTIME_SEGMENT_TRACE_ENABLED
+        else None
     )
     model._runtime_debug_context = {"stream": stream_label}
     check_module_state_integrity(
@@ -5638,6 +5661,14 @@ def parse_args() -> argparse.Namespace:
         help="Directory for native_runtime_debug.jsonl when debug is enabled.",
     )
     parser.add_argument(
+        "--native-runtime-segment-trace",
+        action="store_true",
+        help=(
+            "Write high-volume per-segment runtime events; requires "
+            "--native-runtime-debug and is disabled by default."
+        ),
+    )
+    parser.add_argument(
         "--continuous-impl",
         choices=("reference", "optimized_v1", "optimized_v2"),
         default="reference",
@@ -5720,9 +5751,14 @@ def run_main(args: argparse.Namespace) -> None:
         raise ValueError(
             "--native-runtime-debug-dir requires --native-runtime-debug"
         )
+    if args.native_runtime_segment_trace and not args.native_runtime_debug:
+        raise ValueError(
+            "--native-runtime-segment-trace requires --native-runtime-debug"
+        )
     install_native_crash_logging(
         output_dir,
         native_runtime_debug=args.native_runtime_debug,
+        native_runtime_segment_trace=args.native_runtime_segment_trace,
         native_runtime_debug_dir=(
             Path(args.native_runtime_debug_dir)
             if args.native_runtime_debug_dir
@@ -5769,6 +5805,9 @@ def run_main(args: argparse.Namespace) -> None:
         ),
         "L_match": config.l_match,
         "native_runtime_debug": bool(args.native_runtime_debug),
+        "native_runtime_segment_trace": bool(
+            args.native_runtime_segment_trace
+        ),
         "native_runtime_debug_dir": (
             str(Path(args.native_runtime_debug_dir).resolve())
             if args.native_runtime_debug_dir

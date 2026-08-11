@@ -150,6 +150,46 @@ class Fig9NativeCrashLoggingTests(unittest.TestCase):
             self.assertIn("GLOBAL_STATE_CORRUPTION_DETECTED", crash_log)
             close_native_crash_logging()
 
+    def test_native_runtime_debug_is_boundary_only_by_default(self) -> None:
+        records = [
+            TaxiRecord(
+                datetime(2014, 7, 1) + timedelta(minutes=30 * index),
+                100.0 + index,
+            )
+            for index in range(16)
+        ]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            data = root / "tiny.csv"
+            data.write_text("timestamp,passenger_count\n", encoding="utf-8")
+            install_native_crash_logging(root, native_runtime_debug=True)
+            run_strict_stream(
+                records=records,
+                data_path=data,
+                stream_label="original",
+                output_dir=root / "run",
+                config=Fig9StrictConfig(horizon=1, warmup=6),
+                limit=len(records),
+                print_fingerprint=False,
+                debug_end_index=10,
+            )
+            log = (root / "native_runtime_debug.jsonl").read_text(
+                encoding="utf-8"
+            )
+            self.assertIn('"phase": "rollout_step_enter"', log)
+            self.assertIn('"phase": "rollout_step_exit"', log)
+            self.assertNotIn("continuous_segment_prediction_enter", log)
+            self.assertNotIn("continuous_segment_prediction_exit", log)
+            close_native_crash_logging()
+
+    def test_segment_runtime_trace_requires_runtime_debug(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            with self.assertRaisesRegex(ValueError, "requires native runtime debug"):
+                install_native_crash_logging(
+                    Path(temporary),
+                    native_runtime_segment_trace=True,
+                )
+
 
 if __name__ == "__main__":
     unittest.main()
