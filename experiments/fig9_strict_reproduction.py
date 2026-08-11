@@ -189,6 +189,9 @@ _NATIVE_TRACEBACK_STOP: threading.Event | None = None
 _NATIVE_TRACEBACK_THREAD: threading.Thread | None = None
 _NATIVE_LOG_LOCK = threading.Lock()
 _LAST_PROCESS_MEMORY_MB = 0.0
+_NATIVE_RUNTIME_DEBUG_HANDLE: io.TextIOWrapper | None = None
+_NATIVE_RUNTIME_DEBUG_PATH: Path | None = None
+_NATIVE_RUNTIME_DEBUG_ENABLED = False
 
 
 @dataclass(frozen=True)
@@ -629,19 +632,27 @@ def native_environment() -> dict[str, object]:
 
 def close_native_crash_logging() -> None:
     global _NATIVE_CRASH_HANDLE, _NATIVE_TRACEBACK_STOP, _NATIVE_TRACEBACK_THREAD
-    if _NATIVE_CRASH_HANDLE is None:
-        return
+    global _NATIVE_RUNTIME_DEBUG_HANDLE, _NATIVE_RUNTIME_DEBUG_PATH
+    global _NATIVE_RUNTIME_DEBUG_ENABLED
     if _NATIVE_TRACEBACK_STOP is not None:
         _NATIVE_TRACEBACK_STOP.set()
     if _NATIVE_TRACEBACK_THREAD is not None:
         _NATIVE_TRACEBACK_THREAD.join(timeout=2.0)
     _NATIVE_TRACEBACK_STOP = None
     _NATIVE_TRACEBACK_THREAD = None
-    faulthandler.disable()
-    with _NATIVE_LOG_LOCK:
-        _NATIVE_CRASH_HANDLE.flush()
-        _NATIVE_CRASH_HANDLE.close()
-    _NATIVE_CRASH_HANDLE = None
+    if _NATIVE_CRASH_HANDLE is not None:
+        faulthandler.disable()
+        with _NATIVE_LOG_LOCK:
+            _NATIVE_CRASH_HANDLE.flush()
+            _NATIVE_CRASH_HANDLE.close()
+        _NATIVE_CRASH_HANDLE = None
+    if _NATIVE_RUNTIME_DEBUG_HANDLE is not None:
+        with _NATIVE_LOG_LOCK:
+            _NATIVE_RUNTIME_DEBUG_HANDLE.flush()
+            _NATIVE_RUNTIME_DEBUG_HANDLE.close()
+        _NATIVE_RUNTIME_DEBUG_HANDLE = None
+        _NATIVE_RUNTIME_DEBUG_PATH = None
+    _NATIVE_RUNTIME_DEBUG_ENABLED = False
 
 
 def _periodic_native_traceback(stop: threading.Event) -> None:
@@ -665,17 +676,29 @@ def install_native_crash_logging(
     output_dir: Path,
     *,
     periodic_traceback_seconds: float = 0.0,
+    native_runtime_debug: bool = False,
+    native_runtime_debug_dir: Path | None = None,
 ) -> Path:
     """Keep a dedicated faulthandler descriptor alive for the whole process."""
 
     global _NATIVE_CRASH_HANDLE, _NATIVE_CRASH_PATH
     global _NATIVE_TRACEBACK_STOP, _NATIVE_TRACEBACK_THREAD
+    global _NATIVE_RUNTIME_DEBUG_HANDLE, _NATIVE_RUNTIME_DEBUG_PATH
+    global _NATIVE_RUNTIME_DEBUG_ENABLED
     close_native_crash_logging()
     output_dir.mkdir(parents=True, exist_ok=True)
     _NATIVE_CRASH_PATH = output_dir / "native_crash_faulthandler.log"
     _NATIVE_CRASH_HANDLE = _NATIVE_CRASH_PATH.open(
         "a", encoding="utf-8", buffering=1
     )
+    _NATIVE_RUNTIME_DEBUG_ENABLED = native_runtime_debug
+    if native_runtime_debug:
+        debug_dir = native_runtime_debug_dir or output_dir
+        debug_dir.mkdir(parents=True, exist_ok=True)
+        _NATIVE_RUNTIME_DEBUG_PATH = debug_dir / "native_runtime_debug.jsonl"
+        _NATIVE_RUNTIME_DEBUG_HANDLE = _NATIVE_RUNTIME_DEBUG_PATH.open(
+            "a", encoding="utf-8", buffering=1
+        )
     faulthandler.enable(file=_NATIVE_CRASH_HANDLE, all_threads=True)
     if periodic_traceback_seconds > 0.0:
         if periodic_traceback_seconds != 60.0:
@@ -699,6 +722,21 @@ def install_native_crash_logging(
             + ("interval_seconds=60\n" if periodic_traceback_seconds else "disabled\n")
         )
         _NATIVE_CRASH_HANDLE.flush()
+        if _NATIVE_RUNTIME_DEBUG_HANDLE is not None:
+            _NATIVE_RUNTIME_DEBUG_HANDLE.write(
+                json.dumps(
+                    {
+                        "event": "runtime_debug_start",
+                        "timestamp": datetime.now().isoformat(
+                            sep=" ", timespec="milliseconds"
+                        ),
+                        "native_environment": environment,
+                    },
+                    sort_keys=True,
+                )
+                + "\n"
+            )
+            _NATIVE_RUNTIME_DEBUG_HANDLE.flush()
     return _NATIVE_CRASH_PATH
 
 
@@ -730,6 +768,96 @@ def write_native_crash_breadcrumb(
             "FIG9_NATIVE_PHASE " + json.dumps(payload, sort_keys=True) + "\n"
         )
         _NATIVE_CRASH_HANDLE.flush()
+
+
+def _runtime_array_metadata(value: object, label: str) -> dict[str, object] | None:
+    """Describe an ndarray-like value without touching the model path."""
+
+    shape = getattr(value, "shape", None)
+    dtype = getattr(value, "dtype", None)
+    flags = getattr(value, "flags", None)
+    if shape is None or dtype is None or flags is None:
+        return None
+    metadata: dict[str, object] = {
+        "label": label,
+        "shape": tuple(int(item) for item in shape),
+        "dtype": str(dtype),
+        "c_contiguous": bool(flags["C_CONTIGUOUS"]),
+        "f_contiguous": bool(flags["F_CONTIGUOUS"]),
+        "writeable": bool(flags["WRITEABLE"]),
+        "finite": None,
+    }
+    # The strict core currently passes Python lists/tuples, not ndarrays.  If
+    # a diagnostic caller supplies one, compute finiteness only in this opt-in
+    # path and never import NumPy during normal execution.
+    if str(type(value).__module__).startswith("numpy"):
+        try:
+            import numpy as np
+
+            metadata["finite"] = bool(np.isfinite(value).all())
+        except Exception:
+            metadata["finite"] = "unavailable"
+    return metadata
+
+
+def write_native_runtime_debug_breadcrumb(
+    *,
+    current_index: int,
+    rollout_step: int | None,
+    phase: str,
+    stream: str,
+    model: SequentialMemory,
+    details: dict[str, object] | None = None,
+) -> None:
+    """Write opt-in, read-only runtime telemetry to a separate JSONL file."""
+
+    if not _NATIVE_RUNTIME_DEBUG_ENABLED or _NATIVE_RUNTIME_DEBUG_HANDLE is None:
+        return
+    details = details or {}
+    stats = model.last_prediction_stats
+    runtime_context = getattr(model, "_runtime_debug_context", {})
+    cached_segment_count = runtime_context.get("segment_count")
+    cached_synapse_count = runtime_context.get("synapse_count")
+    arrays = [
+        item
+        for label, value in details.items()
+        if (item := _runtime_array_metadata(value, label)) is not None
+    ]
+    payload = {
+        "timestamp": datetime.now().isoformat(sep=" ", timespec="milliseconds"),
+        "stream": stream,
+        "current_index": current_index,
+        "prediction_index": current_index + 1,
+        "rollout_step": rollout_step,
+        "phase": phase,
+        "segment_count": (
+            int(cached_segment_count)
+            if isinstance(cached_segment_count, int)
+            else segment_count(model)
+        ),
+        "synapse_count": (
+            int(cached_synapse_count)
+            if isinstance(cached_synapse_count, int)
+            else synapse_count(model)
+        ),
+        "candidate_count": int(stats.get("accepted_candidate_count", 0)),
+        "candidate_segment_count": int(stats.get("candidate_segment_count", 0)),
+        "selected_count": int(details.get("selected_count", len(model.previous_winners))),
+        "emitted_count": int(details.get("emitted_count", len(model.previous_active_cells))),
+        "raw_event_count": int(stats.get("raw_event_count", 0)),
+        "raw_predicted_column_count": int(stats.get("raw_predicted_column_count", 0)),
+        "process_memory_mb": _LAST_PROCESS_MEMORY_MB,
+        "process_thread_count": threading.active_count(),
+        "thread_names": sorted(thread.name for thread in threading.enumerate()),
+        "relevant_ndarrays": arrays,
+        "ndarray_count": len(arrays),
+        "details": details,
+    }
+    with _NATIVE_LOG_LOCK:
+        _NATIVE_RUNTIME_DEBUG_HANDLE.write(
+            json.dumps(payload, sort_keys=True, default=str) + "\n"
+        )
+        _NATIVE_RUNTIME_DEBUG_HANDLE.flush()
 
 
 class PruneBreadcrumbRecorder:
@@ -1574,12 +1702,26 @@ def rollout_raw_autonomous(
                 if intracolumn_selection_diagnostic
                 else None
             )
-            raw = model.predict_code(
-                trace=prediction_trace,
-                preselection_trace=preselection_trace,
-                intracolumn_selection_policy=intracolumn_selection_policy,
-                intracolumn_selection_trace=intracolumn_trace,
+            previous_runtime_context = getattr(
+                model, "_runtime_debug_context", {}
             )
+            if getattr(model, "runtime_debug_callback", None) is not None:
+                model._runtime_debug_context = {
+                    "current_index": record_index,
+                    "rollout_step": _step_index + 1,
+                    "stream": stream_label,
+                    "segment_count": segment_count(model),
+                    "synapse_count": synapse_count(model),
+                }
+            try:
+                raw = model.predict_code(
+                    trace=prediction_trace,
+                    preselection_trace=preselection_trace,
+                    intracolumn_selection_policy=intracolumn_selection_policy,
+                    intracolumn_selection_trace=intracolumn_trace,
+                )
+            finally:
+                model._runtime_debug_context = previous_runtime_context
             if native_phase_hook is not None:
                 native_phase_hook(_step_index + 1, "rollout_predict_complete")
             provenance_target_columns: tuple[int, ...] = ()
@@ -2966,6 +3108,31 @@ def run_strict_stream(
     if print_fingerprint:
         print(json.dumps(fingerprint, indent=2, sort_keys=True))
 
+    def runtime_debug_callback(
+        phase: str,
+        details: dict[str, object],
+    ) -> None:
+        context = getattr(model, "_runtime_debug_context", {})
+        current_index = context.get("current_index")
+        if not isinstance(current_index, int):
+            return
+        rollout_step = context.get("rollout_step")
+        write_native_runtime_debug_breadcrumb(
+            current_index=current_index,
+            rollout_step=(
+                rollout_step if isinstance(rollout_step, int) else None
+            ),
+            phase=phase,
+            stream=stream_label,
+            model=model,
+            details=details,
+        )
+
+    model.runtime_debug_callback = (
+        runtime_debug_callback if _NATIVE_RUNTIME_DEBUG_ENABLED else None
+    )
+    model._runtime_debug_context = {}
+
     start_time = time.perf_counter()
     progress_started = start_time
     progress_path = output_dir / "progress.jsonl"
@@ -3230,6 +3397,17 @@ def run_strict_stream(
         )
         # STATE MUTATION: 这里才把真实当前 record 写入长期记忆，触发三种
         # learning scenario、weight/age/segment 变化。预测阶段不能学习。
+        previous_runtime_context = getattr(
+            model, "_runtime_debug_context", {}
+        )
+        if getattr(model, "runtime_debug_callback", None) is not None:
+            model._runtime_debug_context = {
+                "current_index": index,
+                "rollout_step": None,
+                "stream": stream_label,
+                "segment_count": segment_count(model),
+                "synapse_count": synapse_count(model),
+            }
         observe_started = time.perf_counter()
         previous_segment_ids = (
             branch_registry.segment_object_ids(model)
@@ -3397,6 +3575,7 @@ def run_strict_stream(
                 code,
                 observation_trace=teacher_forced_trace,
             )
+        model._runtime_debug_context = previous_runtime_context
         if segment_reinforcement_diagnostic:
             model.reinforcement_trace_callback = None
         if branch_registry is not None:
@@ -5238,6 +5417,16 @@ def parse_args() -> argparse.Namespace:
         help="Isolation-only stop index; may advance at most 10 records.",
     )
     parser.add_argument(
+        "--native-runtime-debug",
+        action="store_true",
+        help="Write opt-in read-only native/runtime breadcrumbs as JSONL.",
+    )
+    parser.add_argument(
+        "--native-runtime-debug-dir",
+        default="",
+        help="Directory for native_runtime_debug.jsonl when debug is enabled.",
+    )
+    parser.add_argument(
         "--continuous-impl",
         choices=("reference", "optimized_v1", "optimized_v2"),
         default="reference",
@@ -5316,7 +5505,19 @@ def run_april_branch(args: argparse.Namespace, config: Fig9StrictConfig) -> None
 
 def run_main(args: argparse.Namespace) -> None:
     output_dir = Path(args.output_dir)
-    install_native_crash_logging(output_dir)
+    if args.native_runtime_debug_dir and not args.native_runtime_debug:
+        raise ValueError(
+            "--native-runtime-debug-dir requires --native-runtime-debug"
+        )
+    install_native_crash_logging(
+        output_dir,
+        native_runtime_debug=args.native_runtime_debug,
+        native_runtime_debug_dir=(
+            Path(args.native_runtime_debug_dir)
+            if args.native_runtime_debug_dir
+            else None
+        ),
+    )
     config = Fig9StrictConfig(
         horizon=args.prediction_horizon,
         warmup=args.warmup,
@@ -5356,6 +5557,12 @@ def run_main(args: argparse.Namespace) -> None:
             config.continuous_prediction_impl
         ),
         "L_match": config.l_match,
+        "native_runtime_debug": bool(args.native_runtime_debug),
+        "native_runtime_debug_dir": (
+            str(Path(args.native_runtime_debug_dir).resolve())
+            if args.native_runtime_debug_dir
+            else None
+        ),
     }
     if args.lmatch_real_ablation:
         runtime.update(lmatch_ablation_markers(config.l_match))

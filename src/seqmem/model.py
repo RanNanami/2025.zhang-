@@ -559,6 +559,12 @@ class SequentialMemory:
         self.prune_diagnostic_callback: (
             Callable[[dict[str, object]], None] | None
         ) = None
+        # Runtime-only breadcrumb hook.  It is intentionally excluded from
+        # checkpoints so enabling diagnostics cannot change model state.
+        self.runtime_debug_callback: (
+            Callable[[str, dict[str, object]], None] | None
+        ) = None
+        self._runtime_debug_context: dict[str, object] = {}
 
     def __getstate__(self) -> dict[str, object]:
         """Exclude the reproducible numeric cache from model checkpoints."""
@@ -566,7 +572,29 @@ class SequentialMemory:
         state = self.__dict__.copy()
         state["_spike_response_cache"] = {}
         state["prune_diagnostic_callback"] = None
+        state["runtime_debug_callback"] = None
+        state["_runtime_debug_context"] = {}
         return state
+
+    def _emit_runtime_debug(
+        self,
+        phase: str,
+        details: dict[str, object] | None = None,
+    ) -> None:
+        """Emit an optional read-only runtime breadcrumb.
+
+        The callback is deliberately isolated from the numerical path.  A
+        diagnostics I/O failure must never change prediction, learning, or
+        RNG behavior, so callback exceptions are ignored.
+        """
+
+        callback = getattr(self, "runtime_debug_callback", None)
+        if callback is None:
+            return
+        try:
+            callback(phase, dict(details or {}))
+        except Exception:
+            return
 
     def reset_state(self) -> None:
         # STATE MUTATION: 只清空当前序列上下文，不删除任何已学 segment/synapse。
@@ -2651,6 +2679,18 @@ class SequentialMemory:
         ]
         if not matched:
             return None
+        self._emit_runtime_debug(
+            "continuous_segment_prediction_enter",
+            {
+                "segment_identity": id(segment),
+                "segment_synapse_count": len(segment.synapses),
+                "matched_synapse_count": len(matched),
+                "arrival_count": len(matched),
+                "continuous_impl": self.params.continuous_prediction_impl,
+                "diagnostic_requested": diagnostic is not None,
+                "result_memo_enabled": result_memo is not None,
+            },
+        )
         arrivals = [(arrival, weight) for _source, _time, arrival, weight in matched]
         memo_key = tuple(arrivals)
         cached_result = result_memo.get(memo_key) if result_memo is not None else None
@@ -2710,6 +2750,24 @@ class SequentialMemory:
                     ),
                 }
             )
+        self._emit_runtime_debug(
+            "continuous_segment_prediction_exit",
+            {
+                "segment_identity": id(segment),
+                "matched_synapse_count": len(matched),
+                "result_available": result is not None,
+                "crossing_time": (
+                    diagnostic.get("first_threshold_crossing_time")
+                    if diagnostic is not None
+                    else None
+                ),
+                "soma_firing_time": (
+                    diagnostic.get("predicted_soma_firing_time")
+                    if diagnostic is not None
+                    else None
+                ),
+            },
+        )
         return result
 
     def _continuous_prediction_from_arrivals(
