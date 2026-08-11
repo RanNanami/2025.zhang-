@@ -57,6 +57,30 @@ SELECTION_TRACE_FIELDS = [
     "existing_policy_segment_id",
     "selected_differs_from_existing",
     "column_present_under_all_policies",
+    "pre_selector_candidate_count",
+    "pre_selector_neuron_count",
+    "pre_selector_segment_count",
+    "candidate_score_max",
+    "candidate_score_second",
+    "candidate_score_mean",
+    "candidate_score_margin",
+    "response_peak_max",
+    "contributor_count_if_available",
+    "predicted_time_min",
+    "predicted_time_max",
+    "predicted_time_spread",
+    "existing_selected_neuron",
+    "existing_selected_segment",
+    "existing_selected_score",
+    "existing_selected_response_peak",
+    "existing_selected_predicted_time",
+    "existing_selected_contributor_count",
+    "maxscore_selected_neuron",
+    "maxscore_selected_segment",
+    "maxscore_selected_score",
+    "maxscore_selected_response_peak",
+    "maxscore_selected_predicted_time",
+    "maxscore_selected_contributor_count",
     "emitted_after_competition",
     "suppressed_intercolumn",
     "candidate_pool_fingerprint",
@@ -163,6 +187,113 @@ def selection_trace_rows(
                     selected.original_index != existing.original_index
                 ),
                 "column_present_under_all_policies": True,
+                "pre_selector_candidate_count": len(group.candidates),
+                "pre_selector_neuron_count": len(
+                    {candidate.neuron_index for candidate in group.candidates}
+                ),
+                "pre_selector_segment_count": len(group.candidates),
+                "candidate_score_max": top1,
+                "candidate_score_second": top2,
+                "candidate_score_mean": (
+                    sum(scores) / len(scores) if scores else math.nan
+                ),
+                "candidate_score_margin": margin,
+                "response_peak_max": (
+                    max(
+                        (
+                            candidate.response_peak
+                            for candidate in group.candidates
+                            if candidate.response_peak is not None
+                        ),
+                        default=math.nan,
+                    )
+                ),
+                # The current Fig.9 strict runs do not capture PSP
+                # contributor tuples, so this field is intentionally NA until
+                # a run explicitly enables that capture.
+                "contributor_count_if_available": math.nan,
+                "predicted_time_min": min(
+                    (candidate.predicted_time for candidate in group.candidates),
+                    default=math.nan,
+                ),
+                "predicted_time_max": max(
+                    (candidate.predicted_time for candidate in group.candidates),
+                    default=math.nan,
+                ),
+                "predicted_time_spread": (
+                    max(candidate.predicted_time for candidate in group.candidates)
+                    - min(candidate.predicted_time for candidate in group.candidates)
+                    if group.candidates
+                    else math.nan
+                ),
+                "existing_selected_neuron": existing.neuron_index,
+                "existing_selected_segment": (
+                    f"{existing.column}:{existing.neuron_index}:{existing.segment_index}"
+                ),
+                "existing_selected_score": existing.candidate_score,
+                "existing_selected_response_peak": (
+                    existing.response_peak
+                    if existing.response_peak is not None
+                    else math.nan
+                ),
+                "existing_selected_predicted_time": existing.predicted_time,
+                "existing_selected_contributor_count": math.nan,
+                "maxscore_selected_neuron": max(
+                    group.candidates,
+                    key=lambda candidate: (
+                        candidate.candidate_score,
+                        -candidate.predicted_time,
+                        -candidate.original_index,
+                    ),
+                ).neuron_index,
+                "maxscore_selected_segment": (
+                    lambda candidate: f"{candidate.column}:{candidate.neuron_index}:{candidate.segment_index}"
+                )(
+                    max(
+                        group.candidates,
+                        key=lambda candidate: (
+                            candidate.candidate_score,
+                            -candidate.predicted_time,
+                            -candidate.original_index,
+                        ),
+                    )
+                ),
+                "maxscore_selected_score": max(
+                    group.candidates,
+                    key=lambda candidate: (
+                        candidate.candidate_score,
+                        -candidate.predicted_time,
+                        -candidate.original_index,
+                    ),
+                ).candidate_score,
+                "maxscore_selected_response_peak": (
+                    max(
+                        group.candidates,
+                        key=lambda candidate: (
+                            candidate.candidate_score,
+                            -candidate.predicted_time,
+                            -candidate.original_index,
+                        ),
+                    ).response_peak
+                    if max(
+                        group.candidates,
+                        key=lambda candidate: (
+                            candidate.candidate_score,
+                            -candidate.predicted_time,
+                            -candidate.original_index,
+                        ),
+                    ).response_peak is not None
+                    else math.nan
+                ),
+                "maxscore_selected_predicted_time": max(
+                    group.candidates,
+                    key=lambda candidate: (
+                        candidate.candidate_score,
+                        -candidate.predicted_time,
+                        -candidate.original_index,
+                    ),
+                ).predicted_time,
+                "maxscore_selected_contributor_count": math.nan,
                 "emitted_after_competition": "",
                 "suppressed_intercolumn": "",
                 "candidate_pool_fingerprint": (

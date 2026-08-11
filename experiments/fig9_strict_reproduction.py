@@ -97,6 +97,11 @@ from experiments.diagnostics.fig9_intracolumn_selector import (  # noqa: E402
     summarize_selection_rows,
     write_selection_trace,
 )
+from experiments.diagnostics.fig9_readout_dynamics import (  # noqa: E402
+    READOUT_TRACE_FIELDS,
+    build_readout_column_rows,
+    write_readout_trace,
+)
 from experiments.diagnostics.fig9_match_overlap import (  # noqa: E402
     DIAGNOSTIC_MARKERS as MATCH_OVERLAP_DIAGNOSTIC_MARKERS,
     MATCH_OVERLAP_LEVELS,
@@ -234,7 +239,8 @@ class RolloutResult:
     preselection_group_diagnostics: tuple[dict[str, object], ...] = ()
     preselection_replacement_diagnostics: tuple[dict[str, object], ...] = ()
     intracolumn_selection_diagnostics: tuple[dict[str, object], ...] = ()
-    candidate_contributor_counts: tuple[int, ...] = ()
+    readout_dynamics_diagnostics: tuple[dict[str, object], ...] = ()
+    candidate_contributor_counts: tuple[int | None, ...] = ()
 
 
 @dataclass
@@ -1387,6 +1393,7 @@ def rollout_raw_autonomous(
     future_records: list[TaxiRecord] | None = None,
     intracolumn_selection_policy: str = "existing",
     intracolumn_selection_diagnostic: bool = False,
+    readout_dynamics_trace: bool = False,
     context_trajectory_tracker: ContextTrajectoryTracker | None = None,
     context_oracle_unified_trace: bool = False,
     temporal_context_tracker: TemporalContextTracker | None = None,
@@ -1406,7 +1413,7 @@ def rollout_raw_autonomous(
     snapshot = model.snapshot_transient_state()
     competition = competition_settings or CompetitionSettings()
     competition.validate()
-    if oracle_candidate_diagnostic and not competition.enabled:
+    if oracle_candidate_diagnostic and not competition.enabled and not readout_dynamics_trace:
         raise ValueError(
             "oracle candidate diagnostics require competitive_raw mode"
         )
@@ -1488,7 +1495,8 @@ def rollout_raw_autonomous(
     preselection_group_diagnostics: list[dict[str, object]] = []
     preselection_replacement_diagnostics: list[dict[str, object]] = []
     intracolumn_selection_diagnostics: list[dict[str, object]] = []
-    candidate_contributor_counts: list[int] = []
+    readout_dynamics_diagnostics: list[dict[str, object]] = []
+    candidate_contributor_counts: list[int | None] = []
     registry_predicted_before = (
         branch_registry.current_predicted_sources.copy()
         if branch_registry is not None
@@ -1635,7 +1643,7 @@ def rollout_raw_autonomous(
                     active_sources=branch_active_sources,
                 )
             if raw is None:
-                candidate_contributor_counts.append(0)
+                candidate_contributor_counts.append(None)
                 if autonomous_context_provenance_tracker is not None:
                     autonomous_context_provenance_tracker.record_step(
                         model=model,
@@ -1858,6 +1866,7 @@ def rollout_raw_autonomous(
                     tuple(preselection_group_diagnostics),
                     tuple(preselection_replacement_diagnostics),
                     tuple(intracolumn_selection_diagnostics),
+                    tuple(readout_dynamics_diagnostics),
                     tuple(candidate_contributor_counts),
                 )
             # DEBUG WATCH: after predict_code。raw_event_counts/raw_column_counts
@@ -2036,11 +2045,16 @@ def rollout_raw_autonomous(
                     for candidates_for_column in model.last_prediction_candidates.values()
                     for candidate in candidates_for_column
                 ]
-                candidate_contributor_count = sum(
-                    len(candidate.crossing_synapse_contributions)
-                    for candidate in candidate_values
+                candidate_contributor_counts.append(
+                    (
+                        sum(
+                            len(candidate.crossing_synapse_contributions)
+                            for candidate in candidate_values
+                        )
+                        if model.params.capture_prediction_contributions
+                        else None
+                    )
                 )
-                candidate_contributor_counts.append(candidate_contributor_count)
                 diagnostics.append(
                     {
                         "record_index": record_index if record_index is not None else "",
@@ -2173,6 +2187,28 @@ def rollout_raw_autonomous(
                 target_code = oracle_encoder.encode(
                     record_values(target_record)
                 )
+                if readout_dynamics_trace:
+                    if oracle_ranges is None:
+                        raise RuntimeError("readout dynamics ranges unavailable")
+                    readout_dynamics_diagnostics.extend(
+                        build_readout_column_rows(
+                            run_id=stream_label,
+                            record_index=(
+                                record_index if record_index is not None else 0
+                            ),
+                            anchor_index=(
+                                record_index + 1 if record_index is not None else 0
+                            ),
+                            horizon_step=_step_index + 1,
+                            field_for_column=lambda column: field_for_column(
+                                int(column), oracle_ranges
+                            ),
+                            selection_rows=step_intracolumn_rows,
+                            raw_code=raw,
+                            competition_result=competition_result,
+                            target_code=target_code,
+                        )
+                    )
                 if temporal_context_tracker is not None:
                     target_columns_by_field: dict[str, int] = {}
                     for target_column in sorted(target_code.columns):
@@ -2364,6 +2400,7 @@ def rollout_raw_autonomous(
                     tuple(preselection_group_diagnostics),
                     tuple(preselection_replacement_diagnostics),
                     tuple(intracolumn_selection_diagnostics),
+                    tuple(readout_dynamics_diagnostics),
                 )
             # STATE MUTATION: 下面两行只推进临时检索状态；长期记忆中的
             # segment/synapse/weight/age 不会改变，并会在 finally 中恢复。
@@ -2396,6 +2433,7 @@ def rollout_raw_autonomous(
             tuple(preselection_group_diagnostics),
             tuple(preselection_replacement_diagnostics),
             tuple(intracolumn_selection_diagnostics),
+            tuple(readout_dynamics_diagnostics),
             tuple(candidate_contributor_counts),
         )
     finally:
@@ -2457,6 +2495,7 @@ def run_strict_stream(
     reference_neuron_selection_level: str = "summary",
     intracolumn_selection_policy: str = "existing",
     intracolumn_selection_diagnostic: bool = False,
+    readout_dynamics_trace: bool = False,
     match_overlap_diagnostic: bool = False,
     match_overlap_level: str = "summary",
     match_overlap_compress: bool = False,
@@ -2540,7 +2579,7 @@ def run_strict_stream(
             "timing eligibility decomposition requires source-level "
             "match-overlap diagnostics"
         )
-    if oracle_candidate_diagnostic and not competition.enabled:
+    if oracle_candidate_diagnostic and not competition.enabled and not readout_dynamics_trace:
         raise ValueError(
             "oracle candidate diagnostics require competitive_raw mode"
         )
@@ -2746,7 +2785,11 @@ def run_strict_stream(
         stop_after_index = debug_end_index
     oracle_encoder = (
         build_fig9_encoder(config)
-        if (oracle_candidate_diagnostic or autonomous_context_provenance_diagnostic)
+        if (
+            oracle_candidate_diagnostic
+            or autonomous_context_provenance_diagnostic
+            or readout_dynamics_trace
+        )
         else None
     )
     oracle_rows: list[dict[str, object]] = []
@@ -2759,6 +2802,7 @@ def run_strict_stream(
     preselection_group_rows: list[dict[str, object]] = []
     preselection_replacement_rows: list[dict[str, object]] = []
     intracolumn_selection_rows: list[dict[str, object]] = []
+    readout_dynamics_rows: list[dict[str, object]] = []
     ambiguity_trace_rows: list[dict[str, object]] = []
     ambiguity_trace_row_count = 0
     ambiguity_reuse_state = AmbiguityReuseState.from_checkpoint_payload(
@@ -2992,6 +3036,7 @@ def run_strict_stream(
                         or competition.enabled
                         or long_sequence_ledger
                         or ambiguity_diagnostic
+                        or readout_dynamics_trace
                     )
                     else None
                 ),
@@ -3004,6 +3049,7 @@ def run_strict_stream(
                         or competition.enabled
                         or long_sequence_ledger
                         or ambiguity_diagnostic
+                        or readout_dynamics_trace
                     )
                     else None
                 ),  # type: ignore[arg-type]
@@ -3016,6 +3062,7 @@ def run_strict_stream(
                     intracolumn_selection_diagnostic
                     or ambiguity_diagnostic
                 ),
+                readout_dynamics_trace=readout_dynamics_trace,
                 context_trajectory_tracker=context_trajectory_tracker,
                 context_oracle_unified_trace=context_oracle_unified_trace,
                 temporal_context_tracker=temporal_context_tracker,
@@ -3109,6 +3156,10 @@ def run_strict_stream(
             if intracolumn_selection_diagnostic:
                 intracolumn_selection_rows.extend(
                     rollout.intracolumn_selection_diagnostics
+                )
+            if readout_dynamics_trace:
+                readout_dynamics_rows.extend(
+                    rollout.readout_dynamics_diagnostics
                 )
             if ambiguity_diagnostic:
                 ambiguity_trace_rows.extend(
@@ -3639,7 +3690,7 @@ def run_strict_stream(
             contributor_values = [
                 float(value)
                 for value in contributor_by_step.values()
-                if value not in (None, "")
+                if value not in (None, "", "NA")
             ]
             long_sequence_row: dict[str, object] = {
                 "record_index": index,
@@ -3654,9 +3705,11 @@ def run_strict_stream(
                 "mean_contributors": (
                     sum(contributor_values) / len(contributor_values)
                     if contributor_values
-                    else 0.0
+                    else "NA"
                 ),
-                "peak_contributors": max(contributor_values, default=0.0),
+                "peak_contributors": (
+                    max(contributor_values) if contributor_values else "NA"
+                ),
                 "actual_root_contributors": "",
                 "generated_root_contributors": "",
                 "actual_history_retention": "",
@@ -3666,11 +3719,16 @@ def run_strict_stream(
                 "rolling_MAPE": rolling_value,
                 "runtime_so_far": time.perf_counter() - start_time,
                 "memory_RSS": working_set_memory_mb(),
+                "contributor_metric_available": bool(contributor_values),
             }
             for step in range(1, config.horizon + 1):
                 long_sequence_row[f"raw_predicted_columns_step{step}"] = raw_by_step[step]
                 long_sequence_row[f"emitted_columns_step{step}"] = emitted_by_step[step]
-                long_sequence_row[f"total_contributors_step{step}"] = contributor_by_step[step]
+                long_sequence_row[f"total_contributors_step{step}"] = (
+                    contributor_by_step[step]
+                    if contributor_by_step[step] is not None
+                    else "NA"
+                )
                 long_sequence_row[f"prediction_error_step{step}"] = error_by_step[step]
             long_sequence_rows.append(long_sequence_row)
         if rollout_diagnostics:
@@ -4192,6 +4250,30 @@ def run_strict_stream(
                     "same predict_code call, after event selection and before "
                     "intercolumn competition"
                 ),
+                "strict_protocol_sha256": stable_object_sha256(fingerprint),
+            },
+        )
+    if readout_dynamics_trace:
+        readout_path = output_dir / "readout_dynamics_column_trace.csv.gz"
+        write_readout_trace(readout_path, readout_dynamics_rows)
+        summary["readout_dynamics_trace"] = {
+            "enabled": True,
+            "path": str(readout_path),
+            "rows": len(readout_dynamics_rows),
+            "row_unit": "candidate_column_per_rollout_step",
+            "read_only": True,
+            "model_protocol_unchanged": True,
+        }
+        write_json(
+            output_dir / "readout_dynamics_protocol.json",
+            {
+                "diagnostic_only": True,
+                "read_only": True,
+                "model_protocol_unchanged": True,
+                "row_unit": "candidate_column_per_rollout_step",
+                "fields": READOUT_TRACE_FIELDS,
+                "target_labels": "posthoc_future_code_only",
+                "column_event_id": "record_index/anchor_index/horizon_step/field/column_id/trajectory_kind",
                 "strict_protocol_sha256": stable_object_sha256(fingerprint),
             },
         )
@@ -4962,6 +5044,14 @@ def parse_args() -> argparse.Namespace:
         help="Write the same-call per-column selector trace.",
     )
     parser.add_argument(
+        "--readout-dynamics-trace",
+        action="store_true",
+        help=(
+            "Write a bounded read-only column-level selector/competition trace; "
+            "does not alter prediction or learning."
+        ),
+    )
+    parser.add_argument(
         "--ambiguity-diagnostic",
         action="store_true",
         help=(
@@ -5288,6 +5378,7 @@ def run_main(args: argparse.Namespace) -> None:
         or pairwise_diagnostic
         or temporal_diagnostic
         or autonomous_context_provenance_diagnostic
+        or args.readout_dynamics_trace
     )
     branch_diagnostic = (
         args.branch_provenance_diagnostic
@@ -5400,7 +5491,9 @@ def run_main(args: argparse.Namespace) -> None:
             intracolumn_selection_policy=args.intracolumn_selection_policy,
             intracolumn_selection_diagnostic=(
                 args.intracolumn_selection_diagnostic
+                or args.readout_dynamics_trace
             ),
+            readout_dynamics_trace=args.readout_dynamics_trace,
             ambiguity_diagnostic=args.ambiguity_diagnostic,
             match_overlap_diagnostic=args.match_overlap_diagnostic,
             match_overlap_level=args.match_overlap_level,
