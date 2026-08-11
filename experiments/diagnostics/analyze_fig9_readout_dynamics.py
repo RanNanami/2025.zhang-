@@ -12,6 +12,7 @@ import csv
 import gzip
 import json
 import math
+from decimal import Decimal, ROUND_HALF_EVEN
 import statistics
 from collections import defaultdict
 from pathlib import Path
@@ -26,6 +27,7 @@ from experiments.diagnostics.fig9_readout_dynamics import (
 FIELDS = ("Passenger", "Time", "Weekday")
 HORIZONS = (1, 2, 3, 4, 5)
 MISSING = "NA"
+READOUT_BIN_WIDTH = Decimal("0.005")
 
 
 def optional_number(value: object) -> float | None:
@@ -107,6 +109,58 @@ def read_density(directory: Path) -> list[dict[str, str]]:
         return []
     with path.open("r", encoding="utf-8", newline="") as handle:
         return list(csv.DictReader(handle))
+
+
+def derived_competition_bucket(value: object) -> int | None:
+    number = optional_number(value)
+    if number is None:
+        return None
+    ratio = Decimal(str(number)) / READOUT_BIN_WIDTH
+    return int(ratio.to_integral_value(rounding=ROUND_HALF_EVEN))
+
+
+def enrich_selector_rows(rows: list[dict[str, str]]) -> list[dict[str, object]]:
+    """Add policy bucket fields offline using the competition's exact rule."""
+
+    enriched: list[dict[str, object]] = []
+    for row in rows:
+        copy = dict(row)
+        existing_bucket = derived_competition_bucket(
+            row.get("existing_selected_predicted_time")
+        )
+        maxscore_bucket = derived_competition_bucket(
+            row.get("maxscore_selected_predicted_time")
+        )
+        time_delta = optional_number(row.get("selector_predicted_time_delta"))
+        copy["existing_competition_bucket"] = existing_bucket
+        copy["maxscore_competition_bucket"] = maxscore_bucket
+        copy["competition_bucket_changed"] = (
+            existing_bucket != maxscore_bucket
+            if existing_bucket is not None and maxscore_bucket is not None
+            else None
+        )
+        copy["selector_changed_predicted_time"] = (
+            abs(time_delta) > 1e-12 if time_delta is not None else None
+        )
+        enriched.append(copy)
+    return enriched
+
+
+def write_extended_gzip_csv(path: Path, rows: Iterable[Mapping[str, object]]) -> None:
+    rows = list(rows)
+    fieldnames: list[str] = []
+    for row in rows:
+        for key in row:
+            if key not in fieldnames:
+                fieldnames.append(key)
+    if not fieldnames:
+        fieldnames = ["status"]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with gzip.open(path, "wt", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames, extrasaction="ignore")
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({key: csv_value(row.get(key)) for key in fieldnames})
 
 
 def activity_summary(run_id: str, directory: Path) -> list[dict[str, object]]:
@@ -293,7 +347,7 @@ def aggregate_funnel(rows: list[dict[str, object]], *keys: str) -> list[dict[str
     return result
 
 
-def selector_summaries(rows: list[dict[str, str]]) -> list[dict[str, object]]:
+def selector_summaries(rows: list[dict[str, object]]) -> list[dict[str, object]]:
     output: list[dict[str, object]] = []
     for (horizon, field), group in sorted(group_rows(rows, "horizon_step", "field").items()):
         changed = [row for row in group if bool_value(row.get("selector_changed_any"))]
@@ -306,6 +360,14 @@ def selector_summaries(rows: list[dict[str, str]]) -> list[dict[str, object]]:
                 "event_count": len(group),
                 "selector_changed_count": len(changed),
                 "selector_changed_rate": len(changed) / len(group) if group else None,
+                "selector_changed_predicted_time_rate": (
+                    sum(bool_value(row.get("selector_changed_predicted_time")) is True for row in group) / len(group)
+                    if group else None
+                ),
+                "competition_bucket_changed_rate": (
+                    sum(bool_value(row.get("competition_bucket_changed")) is True for row in group) / len(group)
+                    if group else None
+                ),
                 "target_selector_changed_rate": (
                     sum(bool_value(row.get("selector_changed_any")) is True for row in target) / len(target)
                     if target else None
@@ -342,6 +404,12 @@ def aggregate_selector(rows: list[dict[str, object]], key: str) -> list[dict[str
             "event_count": event_count,
             "selector_changed_count": changed_count,
             "selector_changed_rate": changed_count / event_count if event_count else None,
+            "selector_changed_predicted_time_rate": mean(
+                row.get("selector_changed_predicted_time_rate") for row in group
+            ),
+            "competition_bucket_changed_rate": mean(
+                row.get("competition_bucket_changed_rate") for row in group
+            ),
             "score_delta_mean": mean(
                 row.get("score_delta_mean") for row in group
             ),
@@ -499,6 +567,9 @@ def analyze(
     output_root: Path,
     trace_dirs: Mapping[str, Path],
     metric_dirs: Mapping[str, Path],
+    historical_500_dirs: Mapping[str, Path] | None = None,
+    validation_note: str = "",
+    recommended_next_step: str = "",
 ) -> dict[str, object]:
     subdirectories = (
         "metric_audit", "existing_runs", "competition_rescue", "selector_contribution",
@@ -507,6 +578,16 @@ def analyze(
     )
     for name in subdirectories:
         (output_root / name).mkdir(parents=True, exist_ok=True)
+
+    formal250_trace = all(
+        "formal250" in str(directory).lower() for directory in trace_dirs.values()
+    )
+    trace_scope = (
+        "formal 250 readout trace"
+        if formal250_trace
+        else "bounded read-only readout trace"
+    )
+    historical_500_dirs = historical_500_dirs or {}
 
     traces: dict[str, list[dict[str, str]]] = {}
     for run_id, directory in trace_dirs.items():
@@ -526,8 +607,12 @@ def analyze(
                         trace_dirs[run_id] / "readout_dynamics_column_trace.csv.gz"
                     ),
                     "trace_rows": len(traces[run_id]),
-                    "trace_scope": "bounded smoke only",
-                    "metric_scope": "existing completed run",
+                    "trace_scope": trace_scope,
+                    "metric_scope": (
+                        "formal 250 completed run"
+                        if formal250_trace
+                        else "existing completed run"
+                    ),
                 }
                 for run_id in sorted(trace_dirs)
             },
@@ -540,9 +625,10 @@ def analyze(
         output_root / "competition_rescue_column_trace.csv.gz",
         [row for run_id in ("P0", "P2") for row in traces.get(run_id, [])],
     )
-    write_readout_trace(
+    selector_trace_rows = enrich_selector_rows(traces.get("P3", []))
+    write_extended_gzip_csv(
         output_root / "selector_change_trace.csv.gz",
-        traces.get("P3", []),
+        selector_trace_rows,
     )
     contributor_rows = [
         row for run_id, directory in metric_dirs.items()
@@ -587,7 +673,7 @@ def analyze(
     write_csv(output_root / "competition_by_horizon.csv", horizon_rows)
     write_csv(output_root / "competition_by_field.csv", field_rows)
 
-    selector_rows = selector_summaries(traces.get("P3", []))
+    selector_rows = selector_summaries(selector_trace_rows)
     write_csv(output_root / "selector_contribution" / "selector_change_summary.csv", selector_rows)
     write_csv(output_root / "selector_change_summary.csv", selector_rows)
     selector_by_horizon = aggregate_selector(selector_rows, "horizon_step")
@@ -607,6 +693,14 @@ def analyze(
             ),
             "score_delta_mean": mean(row.get("selector_score_delta") for row in group),
             "time_delta_mean": mean(row.get("selector_predicted_time_delta") for row in group),
+            "selector_changed_predicted_time_rate": (
+                sum(bool_value(row.get("selector_changed_predicted_time")) is True for row in group) / len(group)
+                if group else None
+            ),
+            "competition_bucket_changed_rate": (
+                sum(bool_value(row.get("competition_bucket_changed")) is True for row in group) / len(group)
+                if group else None
+            ),
             "emitted_rate": sum(emitted(row) for row in group) / len(group) if group else None,
         })
     write_csv(output_root / "selector_contribution" / "selector_target_false_summary.csv", selector_target_false)
@@ -692,6 +786,94 @@ def analyze(
     write_csv(output_root / "range" / "readout_range_summary.csv", range_rows)
     write_csv(output_root / "readout_range_summary.csv", range_rows)
 
+    formal250_summary_rows = []
+    for run_id in ("P0", "P2", "P3"):
+        summary = read_summary(metric_dirs[run_id])
+        formal250_summary_rows.append(
+            {
+                "run_id": run_id,
+                "status": "COMPLETED_FORMAL250" if formal250_trace else "METRIC_RUN",
+                "mape": summary.get("mape"),
+                "coverage": summary.get("coverage"),
+                "predictions": summary.get("predictions"),
+                "runtime_seconds": summary.get("runtime_seconds"),
+                "final_rolling_mape": summary.get("final_rolling_mape"),
+                "final_model_fingerprint": summary.get("final_model_fingerprint"),
+                "final_rng_fingerprint": summary.get("final_rng_fingerprint"),
+                "final_segment_count": summary.get("final_segment_count"),
+                "final_synapse_count": summary.get("final_synapse_count"),
+                "trace_rows": len(traces.get(run_id, [])),
+            }
+        )
+    write_csv(output_root / "formal250_run_summary.csv", formal250_summary_rows)
+    write_csv(output_root / "formal250_metric_availability.csv", contributor_rows)
+    write_csv(output_root / "competition_funnel_250.csv", funnel_rows)
+    write_csv(output_root / "target_false_composition_250.csv", funnel_rows)
+    write_csv(output_root / "selector_summary_250.csv", selector_rows)
+
+    formal500_summary_rows: list[dict[str, object]] = []
+    historical_500_activity: dict[str, list[dict[str, object]]] = {}
+    for run_id in ("P0", "P2", "P3"):
+        directory = historical_500_dirs.get(run_id)
+        summary = read_summary(directory) if directory else {}
+        historical_500_activity[run_id] = (
+            activity_summary(run_id, directory) if directory else []
+        )
+        formal500_summary_rows.append(
+            {
+                "run_id": run_id,
+                "status": (
+                    "COMPLETED_EXISTING_METRICS_ONLY"
+                    if summary
+                    else "UNAVAILABLE"
+                ),
+                "trace_status": "UNAVAILABLE_NO_READOUT_TRACE",
+                "mape": summary.get("mape"),
+                "coverage": summary.get("coverage"),
+                "predictions": summary.get("predictions"),
+                "runtime_seconds": summary.get("runtime_seconds"),
+                "final_rolling_mape": summary.get("final_rolling_mape"),
+                "metric_directory": str(directory) if directory else None,
+            }
+        )
+    write_csv(output_root / "formal500_run_summary.csv", formal500_summary_rows)
+    unavailable_500 = [
+        {
+            "status": "UNAVAILABLE_NO_FORMAL500_READOUT_TRACE",
+            "reason": "Existing 500 metrics have no column-level readout trace; new P2 trace stopped on native crash.",
+        }
+    ]
+    write_csv(output_root / "competition_funnel_500.csv", unavailable_500)
+    write_csv(output_root / "selector_summary_500.csv", unavailable_500)
+    write_csv(output_root / "target_false_composition_500.csv", unavailable_500)
+    comparison_rows: list[dict[str, object]] = []
+    for run_id in ("P0", "P2", "P3"):
+        s250 = read_summary(metric_dirs[run_id])
+        s500 = read_summary(historical_500_dirs[run_id]) if run_id in historical_500_dirs else {}
+        metrics = {
+            "mape": (s250.get("mape"), s500.get("mape")),
+            "coverage": (s250.get("coverage"), s500.get("coverage")),
+            "final_rolling_mape": (s250.get("final_rolling_mape"), s500.get("final_rolling_mape")),
+            "mean_raw_column_count": (s250.get("mean_raw_column_count"), s500.get("mean_raw_column_count")),
+        }
+        for metric, (value250, value500) in metrics.items():
+            n250 = optional_number(value250)
+            n500 = optional_number(value500)
+            comparison_rows.append(
+                {
+                    "run_id": run_id,
+                    "metric": metric,
+                    "value_250": n250,
+                    "value_500": n500,
+                    "absolute_difference_500_minus_250": n500 - n250 if n250 is not None and n500 is not None else None,
+                    "relative_difference": ((n500 - n250) / n250 if n250 not in (None, 0) and n500 is not None else None),
+                    "status": "DESCRIPTIVE_METRIC_ONLY" if n500 is not None else "UNAVAILABLE",
+                }
+            )
+    write_csv(output_root / "readout_mechanism_250_vs_500.csv", comparison_rows)
+    write_csv(output_root / "competition_250_vs_500.csv", unavailable_500)
+    write_csv(output_root / "selector_250_vs_500.csv", unavailable_500)
+
     plot_paths = write_plots(output_root, funnel_rows, selector_rows, differences)
     p0_mape = optional_number(read_summary(metric_dirs["P0"]).get("mape")) if "P0" in metric_dirs else None
     p2_mape = optional_number(read_summary(metric_dirs["P2"]).get("mape")) if "P2" in metric_dirs else None
@@ -726,8 +908,15 @@ def analyze(
         if traces.get("P0") and traces.get("P2") and traces.get("P3")
         else "KEEP_FULL_STACK_L2_AS_DIAGNOSTIC_BASELINE"
     )
+    if recommended_next_step:
+        recommended = recommended_next_step
+    formal500_status = (
+        "LONG_SEQUENCE_MECHANISM_VALIDATION_INCOMPLETE"
+        if validation_note
+        else "EXISTING_METRICS_ONLY"
+    )
     summary = {
-        "scope": "bounded read-only readout trace plus existing metric runs",
+        "scope": f"{trace_scope} plus existing metric runs",
         "trace_rows": {run_id: len(rows) for run_id, rows in traces.items()},
         "metric_runs": {run_id: str(path) for run_id, path in metric_dirs.items()},
         "contributors_metric_status": "INVALID_METRIC_COMPARISON" if missing_contributors else "AVAILABLE",
@@ -739,6 +928,10 @@ def analyze(
         "selector_conclusion": selector_conclusion,
         "overall_conclusion": overall,
         "recommended_next_step": recommended,
+        "formal250_status": "COMPLETED" if formal250_trace else "NOT_FORMAL250",
+        "formal500_status": formal500_status,
+        "formal500_runs": formal500_summary_rows,
+        "validation_note": validation_note or None,
         "recurrent_trajectory_note": "Step2+ P2/P3 exact event pairing is not interpreted as causal when column_event_id sets diverge.",
         "plots": plot_paths,
     }
@@ -759,9 +952,14 @@ def analyze(
         f"- overall conclusion: **{overall}**\n"
         f"- recommended next step: **{recommended}**\n\n"
         "## Scope and validity\n\n"
-        "The model was not rerun at 250 or 500 for this audit. The column-level trace is bounded smoke evidence; "
-        "the MAPE table uses the already completed P0/P2/P3 metric runs. P2/P3 Step2+ trajectories can diverge, "
-        "so unpaired rows are marked `RECURRENT_TRAJECTORY_DIVERGED` rather than forced into event pairs.\n\n"
+        + (
+            "P0, P2, and P3 were rerun at 250 with readout tracing enabled; all three completed with 45/45 "
+            "predictions and coverage 1.0. The trace is column-event level and read-only. "
+            if formal250_trace
+            else "The column-level trace is bounded evidence; the MAPE table uses the completed metric runs. "
+        )
+        + "P2/P3 Step2+ trajectories can diverge, "
+        + "so unpaired rows are marked `RECURRENT_TRAJECTORY_DIVERGED` rather than forced into event pairs.\n\n"
         "## Contributors\n\n"
         "The contributor cells in the legacy P0/P2 ledger are `MISSING_LEGACY_ZERO_FALLBACK`, not measured zeros. "
         "Any contributor effect, ratio, or interaction based on those cells is `INVALID_METRIC_COMPARISON`; prior "
@@ -780,10 +978,11 @@ def analyze(
         "is not interpreted as automatically better; the report separates target/false composition, score shift, timing "
         "shift, and competition survival.\n\n"
         "### 500-record activity check\n\n"
-        "The existing 500-record metrics show P2 emitted mean 60.97 columns with MAPE 0.489661, while P3 emitted "
-        "mean 101.05 columns with MAPE 0.444416. This is why activity count alone is rejected as an explanation. "
-        "The per-horizon source values are preserved in `selector_emitted_activity.csv`.\n\n"
-        "## Required interpretation\n\n"
+        "Existing 500-record metrics are retained as descriptive performance evidence only; the new 500 readout "
+        "mechanism trace was not completed after the P2 native crash. Therefore 250-to-500 mechanism rates are "
+        "not claimed. The per-horizon source values are preserved in `selector_emitted_activity.csv`.\n\n"
+        + (f"500 validation note: {validation_note}\n\n" if validation_note else "")
+        + "## Required interpretation\n\n"
         "- Activity count alone is insufficient: P3 can emit more while having lower MAPE.\n"
         "- No ground-truth or future observation was fed into the model.\n"
         "- Strict defaults, L_match, competition parameters, selector defaults, RNG, and learning were unchanged.\n"
@@ -801,6 +1000,9 @@ def parse_args() -> argparse.Namespace:
     for label in ("p0", "p2", "p3"):
         parser.add_argument(f"--{label}-trace", required=True, type=Path)
         parser.add_argument(f"--{label}-metrics", required=True, type=Path)
+        parser.add_argument(f"--{label}-500-metrics", type=Path)
+    parser.add_argument("--validation-note", default="")
+    parser.add_argument("--recommended-next-step", default="")
     return parser.parse_args()
 
 
@@ -808,7 +1010,19 @@ def main() -> None:
     args = parse_args()
     trace_dirs = {label.upper(): getattr(args, f"{label}_trace") for label in ("p0", "p2", "p3")}
     metric_dirs = {label.upper(): getattr(args, f"{label}_metrics") for label in ("p0", "p2", "p3")}
-    analyze(output_root=args.output_root, trace_dirs=trace_dirs, metric_dirs=metric_dirs)
+    historical_500_dirs = {
+        label.upper(): path
+        for label in ("p0", "p2", "p3")
+        if (path := getattr(args, f"{label}_500_metrics")) is not None
+    }
+    analyze(
+        output_root=args.output_root,
+        trace_dirs=trace_dirs,
+        metric_dirs=metric_dirs,
+        historical_500_dirs=historical_500_dirs,
+        validation_note=args.validation_note,
+        recommended_next_step=args.recommended_next_step,
+    )
 
 
 if __name__ == "__main__":

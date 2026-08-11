@@ -6,6 +6,7 @@ from pathlib import Path
 
 from experiments.diagnostics.analyze_fig9_readout_dynamics import (
     contributor_audit,
+    enrich_selector_rows,
     target_false_funnel,
 )
 from experiments.diagnostics.fig9_competitive_inhibition import (
@@ -108,6 +109,18 @@ class Fig9ReadoutDynamicsTests(unittest.TestCase):
         self.assertTrue(row["selector_changed_any"])
         self.assertAlmostEqual(row["selector_score_delta"], 0.2)
         self.assertAlmostEqual(row["selector_predicted_time_delta"], 0.1)
+
+    def test_selector_bucket_fields_are_deterministically_derived(self):
+        rows = enrich_selector_rows([{
+            "existing_selected_predicted_time": "1.000",
+            "maxscore_selected_predicted_time": "1.006",
+            "selector_predicted_time_delta": "0.006",
+        }])
+        row = rows[0]
+        self.assertEqual(row["existing_competition_bucket"], 200)
+        self.assertEqual(row["maxscore_competition_bucket"], 201)
+        self.assertTrue(row["competition_bucket_changed"])
+        self.assertTrue(row["selector_changed_predicted_time"])
 
     def test_competition_outcomes_are_aggregate_per_column(self):
         candidate = PredictionCandidate(11, 1.2, 1.0, Segment())
