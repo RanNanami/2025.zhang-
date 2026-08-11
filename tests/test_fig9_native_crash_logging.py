@@ -5,12 +5,16 @@ from pathlib import Path
 import tempfile
 import unittest
 
+from seqmem import dynamics as dynamics_module
+from seqmem.dynamics import DSDynamicsParams
 from experiments.fig9_strict_reproduction import (
     Fig9StrictConfig,
     build_fig9_encoder,
     build_strict_model,
+    check_module_state_integrity,
     close_native_crash_logging,
     install_native_crash_logging,
+    module_state_integrity_snapshot,
     native_environment,
     run_strict_stream,
     write_native_crash_breadcrumb,
@@ -82,6 +86,69 @@ class Fig9NativeCrashLoggingTests(unittest.TestCase):
         self.assertIn("numpy", payload["packages"])
         self.assertIn("pandas", payload["packages"])
         self.assertIn("scipy", payload["packages"])
+
+    def test_module_state_integrity_records_expected_types(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            install_native_crash_logging(root, native_runtime_debug=True)
+            config = Fig9StrictConfig()
+            model = build_strict_model(build_fig9_encoder(config), config)
+            before = module_state_integrity_snapshot(model)
+            event = check_module_state_integrity(
+                model=model,
+                phase="run_start",
+                current_index=0,
+                rollout_step=None,
+                stream="original",
+            )
+            after = module_state_integrity_snapshot(model)
+            self.assertEqual(before, after)
+            self.assertIsNotNone(event)
+            self.assertEqual(event["invalid_reasons"], [])
+            log = (root / "native_runtime_debug.jsonl").read_text(
+                encoding="utf-8"
+            )
+            self.assertIn("MODULE_STATE_INTEGRITY_CHECK", log)
+            self.assertIn('"exp_is_expected": true', log)
+            close_native_crash_logging()
+
+    def test_module_state_integrity_detects_exp_rebinding(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            install_native_crash_logging(root, native_runtime_debug=True)
+            config = Fig9StrictConfig()
+            model = build_strict_model(build_fig9_encoder(config), config)
+            check_module_state_integrity(
+                model=model,
+                phase="run_start",
+                current_index=0,
+                rollout_step=None,
+                stream="original",
+            )
+            original_exp = dynamics_module._EXP
+            try:
+                dynamics_module._EXP = DSDynamicsParams()
+                with self.assertRaisesRegex(
+                    RuntimeError, "GLOBAL_STATE_CORRUPTION_DETECTED"
+                ):
+                    check_module_state_integrity(
+                        model=model,
+                        phase="rollout_step_enter",
+                        current_index=210,
+                        rollout_step=2,
+                        stream="original",
+                    )
+            finally:
+                dynamics_module._EXP = original_exp
+            runtime_log = (root / "native_runtime_debug.jsonl").read_text(
+                encoding="utf-8"
+            )
+            crash_log = (root / "native_crash_faulthandler.log").read_text(
+                encoding="utf-8"
+            )
+            self.assertIn("DYNAMICS_EXP_REBOUND", runtime_log)
+            self.assertIn("GLOBAL_STATE_CORRUPTION_DETECTED", crash_log)
+            close_native_crash_logging()
 
 
 if __name__ == "__main__":

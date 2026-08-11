@@ -17,6 +17,7 @@ import hashlib
 import importlib.metadata
 import io
 import json
+import math
 import os
 import platform
 import pickle
@@ -165,6 +166,8 @@ from seqmem.encoding import (  # noqa: E402
     SSTDRealValueEncoder,
     SymbolCode,
 )
+from seqmem import dynamics as dynamics_module  # noqa: E402
+from seqmem.dynamics import DSDynamicsParams  # noqa: E402
 from seqmem.model import (  # noqa: E402
     INTRACOLUMN_SELECTION_POLICIES,
     IntracolumnSelectionTrace,
@@ -192,6 +195,44 @@ _LAST_PROCESS_MEMORY_MB = 0.0
 _NATIVE_RUNTIME_DEBUG_HANDLE: io.TextIOWrapper | None = None
 _NATIVE_RUNTIME_DEBUG_PATH: Path | None = None
 _NATIVE_RUNTIME_DEBUG_ENABLED = False
+_EXPECTED_MATH_EXP = math.exp
+_EXPECTED_DYNAMICS_PARAMS_TYPE = DSDynamicsParams
+_MODULE_STATE_BASELINES: dict[int, dict[str, object]] = {}
+
+_DYNAMICS_SCALAR_FIELDS = (
+    "tau_m",
+    "tau_s",
+    "response_scale",
+    "v_rest",
+    "v_dep",
+    "depolarization_duration",
+    "oscillation_amplitude",
+    "oscillation_frequency",
+    "initial_phase",
+    "dendrite_threshold",
+    "soma_threshold",
+    "refractory_duration",
+)
+_MEMORY_PARAM_INTEGRITY_FIELDS = (
+    "l_match",
+    "dendrite_threshold",
+    "tau_m",
+    "tau_s",
+    "response_scale",
+    "integration_step",
+    "cycle_period",
+    "continuous_prediction_impl",
+)
+_MODULE_STATE_BOUNDARY_PHASES = {
+    "run_start",
+    "checkpoint_restore_complete",
+    "observation_enter",
+    "actual_observation_complete",
+    "rollout_step_enter",
+    "rollout_step_exit",
+    "checkpoint_before_save",
+    "checkpoint_after_save",
+}
 
 
 @dataclass(frozen=True)
@@ -630,10 +671,143 @@ def native_environment() -> dict[str, object]:
     }
 
 
+def _qualified_type_name(value: object) -> str:
+    value_type = type(value)
+    return f"{value_type.__module__}.{value_type.__qualname__}"
+
+
+def _integrity_scalar_hash(value: object, fields: tuple[str, ...]) -> str:
+    payload: dict[str, object] = {}
+    for name in fields:
+        try:
+            field_value = getattr(value, name)
+        except Exception as error:  # pragma: no cover - corruption-only path
+            field_value = f"UNREADABLE:{type(error).__name__}"
+        payload[name] = field_value
+    encoded = json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def module_state_integrity_snapshot(model: SequentialMemory) -> dict[str, object]:
+    """Describe critical runtime objects without touching model calculations."""
+
+    exp_value = getattr(dynamics_module, "_EXP", None)
+    params_type = getattr(dynamics_module, "DSDynamicsParams", None)
+    dynamics = getattr(model, "_dynamics", None)
+    memory_params = getattr(model, "params", None)
+    return {
+        "exp_type": _qualified_type_name(exp_value),
+        "exp_callable": callable(exp_value),
+        "exp_id": id(exp_value),
+        "exp_is_expected": exp_value is _EXPECTED_MATH_EXP,
+        "params_class_type": _qualified_type_name(params_type),
+        "params_class_id": id(params_type),
+        "params_class_is_expected": params_type is _EXPECTED_DYNAMICS_PARAMS_TYPE,
+        "model_dynamics_type": _qualified_type_name(dynamics),
+        "model_dynamics_id": id(dynamics),
+        "model_dynamics_type_is_expected": type(dynamics)
+        is _EXPECTED_DYNAMICS_PARAMS_TYPE,
+        "model_dynamics_scalar_hash": _integrity_scalar_hash(
+            dynamics, _DYNAMICS_SCALAR_FIELDS
+        ),
+        "memory_params_type": _qualified_type_name(memory_params),
+        "memory_params_id": id(memory_params),
+        "memory_params_scalar_hash": _integrity_scalar_hash(
+            memory_params, _MEMORY_PARAM_INTEGRITY_FIELDS
+        ),
+    }
+
+
+def _write_module_state_integrity_event(payload: dict[str, object]) -> None:
+    line = json.dumps(payload, sort_keys=True, default=str) + "\n"
+    with _NATIVE_LOG_LOCK:
+        if _NATIVE_RUNTIME_DEBUG_HANDLE is not None:
+            _NATIVE_RUNTIME_DEBUG_HANDLE.write(line)
+            _NATIVE_RUNTIME_DEBUG_HANDLE.flush()
+        if payload.get("event") == "GLOBAL_STATE_CORRUPTION_DETECTED":
+            if _NATIVE_CRASH_HANDLE is not None:
+                _NATIVE_CRASH_HANDLE.write(
+                    "GLOBAL_STATE_CORRUPTION_DETECTED " + line
+                )
+                _NATIVE_CRASH_HANDLE.flush()
+
+
+def check_module_state_integrity(
+    *,
+    model: SequentialMemory,
+    phase: str,
+    current_index: int,
+    rollout_step: int | None,
+    stream: str,
+) -> dict[str, object] | None:
+    """Validate module and model identities at low-frequency debug boundaries."""
+
+    if not _NATIVE_RUNTIME_DEBUG_ENABLED:
+        return None
+    snapshot = module_state_integrity_snapshot(model)
+    model_key = id(model)
+    baseline = _MODULE_STATE_BASELINES.get(model_key)
+    if baseline is None:
+        baseline = {
+            "exp_id": snapshot["exp_id"],
+            "params_class_id": snapshot["params_class_id"],
+            "model_dynamics_id": snapshot["model_dynamics_id"],
+            "model_dynamics_scalar_hash": snapshot[
+                "model_dynamics_scalar_hash"
+            ],
+            "memory_params_id": snapshot["memory_params_id"],
+            "memory_params_scalar_hash": snapshot["memory_params_scalar_hash"],
+            "last_valid_phase": phase,
+        }
+        _MODULE_STATE_BASELINES[model_key] = baseline
+
+    invalid_reasons: list[str] = []
+    if not snapshot["exp_is_expected"] or not snapshot["exp_callable"]:
+        invalid_reasons.append("DYNAMICS_EXP_REBOUND")
+    if not snapshot["params_class_is_expected"]:
+        invalid_reasons.append("DYNAMICS_PARAMS_CLASS_REBOUND")
+    if not snapshot["model_dynamics_type_is_expected"]:
+        invalid_reasons.append("MODEL_DYNAMICS_TYPE_CHANGED")
+    for name in (
+        "exp_id",
+        "params_class_id",
+        "model_dynamics_id",
+        "model_dynamics_scalar_hash",
+        "memory_params_id",
+        "memory_params_scalar_hash",
+    ):
+        if snapshot[name] != baseline[name]:
+            invalid_reasons.append(name.upper() + "_CHANGED")
+
+    event = {
+        "event": (
+            "GLOBAL_STATE_CORRUPTION_DETECTED"
+            if invalid_reasons
+            else "MODULE_STATE_INTEGRITY_CHECK"
+        ),
+        "timestamp": datetime.now().isoformat(sep=" ", timespec="milliseconds"),
+        "stream": stream,
+        "phase": phase,
+        "current_index": current_index,
+        "rollout_step": rollout_step,
+        "previous_valid_phase": baseline.get("last_valid_phase"),
+        "invalid_reasons": invalid_reasons,
+        "state": snapshot,
+    }
+    _write_module_state_integrity_event(event)
+    if invalid_reasons:
+        raise RuntimeError(
+            "GLOBAL_STATE_CORRUPTION_DETECTED: " + ", ".join(invalid_reasons)
+        )
+    baseline["last_valid_phase"] = phase
+    return event
+
+
 def close_native_crash_logging() -> None:
     global _NATIVE_CRASH_HANDLE, _NATIVE_TRACEBACK_STOP, _NATIVE_TRACEBACK_THREAD
     global _NATIVE_RUNTIME_DEBUG_HANDLE, _NATIVE_RUNTIME_DEBUG_PATH
     global _NATIVE_RUNTIME_DEBUG_ENABLED
+    _MODULE_STATE_BASELINES.clear()
     if _NATIVE_TRACEBACK_STOP is not None:
         _NATIVE_TRACEBACK_STOP.set()
     if _NATIVE_TRACEBACK_THREAD is not None:
@@ -748,6 +922,16 @@ def write_native_crash_breadcrumb(
     model: SequentialMemory,
 ) -> None:
     global _LAST_PROCESS_MEMORY_MB
+    if phase in _MODULE_STATE_BOUNDARY_PHASES:
+        runtime_context = getattr(model, "_runtime_debug_context", {})
+        stream = runtime_context.get("stream", "")
+        check_module_state_integrity(
+            model=model,
+            phase=phase,
+            current_index=current_index,
+            rollout_step=rollout_step,
+            stream=stream if isinstance(stream, str) else "",
+        )
     if _NATIVE_CRASH_HANDLE is None:
         return
     if phase == "observation_enter":
@@ -962,6 +1146,13 @@ def save_strict_checkpoint(
     branch_provenance_payload: dict[str, object] | None = None,
     diagnostic_state: dict[str, object] | None = None,
 ) -> None:
+    check_module_state_integrity(
+        model=model,
+        phase="checkpoint_before_save",
+        current_index=next_index,
+        rollout_step=None,
+        stream=stream_label,
+    )
     payload = {
         "checkpoint_format": "fig9-strict-v1",
         "git_commit_sha": git_commit_sha(),
@@ -1002,6 +1193,13 @@ def save_strict_checkpoint(
         handle.flush()
         os.fsync(handle.fileno())
     os.replace(temporary, path)
+    check_module_state_integrity(
+        model=model,
+        phase="checkpoint_after_save",
+        current_index=next_index,
+        rollout_step=None,
+        stream=stream_label,
+    )
 
 
 def checkpoint_metadata_path(checkpoint_path: Path) -> Path:
@@ -2558,6 +2756,8 @@ def rollout_raw_autonomous(
             if branch_registry is not None:
                 branch_registry.set_autonomous_sources(active)
             prediction = propagated
+            if native_phase_hook is not None:
+                native_phase_hook(_step_index + 1, "rollout_step_exit")
         return RolloutResult(
             prediction,
             tuple(raw_events),
@@ -3131,7 +3331,18 @@ def run_strict_stream(
     model.runtime_debug_callback = (
         runtime_debug_callback if _NATIVE_RUNTIME_DEBUG_ENABLED else None
     )
-    model._runtime_debug_context = {}
+    model._runtime_debug_context = {"stream": stream_label}
+    check_module_state_integrity(
+        model=model,
+        phase=(
+            "checkpoint_restore_complete"
+            if resume_checkpoint is not None
+            else "run_start"
+        ),
+        current_index=start_index,
+        rollout_step=None,
+        stream=stream_label,
+    )
 
     start_time = time.perf_counter()
     progress_started = start_time
