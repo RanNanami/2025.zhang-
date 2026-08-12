@@ -1,0 +1,27 @@
+{
+  "root_cause": "EXTERNAL_NATIVE_PROCESS_MEMORY_OR_CONTROL_FLOW_CORRUPTION",
+  "root_cause_confidence": {
+    "external_runtime_corruption": "high",
+    "exact_hardware_or_os_component": "low"
+  },
+  "fix": "No runtime fix accepted; incremental readout streaming retained as a diagnostic I/O improvement only.",
+  "model_math_changed": false,
+  "rng_changed": false,
+  "strict_default_changed": false,
+  "p2_500_successes": 0,
+  "p2_resume_window_successes": 3,
+  "p2_500_crashes": "multiple_historical_not_exhaustively_counted",
+  "p3_500_successes": 0,
+  "p3_resume_window_successes": 3,
+  "p3_crashes_in_final_isolation": 3,
+  "consecutive_success_requirement_met": false,
+  "prediction_equivalence": true,
+  "test_count": 504,
+  "tests_passed": true,
+  "compileall_passed": true,
+  "diff_check_passed": true,
+  "runtime_fixed": false,
+  "conclusion": "EXTERNAL_BLOCKER",
+  "head_commit_with_retained_change": "a1d8fa15e7434949467d97b2622191d2debe6570"
+}
+
