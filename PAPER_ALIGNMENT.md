@@ -35,16 +35,18 @@ The strict runners are `fig7_sequence_prediction.py`,
 | Fig.8 score | mean Levenshtein distance over all stored sentences | Yes |
 | Fig.9 data | 17,520 half-hour records over one year | Yes |
 | Fig.9 horizon | five steps / 2.5 hours | Yes |
-| Fig.9 evaluation | skip first 5904; rolling mean error over 400 predictions | Yes, normalized by the global target mean as in [58] |
+| Fig.9 evaluation | MAPE on five-step-ahead passenger prediction | Partial; Zhang does not specify warmup, window, or exact formula. The current 5904/400/global-target normalization comes from [58]. |
 | Fig.9 MAPE | `sum(abs(error)) / sum(abs(target))` | Yes, from [58] |
 
 ## Recovered From Reference [58]
 
 The PDF gives only examples, not every sequence or the CSV. The eight
 single-ending sequences, complete two/four-ending sets, full NYC taxi CSV,
-and changed taxi CSV are therefore taken from the original code cited by the
-paper. The taxi range is 2014-07-01 through 2015-06-30. The changed file begins
-at record 13,152, corresponding to 2015-04-01.
+and changed taxi CSV are therefore taken from the [58] reference code. Zhang
+Fig.9 cites TLC [66] as the taxi source but does not identify the processed
+17,520-row asset or its aggregation rule. The local July 2014-June 2015 stream
+is consequently a structurally matching candidate, not proven author data.
+The changed file begins at record 13,152, corresponding to 2015-04-01.
 
 Locally retrained HTM/TDNN/LSTM/ELM models are diagnostics, not reproductions
 of Zhang's reported baseline bars. The processed Fig.7 baseline object

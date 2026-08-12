@@ -1,0 +1,30 @@
+category,item,paper_value,paper_evidence,paper_page,current_value,code_location,status,severity,confidence,likely_mape_impact,action
+NETWORK,neurons per column,32,"Eq. 1-3, Table I, Section III-A","4,8",32,src/seqmem/dynamics.py; src/seqmem/model.py:375,MATCH,CRITICAL,HIGH,CRITICAL,None
+NETWORK,one-layer Fig9 topology,single memory layer implied,"Eq. 1-3, Table I, Section III-A","4,8",one SequentialMemory layer,src/seqmem/dynamics.py; src/seqmem/model.py:375,MATCH,HIGH,HIGH,HIGH,None
+NETWORK,initial weight w0,0.5,"Eq. 1-3, Table I, Section III-A","4,8",0.5,src/seqmem/dynamics.py; src/seqmem/model.py:375,MATCH,HIGH,HIGH,HIGH,None
+NETWORK,correct delta weight,0.1,"Eq. 1-3, Table I, Section III-A","4,8",0.1,src/seqmem/dynamics.py; src/seqmem/model.py:375,MATCH,HIGH,HIGH,HIGH,None
+NETWORK,incorrect delta weight,0.01,"Eq. 1-3, Table I, Section III-A","4,8",0.01,src/seqmem/dynamics.py; src/seqmem/model.py:375,MATCH,HIGH,HIGH,HIGH,None
+NETWORK,dendrite threshold,1.0,"Eq. 1-3, Table I, Section III-A","4,8",1.0,src/seqmem/dynamics.py; src/seqmem/model.py:375,MATCH,HIGH,HIGH,HIGH,None
+NETWORK,soma threshold,1.0,"Eq. 1-3, Table I, Section III-A","4,8",1.0,src/seqmem/dynamics.py; src/seqmem/model.py:375,MATCH,HIGH,HIGH,HIGH,None
+NETWORK,Vdep,0.5,"Eq. 1-3, Table I, Section III-A","4,8",0.5,src/seqmem/dynamics.py; src/seqmem/model.py:375,MATCH,HIGH,HIGH,HIGH,None
+NETWORK,oscillation amplitude,0.5,"Eq. 1-3, Table I, Section III-A","4,8",0.5,src/seqmem/dynamics.py; src/seqmem/model.py:375,MATCH,HIGH,HIGH,HIGH,None
+NETWORK,L_weight,10,"Eq. 1-3, Table I, Section III-A","4,8",10,src/seqmem/dynamics.py; src/seqmem/model.py:375,MATCH,HIGH,HIGH,HIGH,None
+NETWORK,L_age,1,"Eq. 1-3, Table I, Section III-A","4,8",1,src/seqmem/dynamics.py; src/seqmem/model.py:375,MATCH,HIGH,HIGH,HIGH,None
+NETWORK,L_match taxi,4,"Eq. 1-3, Table I, Section III-A","4,8",4,src/seqmem/dynamics.py; src/seqmem/model.py:375,MATCH,CRITICAL,HIGH,CRITICAL,None
+NETWORK,forgetting threshold taxi,65,"Eq. 1-3, Table I, Section III-A","4,8",65,src/seqmem/dynamics.py; src/seqmem/model.py:375,MATCH,CRITICAL,HIGH,CRITICAL,None
+NETWORK,tau_m,,"Eq. 1-3, Table I, Section III-A","4,8",0.1,src/seqmem/dynamics.py; src/seqmem/model.py:375,UNKNOWN,CRITICAL,HIGH,CRITICAL,Mechanism diagnostic only after protocol alignment
+NETWORK,tau_s,,"Eq. 1-3, Table I, Section III-A","4,8",0.02,src/seqmem/dynamics.py; src/seqmem/model.py:375,UNKNOWN,CRITICAL,HIGH,CRITICAL,Mechanism diagnostic only after protocol alignment
+NETWORK,response scale V0,,"Eq. 1-3, Table I, Section III-A","4,8",normalized kernel (None),src/seqmem/dynamics.py; src/seqmem/model.py:375,UNKNOWN,CRITICAL,HIGH,CRITICAL,Mechanism diagnostic only after protocol alignment
+NETWORK,integration step,,"Eq. 1-3, Table I, Section III-A","4,8",0.005,src/seqmem/dynamics.py; src/seqmem/model.py:375,UNKNOWN,HIGH,HIGH,HIGH,Mechanism diagnostic only after protocol alignment
+NETWORK,timing tolerance,,"Eq. 1-3, Table I, Section III-A","4,8",0.03,src/seqmem/dynamics.py; src/seqmem/model.py:375,UNKNOWN,HIGH,HIGH,HIGH,Mechanism diagnostic only after protocol alignment
+NETWORK,cycle duration normalization,,"Eq. 1-3, Table I, Section III-A","4,8",1.0,src/seqmem/dynamics.py; src/seqmem/model.py:375,UNKNOWN,HIGH,HIGH,HIGH,Mechanism diagnostic only after protocol alignment
+NETWORK,depolarization duration,half cycle,"Eq. 1-3, Table I, Section III-A","4,8",0.5,src/seqmem/dynamics.py; src/seqmem/model.py:375,MATCH,HIGH,HIGH,HIGH,None
+NETWORK,refractory duration,rest of current cycle,"Eq. 1-3, Table I, Section III-A","4,8",one normalized cycle,src/seqmem/dynamics.py; src/seqmem/model.py:375,PARTIAL,MEDIUM,HIGH,MEDIUM,Mechanism diagnostic only after protocol alignment
+NETWORK,dendrite reset after spike,True,"Eq. 1-3, Table I, Section III-A","4,8",first crossing modeled per prediction,src/seqmem/dynamics.py; src/seqmem/model.py:375,PARTIAL,HIGH,HIGH,HIGH,Mechanism diagnostic only after protocol alignment
+NETWORK,intracolumn inhibition,winner suppresses same column,"Eq. 1-3, Table I, Section III-A","4,8",first-spike selection,src/seqmem/dynamics.py; src/seqmem/model.py:375,PARTIAL,CRITICAL,HIGH,CRITICAL,Mechanism diagnostic only after protocol alignment
+NETWORK,intercolumn inhibition,selected input columns inhibit others,"Eq. 1-3, Table I, Section III-A","4,8",strict rollout competition off,src/seqmem/dynamics.py; src/seqmem/model.py:375,PARTIAL,CRITICAL,HIGH,CRITICAL,Mechanism diagnostic only after protocol alignment
+NETWORK,proximal membrane integration,Eq. 3 component,"Eq. 1-3, Table I, Section III-A","4,8",external code handled algorithmically,src/seqmem/dynamics.py; src/seqmem/model.py:375,PARTIAL,HIGH,HIGH,HIGH,Mechanism diagnostic only after protocol alignment
+NETWORK,apical input,general model component,"Eq. 1-3, Table I, Section III-A","4,8",not used in one-layer Fig9,src/seqmem/dynamics.py; src/seqmem/model.py:375,PARTIAL,LOW,HIGH,LOW,Mechanism diagnostic only after protocol alignment
+NETWORK,continuous implementation,continuous DS dynamics,"Eq. 1-3, Table I, Section III-A","4,8",reference Python integrator,src/seqmem/dynamics.py; src/seqmem/model.py:375,PARTIAL,HIGH,HIGH,HIGH,Mechanism diagnostic only after protocol alignment
+NETWORK,candidate threshold crossing,Vd >= threshold,"Eq. 1-3, Table I, Section III-A","4,8",grid first crossing,src/seqmem/dynamics.py; src/seqmem/model.py:375,PARTIAL,HIGH,HIGH,HIGH,Mechanism diagnostic only after protocol alignment
+NETWORK,tie-break seed,,"Eq. 1-3, Table I, Section III-A","4,8",0,src/seqmem/dynamics.py; src/seqmem/model.py:375,UNKNOWN,LOW,HIGH,LOW,Mechanism diagnostic only after protocol alignment

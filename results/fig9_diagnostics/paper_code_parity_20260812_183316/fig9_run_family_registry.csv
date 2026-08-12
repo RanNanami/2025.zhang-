@@ -1,0 +1,9 @@
+path,family,description,reported_mape_if_available,directly_comparable_to_paper_fig9
+results/fig9_strict/stage_a_250,PAPER_STRICT_ATTEMPT,"raw L4, 250 records, warmup 200",0.5054500721931258,False
+results/fig9_strict/diagnostic_500_20260727_205411,DIAGNOSTIC_ABLATION,"raw L4, 500 records, warmup 200",0.5392795787736315,False
+results/fig9_diagnostics/lmatch_stack_500_completion_20260810_resume2/500/STRICT_RAW_L4,DIAGNOSTIC_ABLATION,raw L4 confirmation,0.5392795787736315,False
+results/fig9_diagnostics/l2_stack_component_500_20260810/500/P2_COMPETITION_ONLY_L2,DIAGNOSTIC_ABLATION,nonpaper competition and L2,0.48966059282732727,False
+results/fig9_historical_compensated,OLD_PROTOTYPE,winner/eventwise compensated historical implementation,,False
+experiments/diagnostics/fig9_taxi_prediction.py,DIAGNOSTIC_ABLATION,context-table/sparse diagnostic baseline,,False
+experiments/diagnostics/etth1_paper_snn.py,ALTERNATIVE_MODEL,ETTh1 transfer,,False
+experiments/diagnostics/weather_paper_snn.py,ALTERNATIVE_MODEL,Weather transfer,,False

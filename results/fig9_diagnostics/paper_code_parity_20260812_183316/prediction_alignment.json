@@ -1,0 +1,49 @@
+{
+  "anchor_zero_based_index": 200,
+  "causal_step5_expected_timestamp": "2014-07-05 06:00:00",
+  "causal_step5_expected_zero_based_index": 204,
+  "code_evidence": [
+    "experiments/fig9_strict_reproduction.py:3394 loop index",
+    "experiments/fig9_strict_reproduction.py:3410 target index+horizon",
+    "experiments/fig9_strict_reproduction.py:3418 rollout before observe",
+    "experiments/fig9_strict_reproduction.py:3659 observe current record"
+  ],
+  "compared_target_timestamp": "2014-07-05 06:30:00",
+  "compared_target_zero_based_index": 205,
+  "current_record_observed_before_rollout": false,
+  "last_observed_timestamp_before_rollout": "2014-07-05 03:30:00",
+  "last_observed_to_target_hours": 3.0,
+  "last_observed_zero_based_index_before_rollout": 199,
+  "off_by_one_detected": true,
+  "output_input_index_one_based": 201,
+  "reported_anchor_to_target_hours": 2.5,
+  "reported_input_timestamp": "2014-07-05 04:00:00",
+  "rollout_steps": [
+    {
+      "causal_continuation_index": 200,
+      "causal_continuation_timestamp": "2014-07-05 04:00:00",
+      "rollout_step": 1
+    },
+    {
+      "causal_continuation_index": 201,
+      "causal_continuation_timestamp": "2014-07-05 04:30:00",
+      "rollout_step": 2
+    },
+    {
+      "causal_continuation_index": 202,
+      "causal_continuation_timestamp": "2014-07-05 05:00:00",
+      "rollout_step": 3
+    },
+    {
+      "causal_continuation_index": 203,
+      "causal_continuation_timestamp": "2014-07-05 05:30:00",
+      "rollout_step": 4
+    },
+    {
+      "causal_continuation_index": 204,
+      "causal_continuation_timestamp": "2014-07-05 06:00:00",
+      "rollout_step": 5
+    }
+  ],
+  "target_index_offset_from_causal_step5": 1
+}

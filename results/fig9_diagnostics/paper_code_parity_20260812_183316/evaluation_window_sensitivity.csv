@@ -1,0 +1,5 @@
+evaluation_start_input_index,prediction_count,repository_mape,conventional_pointwise_mape,source,diagnostic_only
+200,295,0.5392795787736315,1.0872846746640348,results/fig9_strict/diagnostic_500_20260727_205411/original_predictions.csv,True
+250,246,0.5289494867408594,1.0864362330575836,results/fig9_strict/diagnostic_500_20260727_205411/original_predictions.csv,True
+300,196,0.49907747308940265,0.9803066236413951,results/fig9_strict/diagnostic_500_20260727_205411/original_predictions.csv,True
+400,96,0.5023715748271562,0.9233796397833235,results/fig9_strict/diagnostic_500_20260727_205411/original_predictions.csv,True

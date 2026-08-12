@@ -1,0 +1,40 @@
+{
+  "author_processed_dataset_publicly_identified": false,
+  "comparability_level": "NOT_DIRECTLY_COMPARABLE",
+  "critical_mismatches": [
+    "prediction state anchor",
+    "step1 causal meaning",
+    "step5 causal index",
+    "last observed to target duration",
+    "full-year evaluation completed",
+    "paper original Ours MAPE",
+    "current500 direct comparability"
+  ],
+  "current_250_mape": 0.5054500721931258,
+  "current_500_raw_l4_mape": 0.5392795787736315,
+  "current_dataset_sha256": "092d957f5bb0d2cd62f85098ed2268114a47b4738a5f4b29ea6be4be7349fc4d",
+  "current_records": 17520,
+  "formal_500_or_full_year_run_executed": false,
+  "ideal_roundtrip": {
+    "ideal_roundtrip_mape_repository_formula": 0.0014126706909136887,
+    "ideal_roundtrip_pointwise_mape": 0.0026703617002647026,
+    "mae": 21.296961476756007,
+    "max_absolute_error": 83.04573804573738,
+    "mean_signed_bias": 17.567573263463874,
+    "records": 17520,
+    "unique_ordered_codes": 673,
+    "unique_source_values": 11790
+  },
+  "matrix_items": 157,
+  "new_model_mechanism_added": false,
+  "off_by_one_detected": true,
+  "paper_bar_status": "FIGURE_DIGITIZED_APPROXIMATE",
+  "paper_bar_uncertainty": 0.01,
+  "paper_exact_year_range_known": false,
+  "paper_ours_mape_approx": 0.1,
+  "paper_records": 17520,
+  "primary_conclusion": "MULTIPLE_CRITICAL_PROTOCOL_MISMATCHES_FOUND",
+  "recommended_next_step": "FIX_FIVE_STEP_PREDICTION_PARITY",
+  "runtime_crash_related_to_parity_finding": false,
+  "strict_defaults_changed": false
+}

@@ -1,0 +1,19 @@
+assumption,current_value,provenance,severity,paper_explicit,strict_default_changed_by_audit
+DATA_YEAR_RANGE,2014-07-01 to 2015-06-30,"Numenta asset, not Zhang text",HIGH,False,False
+PASSENGER_AGGREGATION,Finished aggregate accepted as passenger count,No TLC aggregation script,CRITICAL,False,False
+PASSENGER_RANGE,0..40000,Numenta [58] configuration,HIGH,False,False
+GAUSSIAN_SIGMA,one center spacing,local implementation default,HIGH,False,False
+REAL_VALUE_DECODER,timed/column codebook overlap and tie average,local implementation,CRITICAL,False,False
+TIMING_TOLERANCE,0.03 cycle,local implementation,HIGH,False,False
+TAU_M,0.10 cycle,local implementation,HIGH,False,False
+TAU_S,0.02 cycle,local implementation,HIGH,False,False
+RESPONSE_NORMALIZATION,kernel normalized to peak 1,local implementation,CRITICAL,False,False
+INTEGRATION_STEP,0.005 cycle,local implementation,HIGH,False,False
+CYCLE_RECORD_MAPPING,one autonomous call per record continuation,method interpretation,CRITICAL,False,False
+WARMUP_DEFAULT,5904,Numenta [58] plotting utility,HIGH,False,False
+WARMUP_SHORT_RUN,200,local diagnostic design,CRITICAL,False,False
+MAPE_FORMULA,global normalized absolute error,Numenta [58] utility,HIGH,False,False
+ROLLING_WINDOW,400,local/reference interpretation,MEDIUM,False,False
+RNG_SEED,0,reproducibility choice,LOW,False,False
+INTRACOLUMN_SOLVER,first firing candidate retained,local continuous implementation,HIGH,False,False
+INTERCOLUMN_COMPETITION,off in strict default,paper scheduling absent,CRITICAL,False,False

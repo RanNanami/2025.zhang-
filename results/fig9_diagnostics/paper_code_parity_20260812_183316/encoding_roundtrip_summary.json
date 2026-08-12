@@ -1,0 +1,10 @@
+{
+  "ideal_roundtrip_mape_repository_formula": 0.0014126706909136887,
+  "ideal_roundtrip_pointwise_mape": 0.0026703617002647026,
+  "mae": 21.296961476756007,
+  "max_absolute_error": 83.04573804573738,
+  "mean_signed_bias": 17.567573263463874,
+  "records": 17520,
+  "unique_ordered_codes": 673,
+  "unique_source_values": 11790
+}

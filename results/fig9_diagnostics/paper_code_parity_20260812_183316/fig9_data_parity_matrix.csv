@@ -1,0 +1,12 @@
+item,PAPER,CURRENT_STRICT,MATCH_STATUS,EVIDENCE
+source,NYC TLC [66],Bundled Numenta [58] continuous-sequence reference asset; underlying TLC relationship plausible,PARTIAL,Same upstream agency is plausible; author processed asset unverified
+record count,17520,17520,MATCH,Direct file audit
+time span,one year; dates unspecified,2014-07-01 00:00:00 to 2015-06-30 23:30:00,PARTIAL,Duration matches; dates cannot be checked
+sampling frequency,30 minutes,30,MATCH,Direct file audit
+fields,"weekday,time,passenger",timestamp|passenger_count|timeofday|dayofweek,MATCH,Loader derives weekday/time from timestamp
+passenger definition,number of passengers,half-hour passenger_count aggregate,PARTIAL,Raw aggregate formula absent
+aggregation rule,,unknown,UNKNOWN,SUM passenger_count vs trip count unresolved
+missing treatment,,finished file has no gaps,UNKNOWN,Generation code absent
+timezone,,naive timestamps,UNKNOWN,No timezone metadata
+normalization,,none before encoder; 0..40000 clipping,UNKNOWN,Paper does not specify bounds
+modified experiment support,after 2015-04-01,True,MATCH,Current stream includes date and paired perturbation file

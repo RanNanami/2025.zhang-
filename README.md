@@ -95,6 +95,9 @@ those diagnostic modes changes the strict Fig.8 defaults.
 - `data/paper_nyc_taxi.csv`: 17,520 half-hour records from 2014-07-01 through
   2015-06-30, from the reference [58] repository; SHA-256
   `092d957f5bb0d2cd62f85098ed2268114a47b4738a5f4b29ea6be4be7349fc4d`.
+  Zhang cites TLC [66] but does not publish the processed file or aggregation
+  rule, so this is a structurally matching candidate rather than verified
+  author data.
 - `data/paper_nyc_taxi_perturb.csv`: the same series with the published change
   beginning at record 13,152 / 2015-04-01; SHA-256
   `47eb800405d3574c0ba3b820b3c11d8fdd96c4510d5f490932d4748e6d420bd9`.

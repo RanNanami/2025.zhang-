@@ -1,0 +1,16 @@
+{
+  "author_processed_dataset_publicly_identified": false,
+  "byte_identical_reference_copy": true,
+  "first_timestamp": "2014-07-01 00:00:00",
+  "interval_minutes": 30,
+  "last_timestamp": "2015-06-30 23:30:00",
+  "loader_evidence": "experiments/fig9/data.py:19",
+  "passenger_aggregation_rule": null,
+  "path": "data/paper_nyc_taxi.csv",
+  "perturbed_path": "data/paper_nyc_taxi_perturb.csv",
+  "perturbed_sha256": "47eb800405d3574c0ba3b820b3c11d8fdd96c4510d5f490932d4748e6d420bd9",
+  "rows": 17520,
+  "sha256": "092d957f5bb0d2cd62f85098ed2268114a47b4738a5f4b29ea6be4be7349fc4d",
+  "source": "Bundled Numenta [58] continuous-sequence reference asset; underlying TLC relationship plausible",
+  "strict_cli_evidence": "experiments/fig9_strict_reproduction.py:5349"
+}

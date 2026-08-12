@@ -1,0 +1,115 @@
+{
+  "evidence": {
+    "autonomous_retrieval": {
+      "level": "IMPLIED_BY_METHOD",
+      "location": "Section II-E/F and Fig. 5",
+      "page": 7
+    },
+    "data_source": {
+      "level": "EXPLICIT_IN_PAPER",
+      "location": "Section III-D and reference [66] on page 12",
+      "page": 10
+    },
+    "decoder": {
+      "level": "NOT_SPECIFIED_IN_PAPER",
+      "location": "Only 'most likely prediction results' is stated",
+      "page": 10
+    },
+    "encoding_algorithm": {
+      "level": "EXPLICIT_IN_PAPER",
+      "location": "Section II-C and Fig. 3",
+      "page": 5
+    },
+    "encoding_topology": {
+      "level": "EXPLICIT_IN_PAPER",
+      "location": "Section III-D",
+      "page": 10
+    },
+    "evaluation": {
+      "level": "NOT_SPECIFIED_IN_PAPER",
+      "location": "MAPE named; warmup/range/formula omitted",
+      "page": 10
+    },
+    "l_match_and_forgetting": {
+      "level": "EXPLICIT_IN_PAPER",
+      "location": "Section III-A paragraph below Table I",
+      "page": 8
+    },
+    "network_parameters": {
+      "level": "EXPLICIT_IN_PAPER",
+      "location": "Table I and Section III-A",
+      "page": 8
+    },
+    "prediction_horizon": {
+      "level": "EXPLICIT_IN_PAPER",
+      "location": "Section III-D",
+      "page": 10
+    },
+    "records": {
+      "level": "EXPLICIT_IN_PAPER",
+      "location": "Section III-D",
+      "page": 10
+    }
+  },
+  "fingerprint_sha256": "75c7bdd5a96bc3da88eb7029682dcd9c323f43b51d2b7bc5a2068ef4154d9eb6",
+  "label": "paper_explicit_and_method_implied_fig9_protocol",
+  "protocol": {
+    "active_columns_per_field": 10,
+    "author_processed_dataset_publicly_identified": false,
+    "correct_weight_delta": 0.1,
+    "data_source": "NYC Taxi & Limousine Commission trip-record source [66]",
+    "decoder": "most likely prediction; numerical rule not specified",
+    "dendrite_threshold": 1.0,
+    "duration_days": 365,
+    "evaluation_range": null,
+    "exact_end_timestamp": null,
+    "exact_start_timestamp": null,
+    "fields": [
+      "day_of_week",
+      "time_of_day",
+      "number_of_passengers"
+    ],
+    "forgetting_threshold": 65,
+    "gaussian_interval_l": null,
+    "gaussian_sigma": null,
+    "horizon_hours": 2.5,
+    "horizon_records": 5,
+    "incorrect_weight_delta": 0.01,
+    "initial_weight": 0.5,
+    "integration_step": null,
+    "l_age": 1,
+    "l_match": 4,
+    "l_weight": 10,
+    "metric_formula": null,
+    "metric_name": "MAPE",
+    "missing_bin_treatment": null,
+    "modified_after": "2015-04-01",
+    "modified_weekday_evening": "21:00-23:00, +20%",
+    "modified_weekday_morning": "07:00-11:00, -20%",
+    "neurons_per_column": 32,
+    "oscillation_amplitude": 0.5,
+    "passenger_aggregation_rule": null,
+    "passenger_columns": 482,
+    "passenger_encoding": "real-value SSTD Gaussian population code",
+    "passenger_max": null,
+    "passenger_min": null,
+    "random_seed": null,
+    "records": 17520,
+    "rolling_window": null,
+    "rollout_cycles_for_horizon": null,
+    "sampling_interval_minutes": 30,
+    "soma_threshold": 1.0,
+    "spike_times": "evenly distributed in first half oscillation cycle",
+    "tau_m": null,
+    "tau_s": null,
+    "time_columns": 58,
+    "time_encoding": "periodic SSTD Gaussian ring",
+    "timezone": null,
+    "timing_tolerance": null,
+    "total_columns": 570,
+    "v_dep": 0.5,
+    "warmup_records": null,
+    "weekday_columns": 30,
+    "weekday_encoding": "periodic SSTD Gaussian ring"
+  }
+}
