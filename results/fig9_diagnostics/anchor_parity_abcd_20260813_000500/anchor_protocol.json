@@ -1,0 +1,54 @@
+{
+  "K": 10,
+  "L_match": 4,
+  "cells": {
+    "A": {
+      "causal_endpoint_offset": 4,
+      "evaluation_target_offset": 5,
+      "name": "CURRENT_BUGGED",
+      "observe_current": false,
+      "rollout_steps": 5
+    },
+    "B": {
+      "causal_endpoint_offset": 5,
+      "evaluation_target_offset": 5,
+      "name": "OBSERVE_CURRENT_THEN_5",
+      "observe_current": true,
+      "rollout_steps": 5
+    },
+    "C": {
+      "causal_endpoint_offset": 4,
+      "evaluation_target_offset": 4,
+      "name": "REALIGN_TARGET_ONLY",
+      "observe_current": false,
+      "rollout_steps": 5
+    },
+    "D": {
+      "causal_endpoint_offset": 5,
+      "evaluation_target_offset": 5,
+      "name": "SIX_STEP_SAME_TARGET",
+      "observe_current": false,
+      "rollout_steps": 6
+    }
+  },
+  "columns": [
+    30,
+    58,
+    482
+  ],
+  "competition": "off",
+  "continuous_impl": "reference",
+  "data": "data/paper_nyc_taxi.csv",
+  "diagnostic_only": true,
+  "forgetting_threshold": 65.0,
+  "neurons_per_column": 32,
+  "prediction_horizon_baseline": 5,
+  "propagation_mode": "raw",
+  "rollout_learning": false,
+  "selector": "strict/default",
+  "stream": "original",
+  "strict_default_unchanged": true,
+  "tie_break_seed": 0,
+  "uses_future_covariates": false,
+  "warmup": 200
+}
