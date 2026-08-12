@@ -1,0 +1,8 @@
+effect,from,to,delta,status,note
+current_repo_vs_standard,0.5054500721931258,0.6914105389498437,0.18596046675671796,MEASURED,Same 45 valid prediction rows; ratio-of-sums versus pointwise MAPE.
+anchor_protocol_A_to_B_repo_metric,0.5054500721931258,0.480441066299207,-0.025009005893918745,MEASURED,Existing isolated B diagnostic; not strict default.
+anchor_protocol_A_to_B_standard_mape,0.6914105389498437,0.6507804179497031,-0.04063012100014063,MEASURED,Existing isolated B diagnostic; not strict default.
+250_to_500_standard_mape,0.6914105389498437,1.0872846746640348,0.39587413571419106,MEASURED,"Descriptive short-run extension, not convergence evidence."
+250_to_500_repo_metric,0.5054500721931258,0.5392795787736315,0.033829506580505764,MEASURED,"Descriptive short-run extension, not convergence evidence."
+paper_fig9_visual_value_to_current,0.1,0.5054500721931258,,ESTIMATED,Figure-scale estimate only; not a tabulated target.
+unexplained_paper_gap_residual,,,,UNKNOWN,Not filled by residual arithmetic; protocol and model differences remain unresolved.
