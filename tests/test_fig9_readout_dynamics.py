@@ -20,6 +20,10 @@ from experiments.diagnostics.fig9_readout_dynamics import (
     column_event_id,
     write_readout_trace,
 )
+from experiments.fig9_strict_reproduction import (
+    append_diagnostic_csv,
+    close_diagnostic_writers,
+)
 from seqmem.encoding import SpikeEvent, SymbolCode
 from seqmem.model import PredictionCandidate, Segment
 
@@ -73,6 +77,26 @@ class Fig9ReadoutDynamicsTests(unittest.TestCase):
             with gzip.open(path, "rt", newline="") as handle:
                 row = next(csv.DictReader(handle))
             self.assertEqual(row["contributor_count_if_available"], "0")
+
+    def test_incremental_trace_matches_one_shot_rows(self):
+        rows = [
+            {field: f"first-{field}" for field in READOUT_TRACE_FIELDS},
+            {field: f"second-{field}" for field in READOUT_TRACE_FIELDS},
+        ]
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            one_shot = directory / "one_shot.csv.gz"
+            streamed_base = directory / "streamed.csv"
+            streamed = directory / "streamed.csv.gz"
+            write_readout_trace(one_shot, rows)
+            append_diagnostic_csv(streamed_base, rows[:1], compress=True)
+            append_diagnostic_csv(streamed_base, rows[1:], compress=True)
+            close_diagnostic_writers()
+            with gzip.open(one_shot, "rt", encoding="utf-8", newline="") as handle:
+                expected = list(csv.DictReader(handle))
+            with gzip.open(streamed, "rt", encoding="utf-8", newline="") as handle:
+                actual = list(csv.DictReader(handle))
+        self.assertEqual(actual, expected)
 
     def test_posthoc_target_is_field_aware(self):
         rows = build_readout_column_rows(

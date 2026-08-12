@@ -3212,6 +3212,7 @@ def run_strict_stream(
         "preselection_group": 0,
         "preselection_replacement": 0,
         "match_overlap_segment": 0,
+        "readout_dynamics": 0,
     }
 
     def flush_large_diagnostic_batches() -> None:
@@ -3242,6 +3243,11 @@ def run_strict_stream(
                 output_dir / "match_overlap_segment_trace.csv",
                 match_overlap_segment_rows,
                 match_overlap_compress,
+            ),
+            (
+                output_dir / "readout_dynamics_column_trace.csv",
+                readout_dynamics_rows,
+                True,
             ),
         )
         for path, batch, compress in batches:
@@ -3560,6 +3566,9 @@ def run_strict_stream(
                 )
             if readout_dynamics_trace:
                 readout_dynamics_rows.extend(
+                    rollout.readout_dynamics_diagnostics
+                )
+                streamed_trace_counts["readout_dynamics"] += len(
                     rollout.readout_dynamics_diagnostics
                 )
             if ambiguity_diagnostic:
@@ -4668,14 +4677,20 @@ def run_strict_stream(
         )
     if readout_dynamics_trace:
         readout_path = output_dir / "readout_dynamics_column_trace.csv.gz"
-        write_readout_trace(readout_path, readout_dynamics_rows)
+        if not stream_diagnostic_traces:
+            write_readout_trace(readout_path, readout_dynamics_rows)
         summary["readout_dynamics_trace"] = {
             "enabled": True,
             "path": str(readout_path),
-            "rows": len(readout_dynamics_rows),
+            "rows": (
+                streamed_trace_counts["readout_dynamics"]
+                if stream_diagnostic_traces
+                else len(readout_dynamics_rows)
+            ),
             "row_unit": "candidate_column_per_rollout_step",
             "read_only": True,
             "model_protocol_unchanged": True,
+            "streamed_incrementally": stream_diagnostic_traces,
         }
         write_json(
             output_dir / "readout_dynamics_protocol.json",
@@ -5277,6 +5292,10 @@ def run_strict_stream(
             debug_output_json or output_dir / f"{stream_label}_debug_record.json",
             debug_payload,
         )
+    # Several diagnostic sections enrich ``summary`` after the core outputs
+    # are written.  Publish it again only after those read-only sections have
+    # recorded their final row counts and output paths.
+    write_json(output_dir / f"{stream_label}_summary.json", summary)
     plot_name = (
         "fig9_b_original_mape.png"
         if stream_label == "original"
