@@ -3804,8 +3804,11 @@ class SequentialMemory:
                     {
                         "target_column": column_id,
                         "predicted_neuron": neuron_index,
+                        "predicted_candidate_identity": id(candidate),
+                        "predicted_candidate_score": candidate.score,
                         "predicted_segment_identity": id(segment),
                         "predicted_time": predicted_time,
+                        "predicted_crossing_time": candidate.dendritic_crossing_time,
                         "actual_time": actual_time,
                         "actual_column_event_present": actual_time is not None,
                         "contributed_source_ids": tuple(sorted(contributed)),
