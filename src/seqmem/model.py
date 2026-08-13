@@ -408,6 +408,10 @@ class MemoryParams:
     capture_branch_diagnostics: bool = False
     # Opt-in identity/scope audit.  It records existing decisions only.
     capture_intralayer_parity_diagnostics: bool = False
+    # Separate opt-in snapshot of prediction candidates before the temporal
+    # confirmation gate.  This is audit metadata only and never selects a
+    # candidate or changes the learning path.
+    capture_temporal_confirmation_diagnostics: bool = False
     continuous_prediction_impl: str = "reference"
 
     def dynamics(self) -> DSDynamicsParams:
@@ -466,6 +470,17 @@ class ObservationEventTrace:
     predicted_candidate_identity: int | None = None
     predicted_candidate_time: float | None = None
     predicted_crossing_time: float | None = None
+    pre_gate_candidate_count: int = 0
+    pre_gate_candidate_identity_ids: tuple[int, ...] = ()
+    pre_gate_candidate_neuron_ids: tuple[int, ...] = ()
+    pre_gate_candidate_segment_identities: tuple[int, ...] = ()
+    pre_gate_candidate_times: tuple[float, ...] = ()
+    pre_gate_candidate_scores: tuple[float, ...] = ()
+    pre_gate_candidate_crossing_times: tuple[float | None, ...] = ()
+    pre_gate_candidate_depolarization_states: tuple[str, ...] = ()
+    pre_gate_candidate_time_gate_passed: tuple[bool, ...] = ()
+    pre_gate_candidate_class: str = "NO_PREDICTIVE_CANDIDATE"
+    pre_gate_timing_tolerance: float = 0.0
 
 
 @dataclass
@@ -2143,10 +2158,70 @@ class SequentialMemory:
                 column_id,
                 [],
             )
+            pre_gate_candidates = tuple(predicted_candidates_in_column)
+            if not pre_gate_candidates:
+                pre_gate_candidate_class = "NO_PREDICTIVE_CANDIDATE"
+            elif len(pre_gate_candidates) == 1:
+                pre_gate_candidate_class = "UNIQUE_PREDICTIVE_CANDIDATE"
+            else:
+                pre_gate_candidate_class = "MULTIPLE_PREDICTIVE_CANDIDATES"
+            pre_gate_candidate_passes = tuple(
+                abs(candidate.time - event.time)
+                <= self.params.timing_tolerance
+                for candidate in pre_gate_candidates
+            )
+            temporal_diagnostics_enabled = bool(
+                getattr(
+                    self.params,
+                    "capture_temporal_confirmation_diagnostics",
+                    False,
+                )
+            )
+            pre_gate_metadata: dict[str, object] = {}
+            if temporal_diagnostics_enabled:
+                pre_gate_metadata = {
+                    "pre_gate_candidate_count": len(pre_gate_candidates),
+                    "pre_gate_candidate_identity_ids": tuple(
+                        id(candidate) for candidate in pre_gate_candidates
+                    ),
+                    "pre_gate_candidate_neuron_ids": tuple(
+                        candidate.neuron_index for candidate in pre_gate_candidates
+                    ),
+                    "pre_gate_candidate_segment_identities": tuple(
+                        id(candidate.segment) for candidate in pre_gate_candidates
+                    ),
+                    "pre_gate_candidate_times": tuple(
+                        candidate.time for candidate in pre_gate_candidates
+                    ),
+                    "pre_gate_candidate_scores": tuple(
+                        candidate.score for candidate in pre_gate_candidates
+                    ),
+                    "pre_gate_candidate_crossing_times": tuple(
+                        candidate.dendritic_crossing_time
+                        for candidate in pre_gate_candidates
+                    ),
+                    "pre_gate_candidate_depolarization_states": tuple(
+                        (
+                            "PREDICTIVE_CANDIDATE_WITH_SOMA_TIME"
+                            if candidate.predicted_soma_firing_time is not None
+                            else (
+                                "PREDICTIVE_CANDIDATE_WITH_CROSSING"
+                                if candidate.dendritic_crossing_time is not None
+                                else "PREDICTIVE_CANDIDATE_METADATA_UNRESOLVED"
+                            )
+                        )
+                        for candidate in pre_gate_candidates
+                    ),
+                    "pre_gate_candidate_time_gate_passed": pre_gate_candidate_passes,
+                    "pre_gate_candidate_class": pre_gate_candidate_class,
+                    "pre_gate_timing_tolerance": self.params.timing_tolerance,
+                }
             matching_predictions = [
                 candidate
-                for candidate in predicted_candidates_in_column
-                if abs(candidate.time - event.time) <= self.params.timing_tolerance
+                for candidate, passes_gate in zip(
+                    pre_gate_candidates, pre_gate_candidate_passes
+                )
+                if passes_gate
             ]
             predicted = (
                 max(matching_predictions, key=lambda candidate: candidate.score)
@@ -2336,6 +2411,7 @@ class SequentialMemory:
                         "timing_matched_prediction_count": len(
                             matching_predictions
                         ),
+                        **pre_gate_metadata,
                     },
                 )
             if observation_trace is not None:
@@ -2491,6 +2567,85 @@ class SequentialMemory:
                             predicted.dendritic_crossing_time
                             if predicted is not None
                             else None
+                        ),
+                        pre_gate_candidate_count=(
+                            len(pre_gate_candidates)
+                            if temporal_diagnostics_enabled
+                            else 0
+                        ),
+                        pre_gate_candidate_identity_ids=(
+                            tuple(id(candidate) for candidate in pre_gate_candidates)
+                            if temporal_diagnostics_enabled
+                            else ()
+                        ),
+                        pre_gate_candidate_neuron_ids=(
+                            tuple(
+                                candidate.neuron_index
+                                for candidate in pre_gate_candidates
+                            )
+                            if temporal_diagnostics_enabled
+                            else ()
+                        ),
+                        pre_gate_candidate_segment_identities=(
+                            tuple(
+                                id(candidate.segment)
+                                for candidate in pre_gate_candidates
+                            )
+                            if temporal_diagnostics_enabled
+                            else ()
+                        ),
+                        pre_gate_candidate_times=(
+                            tuple(
+                                candidate.time for candidate in pre_gate_candidates
+                            )
+                            if temporal_diagnostics_enabled
+                            else ()
+                        ),
+                        pre_gate_candidate_scores=(
+                            tuple(
+                                candidate.score for candidate in pre_gate_candidates
+                            )
+                            if temporal_diagnostics_enabled
+                            else ()
+                        ),
+                        pre_gate_candidate_crossing_times=(
+                            tuple(
+                                candidate.dendritic_crossing_time
+                                for candidate in pre_gate_candidates
+                            )
+                            if temporal_diagnostics_enabled
+                            else ()
+                        ),
+                        pre_gate_candidate_depolarization_states=(
+                            tuple(
+                                (
+                                    "PREDICTIVE_CANDIDATE_WITH_SOMA_TIME"
+                                    if candidate.predicted_soma_firing_time is not None
+                                    else (
+                                        "PREDICTIVE_CANDIDATE_WITH_CROSSING"
+                                        if candidate.dendritic_crossing_time is not None
+                                        else "PREDICTIVE_CANDIDATE_METADATA_UNRESOLVED"
+                                    )
+                                )
+                                for candidate in pre_gate_candidates
+                            )
+                            if temporal_diagnostics_enabled
+                            else ()
+                        ),
+                        pre_gate_candidate_time_gate_passed=(
+                            pre_gate_candidate_passes
+                            if temporal_diagnostics_enabled
+                            else ()
+                        ),
+                        pre_gate_candidate_class=(
+                            pre_gate_candidate_class
+                            if temporal_diagnostics_enabled
+                            else "NO_PREDICTIVE_CANDIDATE"
+                        ),
+                        pre_gate_timing_tolerance=(
+                            self.params.timing_tolerance
+                            if temporal_diagnostics_enabled
+                            else 0.0
                         ),
                     )
                 )

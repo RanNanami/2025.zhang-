@@ -1,0 +1,29 @@
+{
+  "audit_type": "fig8_temporal_confirmation_semantics",
+  "sentences": 20,
+  "seed": 11,
+  "response_scale": 1.0,
+  "timing_tolerance": 0.03,
+  "strict_defaults_changed": false,
+  "formal_100_200_500_runs": false,
+  "timing_mismatch_count": 123,
+  "any_prediction_count": 172,
+  "unique_count": 172,
+  "multiple_count": 0,
+  "unique_rejected_count": 123,
+  "unique_punished_count": 123,
+  "unique_s2a_count": 13,
+  "unique_s2b_count": 110,
+  "branch_replacement_count": 123,
+  "double_credit_count": 123,
+  "primary_conclusion": "LOCAL_ABSOLUTE_TIMING_GATE_CAUSES_DOUBLE_NEGATIVE_CREDIT",
+  "phase_c_gate_pass": true,
+  "trace_on_off": {
+    "predictions_equal": true,
+    "model_fingerprint_equal": true,
+    "learning_rng_equal": true,
+    "decode_rng_equal": true
+  },
+  "generated_at": "2026-08-13T20:21:51",
+  "runtime_seconds": 19.92442679999658
+}

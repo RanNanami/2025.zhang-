@@ -1,0 +1,2 @@
+sentence_count,mode,tokens_seen,S1,S2A,S2B,S3,segments_created,segments_total,synapses_total,mean_segment_size,new_segments_per_token,timing_rejected_unique,confirmed_unique,ambiguous_multiple,double_credit_failures,mean_levenshtein,expected_presence,raw_columns
+,audit_only_no_candidate_run,,49,14,1937,1249,,,,,,123,49,0,123,,,
