@@ -236,6 +236,15 @@ def _punishment_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [row for row in rows if row.get("phase") == "wrong_prediction_punishment"]
 
 
+def _is_unique_candidate(row: dict[str, Any]) -> bool:
+    return int(row.get("pre_gate_candidate_count") or 0) == 1
+
+
+def _unique_timing_rejected(row: dict[str, Any]) -> bool:
+    passes = row.get("pre_gate_candidate_time_gate_passed") or ()
+    return _is_unique_candidate(row) and bool(passes) and not bool(passes[0])
+
+
 def enrich_pre_gate_rows(
     rows: list[dict[str, Any]],
     predictions: dict[tuple[int, int], tuple[tuple[int, float], ...]],
@@ -676,6 +685,11 @@ def _capacity_row(
     observations = _observation_rows(rows)
     segments = _count_segments(model)
     synapses = _count_synapses(model)
+    punished_candidate_ids = {
+        row.get("predicted_candidate_identity")
+        for row in _punishment_rows(rows)
+        if row.get("predicted_candidate_identity") is not None
+    }
     return {
         "sentence_count": sentence_count,
         "mode": mode,
@@ -690,22 +704,24 @@ def _capacity_row(
         "mean_segment_size": synapses / segments if segments else 0.0,
         "new_segments_per_token": segments / max(1, sentence_count * 10),
         "timing_rejected_unique": sum(
-            row.get("candidate_class") == "UNIQUE_PREDICTIVE_CANDIDATE"
-            and row.get("timing_rejected")
+            _unique_timing_rejected(row)
             for row in observations
         ),
         "confirmed_unique": sum(
-            row.get("candidate_class") == "UNIQUE_PREDICTIVE_CANDIDATE"
+            _is_unique_candidate(row)
             and row.get("scenario") == "scenario1"
             for row in observations
         ),
         "ambiguous_multiple": sum(
-            row.get("candidate_class") == "MULTIPLE_PREDICTIVE_CANDIDATES"
+            int(row.get("pre_gate_candidate_count") or 0) > 1
             for row in observations
         ),
         "double_credit_failures": sum(
-            bool(row.get("candidate_punished"))
-            and row.get("candidate_class") == "UNIQUE_PREDICTIVE_CANDIDATE"
+            _is_unique_candidate(row)
+            and any(
+                candidate_id in punished_candidate_ids
+                for candidate_id in (row.get("pre_gate_candidate_identity_ids") or ())
+            )
             for row in observations
         ),
         "mean_levenshtein": metrics.get("mean_levenshtein", ""),
@@ -761,8 +777,7 @@ def run_candidate_ab(
                     for row in observation_rows
                 ),
                 "unique_rejected_current": sum(
-                    row.get("candidate_class") == "UNIQUE_PREDICTIVE_CANDIDATE"
-                    and row.get("timing_rejected")
+                    _unique_timing_rejected(row)
                     for row in observation_rows
                 ),
                 "candidate_punishment_rows": len(

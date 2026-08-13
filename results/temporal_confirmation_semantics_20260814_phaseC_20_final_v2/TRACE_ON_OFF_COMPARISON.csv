@@ -1,0 +1,2 @@
+predictions_equal,model_fingerprint_equal,learning_rng_equal,decode_rng_equal,plain_segments,traced_segments,plain_synapses,traced_synapses
+True,True,True,True,1737,1737,17493,17493
