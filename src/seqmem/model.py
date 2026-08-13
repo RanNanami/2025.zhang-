@@ -327,6 +327,17 @@ class ReinforcementTrace:
     scenario1_count_after: int = 0
     scenario2_count_before: int = 0
     scenario2_count_after: int = 0
+    contributed_source_ids: tuple[int, ...] = ()
+    strengthened_source_ids: tuple[int, ...] = ()
+    weakened_source_ids: tuple[int, ...] = ()
+    same_segment_noncontributor_ids: tuple[int, ...] = ()
+    same_segment_noncontributor_aged_count: int = 0
+    other_segment_synapse_count: int = 0
+    other_segment_weakened_count: int = 0
+    other_segment_aged_count: int = 0
+    previous_winner_source_ids: tuple[int, ...] = ()
+    growth_source_ids: tuple[int, ...] = ()
+    added_source_ids: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -395,6 +406,8 @@ class MemoryParams:
     capture_prediction_contributions: bool = False
     synapse_delay_mode: str = "current-delay"
     capture_branch_diagnostics: bool = False
+    # Opt-in identity/scope audit.  It records existing decisions only.
+    capture_intralayer_parity_diagnostics: bool = False
     continuous_prediction_impl: str = "reference"
 
     def dynamics(self) -> DSDynamicsParams:
@@ -444,6 +457,15 @@ class ObservationEventTrace:
     matching_response_available: bool = False
     selected_candidate_score: float = 0.0
     matching_candidates: tuple[MatchingCandidateTrace, ...] = ()
+    # Identity fields are populated from the already-selected candidate.
+    # They are audit metadata, not additional selection logic.
+    predicted_neuron_index: int | None = None
+    predicted_cell_id: int | None = None
+    predicted_segment: Segment | None = None
+    predicted_segment_identity: int | None = None
+    predicted_candidate_identity: int | None = None
+    predicted_candidate_time: float | None = None
+    predicted_crossing_time: float | None = None
 
 
 @dataclass
@@ -559,6 +581,12 @@ class SequentialMemory:
         self.prune_diagnostic_callback: (
             Callable[[dict[str, object]], None] | None
         ) = None
+        # Runtime-only callback for the Fig.8 intralayer parity audit.  It is
+        # deliberately excluded from checkpoints and never participates in
+        # prediction, learning, or RNG decisions.
+        self.intralayer_parity_callback: (
+            Callable[[dict[str, object]], None] | None
+        ) = None
         # Runtime-only breadcrumb hook.  It is intentionally excluded from
         # checkpoints so enabling diagnostics cannot change model state.
         self.runtime_debug_callback: (
@@ -572,6 +600,7 @@ class SequentialMemory:
         state = self.__dict__.copy()
         state["_spike_response_cache"] = {}
         state["prune_diagnostic_callback"] = None
+        state["intralayer_parity_callback"] = None
         state["runtime_debug_callback"] = None
         state["_runtime_debug_context"] = {}
         return state
@@ -595,6 +624,32 @@ class SequentialMemory:
             callback(phase, dict(details or {}))
         except Exception:
             return
+
+    def _emit_intralayer_parity(
+        self,
+        phase: str,
+        details: dict[str, object],
+    ) -> None:
+        """Send an existing learning decision to an opt-in read-only audit."""
+
+        callback = getattr(self, "intralayer_parity_callback", None)
+        if not getattr(
+            self.params, "capture_intralayer_parity_diagnostics", False
+        ):
+            return
+        if callback is None:
+            return
+        try:
+            callback({"phase": phase, **details})
+        except Exception:
+            # Diagnostics must never change the numerical or RNG path.
+            return
+
+    def _intralayer_parity_enabled(self) -> bool:
+        return bool(
+            getattr(self.params, "capture_intralayer_parity_diagnostics", False)
+            and getattr(self, "intralayer_parity_callback", None) is not None
+        )
 
     def reset_state(self) -> None:
         # STATE MUTATION: 只清空当前序列上下文，不删除任何已学 segment/synapse。
@@ -2152,7 +2207,11 @@ class SequentialMemory:
                 neuron_index = self._least_used_neuron_index(column)
                 if learn:
                     created_segment = self._grow_segment(
-                        column_id, neuron_index, self.previous_winners, event.time
+                        column_id,
+                        neuron_index,
+                        self.previous_winners,
+                        event.time,
+                        creation_scenario="scenario3",
                     )
                     selected_segment = created_segment
             else:
@@ -2215,12 +2274,70 @@ class SequentialMemory:
                     )
                     neuron_index = self._least_used_neuron_index(column)
                     created_segment = self._grow_segment(
-                        column_id, neuron_index, self.previous_winners, event.time
+                        column_id,
+                        neuron_index,
+                        self.previous_winners,
+                        event.time,
+                        creation_scenario="scenario3",
                     )
                     selected_segment = created_segment
 
             winner_id = self._cell_id(column_id, neuron_index)
             learning_winners[winner_id] = event.time
+            if self._intralayer_parity_enabled():
+                self._emit_intralayer_parity(
+                    "observation_event",
+                    {
+                        "target_column": column_id,
+                        "target_time": event.time,
+                        "scenario": observe_scenario,
+                        "was_predicted": was_predicted,
+                        "actual_winner_neuron": neuron_index,
+                        "actual_winner_cell_id": winner_id,
+                        "predicted_neuron_index": (
+                            predicted.neuron_index if predicted is not None else None
+                        ),
+                        "predicted_cell_id": (
+                            self._cell_id(column_id, predicted.neuron_index)
+                            if predicted is not None
+                            else None
+                        ),
+                        "predicted_candidate_identity": (
+                            id(predicted) if predicted is not None else None
+                        ),
+                        "predicted_candidate_time": (
+                            predicted.time if predicted is not None else None
+                        ),
+                        "predicted_crossing_time": (
+                            predicted.dendritic_crossing_time
+                            if predicted is not None
+                            else None
+                        ),
+                        "predicted_segment_identity": (
+                            id(predicted.segment) if predicted is not None else None
+                        ),
+                        "selected_segment_identity": (
+                            id(selected_segment) if selected_segment is not None else None
+                        ),
+                        "reinforced_segment_identity": (
+                            id(reinforced_segment)
+                            if reinforced_segment is not None
+                            else None
+                        ),
+                        "created_segment_identity": (
+                            id(created_segment) if created_segment is not None else None
+                        ),
+                        "previous_winner_ids": tuple(sorted(self.previous_winners)),
+                        "previous_active_ids": tuple(sorted(previous_active)),
+                        "scenario_assignment_reason": scenario_assignment_reason,
+                        "predicted_candidate_count": len(
+                            predicted_candidates_in_column
+                        ),
+                        "timing_matched_prediction_count": len(
+                            matching_predictions
+                        ),
+                    },
+                )
             if observation_trace is not None:
                 observation_trace.events.append(
                     ObservationEventTrace(
@@ -2349,6 +2466,31 @@ class SequentialMemory:
                                 and capture_scenario_details
                             )
                             else ()
+                        ),
+                        predicted_neuron_index=(
+                            predicted.neuron_index if predicted is not None else None
+                        ),
+                        predicted_cell_id=(
+                            self._cell_id(column_id, predicted.neuron_index)
+                            if predicted is not None
+                            else None
+                        ),
+                        predicted_segment=(
+                            predicted.segment if predicted is not None else None
+                        ),
+                        predicted_segment_identity=(
+                            id(predicted.segment) if predicted is not None else None
+                        ),
+                        predicted_candidate_identity=(
+                            id(predicted) if predicted is not None else None
+                        ),
+                        predicted_candidate_time=(
+                            predicted.time if predicted is not None else None
+                        ),
+                        predicted_crossing_time=(
+                            predicted.dendritic_crossing_time
+                            if predicted is not None
+                            else None
                         ),
                     )
                 )
@@ -2543,6 +2685,8 @@ class SequentialMemory:
         neuron_index: int,
         active_sources: dict[int, float],
         target_time: float,
+        *,
+        creation_scenario: str = "unknown",
     ) -> Segment | None:
         """Create a new distal segment from current winners to a target event.
 
@@ -2597,6 +2741,28 @@ class SequentialMemory:
             self._incoming_index.setdefault(source, []).append(
                 (column_id, neuron_index, segment)
             )
+        self._emit_intralayer_parity(
+            "segment_created",
+            {
+                "creation_scenario": creation_scenario,
+                "target_column": column_id,
+                "target_neuron": neuron_index,
+                "segment_identity": id(segment),
+                "segment_diagnostic_id": diagnostic_id,
+                "source_ids": tuple(sorted(active_sources)),
+                "previous_winner_ids": tuple(sorted(self.previous_winners)),
+                "previous_active_ids": tuple(sorted(self.previous_active_cells)),
+                "previous_predicted_ids": tuple(
+                    sorted(self.previous_predicted_sources)
+                ),
+                "previous_burst_only_ids": tuple(
+                    sorted(self.previous_burst_only_sources)
+                ),
+                "source_ids_equal_previous_winners": (
+                    set(active_sources) == set(self.previous_winners)
+                ),
+            },
+        )
         return segment
 
     def _new_synapse_delay(
@@ -3311,6 +3477,32 @@ class SequentialMemory:
         weights_before = tuple(
             weight for _source, weight in sorted(weights_before_by_source.items())
         )
+        neuron = self.columns[column_id].neurons[neuron_index]
+        capture_scope = bool(
+            self._intralayer_parity_enabled()
+            or self.reinforcement_trace_callback is not None
+        )
+        if capture_scope:
+            ages_before_by_source = {
+                source: synapse.age
+                for source, synapse in segment.synapses.items()
+            }
+            other_segment_weights_before = {
+                (id(other_segment), source): synapse.weight
+                for other_segment in neuron.segments
+                if other_segment is not segment
+                for source, synapse in other_segment.synapses.items()
+            }
+            other_segment_ages_before = {
+                (id(other_segment), source): synapse.age
+                for other_segment in neuron.segments
+                if other_segment is not segment
+                for source, synapse in other_segment.synapses.items()
+            }
+        else:
+            ages_before_by_source = {}
+            other_segment_weights_before = {}
+            other_segment_ages_before = {}
         dendritic_time = self._dendritic_time(
             self.params.cycle_period + target_time
         )
@@ -3367,7 +3559,6 @@ class SequentialMemory:
                     synapse.weight = max(0.0, synapse.weight - self.params.delta_w)
                     synapse.age += 1
 
-        neuron = self.columns[column_id].neurons[neuron_index]
         for other_segment in neuron.segments:
             if other_segment is segment:
                 continue
@@ -3378,7 +3569,7 @@ class SequentialMemory:
                     )
                     synapse.age += 1
 
-        if self.reinforcement_trace_callback is not None:
+        if capture_scope:
             weights_after_by_source = {
                 source: synapse.weight
                 for source, synapse in segment.synapses.items()
@@ -3393,6 +3584,37 @@ class SequentialMemory:
                 for source, before in weights_before_by_source.items()
                 if weights_after_by_source.get(source, before) < before
             }
+            other_segment_weights_after = {
+                (id(other_segment), source): synapse.weight
+                for other_segment in neuron.segments
+                if other_segment is not segment
+                for source, synapse in other_segment.synapses.items()
+            }
+            other_segment_weakened_count = sum(
+                other_segment_weights_after.get(key, before) < before
+                for key, before in other_segment_weights_before.items()
+            )
+            same_segment_noncontributor_aged_count = sum(
+                segment.synapses[source].age > ages_before_by_source[source]
+                for source in set(weights_before_by_source) - contributed
+            )
+            other_segment_ages_after = {
+                (id(other_segment), source): synapse.age
+                for other_segment in neuron.segments
+                if other_segment is not segment
+                for source, synapse in other_segment.synapses.items()
+            }
+            other_segment_aged_count = sum(
+                other_segment_ages_after.get(key, before) > before
+                for key, before in other_segment_ages_before.items()
+            )
+        else:
+            strengthened = set()
+            weakened = set()
+            other_segment_weakened_count = 0
+            same_segment_noncontributor_aged_count = 0
+            other_segment_aged_count = 0
+        if self.reinforcement_trace_callback is not None:
             actual_positive = (
                 {
                     item.source_cell_id
@@ -3442,8 +3664,94 @@ class SequentialMemory:
                     scenario1_count_after=segment.scenario1_reinforcements,
                     scenario2_count_before=scenario2_count_before,
                     scenario2_count_after=segment.scenario2_reinforcements,
+                    contributed_source_ids=tuple(sorted(contributed)),
+                    strengthened_source_ids=tuple(sorted(strengthened)),
+                    weakened_source_ids=tuple(sorted(weakened)),
+                    same_segment_noncontributor_ids=tuple(
+                        sorted(set(weights_before_by_source) - contributed)
+                    ),
+                    same_segment_noncontributor_aged_count=(
+                        same_segment_noncontributor_aged_count
+                    ),
+                    other_segment_synapse_count=len(
+                        other_segment_weights_before
+                    ),
+                    other_segment_weakened_count=other_segment_weakened_count,
+                    other_segment_aged_count=other_segment_aged_count,
+                    previous_winner_source_ids=tuple(
+                        sorted(self.previous_winners)
+                    ),
+                    growth_source_ids=tuple(sorted(growth_sources or {})),
+                    added_source_ids=tuple(
+                        sorted(set(segment.synapses) - set(weights_before_by_source))
+                    ),
                 )
             )
+
+        self._emit_intralayer_parity(
+            "reinforcement_event",
+            {
+                "scenario": scenario,
+                "target_column": column_id,
+                "target_time": target_time,
+                "target_neuron": neuron_index,
+                "segment_identity": id(segment),
+                "prediction_candidate_identity": (
+                    id(prediction_candidate)
+                    if prediction_candidate is not None
+                    else None
+                ),
+                "prediction_neuron": (
+                    prediction_candidate.neuron_index
+                    if prediction_candidate is not None
+                    else None
+                ),
+                "prediction_segment_identity": (
+                    id(prediction_candidate.segment)
+                    if prediction_candidate is not None
+                    else None
+                ),
+                "causal_segment_identity_matches": (
+                    prediction_candidate is not None
+                    and prediction_candidate.segment is segment
+                ),
+                "actual_winner_neuron": neuron_index,
+                "causal_neuron_identity_matches": (
+                    prediction_candidate is not None
+                    and prediction_candidate.neuron_index == neuron_index
+                ),
+                "contributed_source_ids": tuple(sorted(contributed)),
+                "strengthened_source_ids": tuple(sorted(strengthened)),
+                "weakened_source_ids": tuple(sorted(weakened)),
+                "same_segment_noncontributor_ids": tuple(
+                    sorted(set(weights_before_by_source) - contributed)
+                ),
+                "same_segment_noncontributor_aged_count": (
+                    same_segment_noncontributor_aged_count
+                ),
+                "other_segment_synapse_count": len(other_segment_weights_before),
+                "other_segment_weakened_count": other_segment_weakened_count,
+                "other_segment_aged_count": other_segment_aged_count,
+                "previous_winner_source_ids": tuple(
+                    sorted(self.previous_winners)
+                ),
+                "growth_source_ids": tuple(sorted(growth_sources or {})),
+                "added_source_ids": tuple(
+                    sorted(set(segment.synapses) - set(weights_before_by_source))
+                ),
+                "depression_requested": depress_noncontributing,
+                "same_segment_noncontributors_expected": (
+                    tuple(sorted(set(weights_before_by_source) - contributed))
+                    if depress_noncontributing
+                    else ()
+                ),
+                "other_segment_synapses_expected": (
+                    len(other_segment_weights_before)
+                    if depress_noncontributing
+                    else 0
+                ),
+            },
+        )
 
         self._prune_neuron(neuron)
 
@@ -3491,6 +3799,23 @@ class SequentialMemory:
                     and abs(source_time + synapse.delay - dendritic_time)
                     <= self.params.timing_tolerance
                 }
+                self._emit_intralayer_parity(
+                    "wrong_prediction_punishment",
+                    {
+                        "target_column": column_id,
+                        "predicted_neuron": neuron_index,
+                        "predicted_segment_identity": id(segment),
+                        "predicted_time": predicted_time,
+                        "actual_time": actual_time,
+                        "actual_column_event_present": actual_time is not None,
+                        "contributed_source_ids": tuple(sorted(contributed)),
+                        "punishment_reason": (
+                            "NO_PROXIMAL_EVENT"
+                            if actual_time is None
+                            else "PROXIMAL_TIME_MISMATCH"
+                        ),
+                    },
+                )
                 for source in contributed:
                     synapse = segment.synapses[source]
                     synapse.weight = max(
