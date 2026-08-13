@@ -1,0 +1,3 @@
+sentence_count,mode,tokens_seen,S1,S2A,S2B,S3,segments_created,segments_total,synapses_total,mean_segment_size,new_segments_per_token,timing_rejected_unique,confirmed_unique,ambiguous_multiple,double_credit_failures,mean_levenshtein,expected_presence,raw_columns
+20,current,200,49,14,1937,1249,1737,1737,17493,10.070811744386875,8.685,0,0,0,0,0.0,1.0,10.0375
+20,unique_predictive_identity,200,160,4,1836,1066,1636,1636,16394,10.02078239608802,8.18,0,0,0,0,0.45,0.9,9.144736842105264

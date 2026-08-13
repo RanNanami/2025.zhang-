@@ -70,6 +70,7 @@ def build_model(
     capture_prediction_contributions: bool = False,
     synapse_delay_mode: str = "current-delay",
     capture_branch_diagnostics: bool = False,
+    temporal_confirmation_mode: str = "current",
 ) -> SequentialMemory:
     """Build the shared Fig.8 diagnostic model without changing strict defaults.
 
@@ -88,6 +89,7 @@ def build_model(
             capture_prediction_contributions=capture_prediction_contributions,
             synapse_delay_mode=synapse_delay_mode,
             capture_branch_diagnostics=capture_branch_diagnostics,
+            temporal_confirmation_mode=temporal_confirmation_mode,
         ),
         tie_break_seed=seed,
     )

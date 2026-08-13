@@ -23,6 +23,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
 from experiments.fig8_sentence_memory import read_cbt_sentences
+from experiments.diagnostics.fig8_diagnostic_common import evaluate_diagnostic
 from seqmem.encoding import SymbolCode
 from seqmem.model import MemoryParams, PredictionTrace, SequentialMemory
 from seqmem.encoding import SSTDDiscreteEncoder
@@ -163,7 +164,12 @@ def _event_rank_by_column(code: SymbolCode | None) -> dict[int, int]:
     }
 
 
-def _model(seed: int, *, temporal_trace: bool) -> SequentialMemory:
+def _model(
+    seed: int,
+    *,
+    temporal_trace: bool,
+    temporal_mode: str = "current",
+) -> SequentialMemory:
     return SequentialMemory(
         encoder=SSTDDiscreteEncoder(num_columns=100, k=10, seed=seed),
         num_neurons_per_column=10,
@@ -175,6 +181,7 @@ def _model(seed: int, *, temporal_trace: bool) -> SequentialMemory:
             capture_branch_diagnostics=True,
             capture_intralayer_parity_diagnostics=temporal_trace,
             capture_temporal_confirmation_diagnostics=temporal_trace,
+            temporal_confirmation_mode=temporal_mode,
         ),
         tie_break_seed=seed,
     )
@@ -191,8 +198,13 @@ def train_capture(
     seed: int,
     *,
     temporal_trace: bool,
+    temporal_mode: str = "current",
 ) -> tuple[SequentialMemory, list[dict[str, Any]], dict[tuple[int, int], tuple[tuple[int, float], ...]]]:
-    model = _model(seed, temporal_trace=temporal_trace)
+    model = _model(
+        seed,
+        temporal_trace=temporal_trace,
+        temporal_mode=temporal_mode,
+    )
     rows: list[dict[str, Any]] = []
     predictions: dict[tuple[int, int], tuple[tuple[int, float], ...]] = {}
     context = {"sentence_index": 0, "cycle": 0, "word": ""}
@@ -604,7 +616,36 @@ The complete source trace is `PRE_TIME_GATE_ACTIVE_COLUMN_TRACE.csv`; all rates 
     }
 
 
-def write_semantic_audit(output: Path, stats: dict[str, Any], seed: int) -> None:
+def write_semantic_audit(
+    output: Path,
+    stats: dict[str, Any],
+    seed: int,
+    candidate_results: list[dict[str, Any]] | None = None,
+) -> None:
+    candidate_section = "Candidate A/B was not run."
+    if candidate_results:
+        by_mode = {row["mode"]: row for row in candidate_results}
+        current = by_mode["current"]
+        identity = by_mode["unique_predictive_identity"]
+        candidate_section = f"""## Phase-C candidate A/B (20 sentences)
+
+The identity mode is a nonpaper semantic diagnostic. It does not change the
+strict default and it does not relax `timing_tolerance`. The observed metrics
+were:
+
+| mode | mean Levenshtein | expected presence | mean raw columns | early-stop rate | S1 | S2A | S2B | S3 | segments |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| current | {current['mean_levenshtein']} | {current['expected_present_raw']} | {current['mean_raw_columns']} | {current['early_stop_rate']} | {current['S1']} | {current['S2A']} | {current['S2B']} | {current['S3']} | {current['segments_total']} |
+| unique_predictive_identity | {identity['mean_levenshtein']} | {identity['expected_present_raw']} | {identity['mean_raw_columns']} | {identity['early_stop_rate']} | {identity['S1']} | {identity['S2A']} | {identity['S2B']} | {identity['S3']} | {identity['segments_total']} |
+
+On this 20-sentence sample, identity confirmation increased direct S1
+confirmation and reduced segment/S3 counts, but it did **not** improve the
+retrieval score: mean Levenshtein changed from `{current['mean_levenshtein']}`
+to `{identity['mean_levenshtein']}` and early-stop rate changed from
+`{current['early_stop_rate']}` to `{identity['early_stop_rate']}`. This is
+mechanism evidence, not a claim of performance improvement or complete paper
+reproduction. No 100-, 200-, 500-, or Fig.9 run was performed in this round.
+"""
     (output / "TEMPORAL_CONFIRMATION_SEMANTIC_AUDIT.md").write_text(
         f"""# Temporal Confirmation Semantic Audit
 
@@ -618,9 +659,138 @@ def write_semantic_audit(output: Path, stats: dict[str, Any], seed: int) -> None
 8. The candidate gate is {'passed' if stats['phase_c_gate_pass'] else 'not passed'}; no candidate is run when it is not passed.
 
 This report distinguishes document evidence, mechanistic trace evidence, and any later performance evidence. It does not claim complete numerical reproduction.
+
+{candidate_section}
 """,
         encoding="utf-8",
     )
+
+
+def _capacity_row(
+    model: SequentialMemory,
+    mode: str,
+    sentence_count: int,
+    metrics: dict[str, Any],
+    rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    observations = _observation_rows(rows)
+    segments = _count_segments(model)
+    synapses = _count_synapses(model)
+    return {
+        "sentence_count": sentence_count,
+        "mode": mode,
+        "tokens_seen": sentence_count * 10,
+        "S1": sum(row.get("scenario") == "scenario1" for row in observations),
+        "S2A": sum(row.get("scenario") == "scenario2" for row in observations),
+        "S2B": sum(row.get("scenario") == "scenario3" for row in observations),
+        "S3": len(_punishment_rows(rows)),
+        "segments_created": segments,
+        "segments_total": segments,
+        "synapses_total": synapses,
+        "mean_segment_size": synapses / segments if segments else 0.0,
+        "new_segments_per_token": segments / max(1, sentence_count * 10),
+        "timing_rejected_unique": sum(
+            row.get("candidate_class") == "UNIQUE_PREDICTIVE_CANDIDATE"
+            and row.get("timing_rejected")
+            for row in observations
+        ),
+        "confirmed_unique": sum(
+            row.get("candidate_class") == "UNIQUE_PREDICTIVE_CANDIDATE"
+            and row.get("scenario") == "scenario1"
+            for row in observations
+        ),
+        "ambiguous_multiple": sum(
+            row.get("candidate_class") == "MULTIPLE_PREDICTIVE_CANDIDATES"
+            for row in observations
+        ),
+        "double_credit_failures": sum(
+            bool(row.get("candidate_punished"))
+            and row.get("candidate_class") == "UNIQUE_PREDICTIVE_CANDIDATE"
+            for row in observations
+        ),
+        "mean_levenshtein": metrics.get("mean_levenshtein", ""),
+        "expected_presence": metrics.get("expected_present_raw", ""),
+        "raw_columns": metrics.get("mean_raw_columns", ""),
+    }
+
+
+def run_candidate_ab(
+    output: Path,
+    sentences: list[list[str]],
+    seed: int,
+) -> list[dict[str, Any]]:
+    result_rows: list[dict[str, Any]] = []
+    growth_rows: list[dict[str, Any]] = []
+    for mode in ("current", "unique_predictive_identity"):
+        model, trace_rows, _predictions = train_capture(
+            sentences,
+            seed,
+            temporal_trace=True,
+            temporal_mode=mode,
+        )
+        cue_rows: list[dict[str, object]] = []
+        metrics = evaluate_diagnostic(
+            model,
+            sentences,
+            propagation="raw",
+            details_sample_sentences=0,
+            segment_trace_path=None,
+            cue_rows=cue_rows,
+        )
+        observation_rows = _observation_rows(trace_rows)
+        result_rows.append(
+            {
+                "mode": mode,
+                "mean_levenshtein": metrics.get("mean_levenshtein"),
+                "expected_present_raw": metrics.get("expected_present_raw"),
+                "mean_raw_columns": metrics.get("mean_raw_columns"),
+                "no_prediction_rate": metrics.get("no_prediction_rate"),
+                "early_stop_rate": metrics.get("early_stop_rate"),
+                "step1_error": metrics.get("step1_error"),
+                "step2_error": metrics.get("step2_error"),
+                "step3_error": metrics.get("step3_error"),
+                "step4_error": metrics.get("step4_error"),
+                "S1": sum(row.get("scenario") == "scenario1" for row in observation_rows),
+                "S2A": sum(row.get("scenario") == "scenario2" for row in observation_rows),
+                "S2B": sum(row.get("scenario") == "scenario3" for row in observation_rows),
+                "S3": len(_punishment_rows(trace_rows)),
+                "segments_total": _count_segments(model),
+                "synapses_total": _count_synapses(model),
+                "unique_confirmed": sum(
+                    row.get("identity_confirmation") is True
+                    for row in observation_rows
+                ),
+                "unique_rejected_current": sum(
+                    row.get("candidate_class") == "UNIQUE_PREDICTIVE_CANDIDATE"
+                    and row.get("timing_rejected")
+                    for row in observation_rows
+                ),
+                "candidate_punishment_rows": len(
+                    [
+                        row
+                        for row in _punishment_rows(trace_rows)
+                        if row.get("predicted_candidate_identity") is not None
+                    ]
+                ),
+            }
+        )
+        growth_rows.append(
+            _capacity_row(model, mode, len(sentences), metrics, trace_rows)
+        )
+        trace_fields = sorted({key for row in trace_rows for key in row})
+        write_csv(
+            output / f"{mode}_TEMPORAL_TRACE.csv",
+            trace_rows,
+            trace_fields,
+        )
+    fields = list(result_rows[0])
+    write_csv(output / "fig8_20_temporal_confirmation_ab.csv", result_rows, fields)
+    write_csv(
+        output / "TEMPORAL_CONFIRMATION_CAPACITY_GROWTH.csv",
+        growth_rows,
+        list(growth_rows[0]),
+    )
+    return result_rows
 
 
 def run_audit(output: Path, *, sentence_count: int, seed: int) -> dict[str, Any]:
@@ -631,7 +801,12 @@ def run_audit(output: Path, *, sentence_count: int, seed: int) -> dict[str, Any]
     traced_model, traced_rows, traced_predictions = train_capture(sentences, seed, temporal_trace=True)
     enriched = enrich_pre_gate_rows(traced_rows, traced_predictions, sentences, seed)
     stats = write_audit_artifacts(output, enriched + [row for row in traced_rows if row.get("phase") == "wrong_prediction_punishment"], seed)
-    write_semantic_audit(output, stats, seed)
+    candidate_results = (
+        run_candidate_ab(output, sentences, seed)
+        if stats["phase_c_gate_pass"]
+        else []
+    )
+    write_semantic_audit(output, stats, seed, candidate_results)
     write_csv(output / "TRACE_ON_OFF_COMPARISON.csv", [{
         "predictions_equal": plain_predictions == traced_predictions,
         "model_fingerprint_equal": _structure_fingerprint(plain_model) == _structure_fingerprint(traced_model),
@@ -642,7 +817,6 @@ def run_audit(output: Path, *, sentence_count: int, seed: int) -> dict[str, Any]
         "plain_synapses": _count_synapses(plain_model),
         "traced_synapses": _count_synapses(traced_model),
     }], ["predictions_equal", "model_fingerprint_equal", "learning_rng_equal", "decode_rng_equal", "plain_segments", "traced_segments", "plain_synapses", "traced_synapses"])
-    candidate_status = "not_implemented_in_audit_commit"
     summary = {
         "audit_type": "fig8_temporal_confirmation_semantics",
         "sentences": sentence_count,
@@ -651,6 +825,12 @@ def run_audit(output: Path, *, sentence_count: int, seed: int) -> dict[str, Any]
         "timing_tolerance": 0.03,
         "strict_defaults_changed": False,
         "formal_100_200_500_runs": False,
+        "candidate_status": (
+            "executed_20_sentence_ab"
+            if candidate_results
+            else "stopped_gate_not_passed"
+        ),
+        "candidate_results": candidate_results,
         **stats,
         "trace_on_off": {
             "predictions_equal": plain_predictions == traced_predictions,

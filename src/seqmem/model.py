@@ -412,6 +412,9 @@ class MemoryParams:
     # confirmation gate.  This is audit metadata only and never selects a
     # candidate or changes the learning path.
     capture_temporal_confirmation_diagnostics: bool = False
+    # ``current`` is the strict/local implementation.  The identity mode is
+    # a separately labeled diagnostic candidate and is never implicit.
+    temporal_confirmation_mode: str = "current"
     continuous_prediction_impl: str = "reference"
 
     def dynamics(self) -> DSDynamicsParams:
@@ -537,6 +540,10 @@ class SequentialMemory:
         "optimized_v1",
         "optimized_v2",
     }
+    TEMPORAL_CONFIRMATION_MODES = {
+        "current",
+        "unique_predictive_identity",
+    }
 
     def __init__(
         self,
@@ -564,6 +571,14 @@ class SequentialMemory:
             raise ValueError(
                 "unsupported continuous prediction implementation: "
                 f"{self.params.continuous_prediction_impl}"
+            )
+        temporal_mode = getattr(
+            self.params, "temporal_confirmation_mode", "current"
+        )
+        if temporal_mode not in self.TEMPORAL_CONFIRMATION_MODES:
+            raise ValueError(
+                "unsupported temporal confirmation mode: "
+                f"{temporal_mode}"
             )
         self.columns = [
             MiniColumn.create(num_neurons_per_column) for _ in range(encoder.num_columns)
@@ -2125,6 +2140,7 @@ class SequentialMemory:
         learning_winners: dict[int, float] = {}
         predicted_sources: set[int] = set()
         burst_only_sources: set[int] = set()
+        identity_confirmed_candidate_ids: set[int] = set()
         scenario_counts = {"scenario1": 0, "scenario2": 0, "scenario3": 0}
 
         for event in code.events:
@@ -2228,6 +2244,21 @@ class SequentialMemory:
                 if matching_predictions
                 else None
             )
+            confirmation_mode = getattr(
+                self.params, "temporal_confirmation_mode", "current"
+            )
+            identity_confirmation = (
+                learn
+                and
+                confirmation_mode == "unique_predictive_identity"
+                and len(pre_gate_candidates) == 1
+                and pre_gate_candidates[0].segment.active
+            )
+            if identity_confirmation:
+                # Nonpaper diagnostic: reuse the one saved predictive identity
+                # and its causal segment; do not run best-match selection.
+                predicted = pre_gate_candidates[0]
+                identity_confirmed_candidate_ids.add(id(predicted))
             if predicted is None:
                 # Scenario 2/3 候选入口：真实输入没有被 last_prediction_candidates
                 # 准确预测时，尝试找同列里最匹配的已有 segment。
@@ -2410,6 +2441,17 @@ class SequentialMemory:
                         ),
                         "timing_matched_prediction_count": len(
                             matching_predictions
+                        ),
+                        "temporal_confirmation_mode": confirmation_mode,
+                        "identity_confirmation": identity_confirmation,
+                        "confirmation_reason": (
+                            "UNIQUE_PREDICTIVE_IDENTITY"
+                            if identity_confirmation
+                            else (
+                                "CURRENT_TIME_GATE"
+                                if matching_predictions
+                                else "NO_TIME_MATCH"
+                            )
                         ),
                         **pre_gate_metadata,
                     },
@@ -2664,7 +2706,8 @@ class SequentialMemory:
         if learn:
             # STATE MUTATION: 惩罚错误预测会修改未兑现 segment 的权重/age。
             self._punish_wrong_predictions(
-                {event.column: event.time for event in code.events}
+                {event.column: event.time for event in code.events},
+                confirmed_candidate_ids=identity_confirmed_candidate_ids,
             )
         self.previous_active_cells = active_cells
         self.previous_winners = learning_winners
@@ -3910,7 +3953,11 @@ class SequentialMemory:
 
         self._prune_neuron(neuron)
 
-    def _punish_wrong_predictions(self, active_events: dict[int, float]) -> None:
+    def _punish_wrong_predictions(
+        self,
+        active_events: dict[int, float],
+        confirmed_candidate_ids: set[int] | None = None,
+    ) -> None:
         self._emit_prune_diagnostic(
             "PUNISH_WRONG_PREDICTIONS_ENTER",
             target_column=None,
@@ -3929,6 +3976,8 @@ class SequentialMemory:
                 predicted_time = candidate.time
                 neuron_index = candidate.neuron_index
                 segment = candidate.segment
+                if confirmed_candidate_ids and id(candidate) in confirmed_candidate_ids:
+                    continue
                 self._emit_prune_diagnostic(
                     "PUNISH_WRONG_PREDICTIONS_TARGET_SELECTED",
                     target_column=column_id,

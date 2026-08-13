@@ -355,6 +355,7 @@ def run(args: argparse.Namespace) -> None:
     params = MemoryParams(
         l_match=args.l_match,
         forgetting_threshold=args.forgetting_threshold,
+        temporal_confirmation_mode=args.temporal_confirmation_mode,
     )
     model = SequentialMemory(
         encoder=encoder,
@@ -450,6 +451,12 @@ def parse_args() -> argparse.Namespace:
         choices=("raw", "eventwise-inhibited"),
         default="raw",
         help="Nonpaper neural projection diagnostic; strict default is raw.",
+    )
+    parser.add_argument(
+        "--temporal-confirmation-mode",
+        choices=("current", "unique_predictive_identity"),
+        default="current",
+        help="Strict local time gate by default; identity mode is a nonpaper diagnostic.",
     )
     parser.add_argument(
         "--eval-samples",
