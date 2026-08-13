@@ -1,0 +1,6 @@
+stage,code_location,input_state,output_state,actual_spike_proven,ground_truth_used,status
+prediction candidate,src/seqmem/model.py:1077-1577,active sources,PredictionCandidate,no,no,PARTIAL
+raw code,src/seqmem/model.py:1603-1612,selected events,SymbolCode,no,no,PARTIAL
+cell resolution,src/seqmem/model.py:2366-2384,SymbolCode,last_prediction_candidates,selected cell assumed,no,PARTIAL
+autonomous advance,src/seqmem/model.py:2351-2364,selected code,previous_active_cells and previous_winners,no,no,PARTIAL
+proximal burst,src/seqmem/model.py:2310-2318,unmatched external event,all active-column cells,yes by paper branch,no,MATCH

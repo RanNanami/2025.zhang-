@@ -1,0 +1,8 @@
+item,paper_requirement,current_code,status,evidence
+predictive_state,distal crossing creates predictive/depolarized state,continuous solver records crossing and tests simplified DSNeuronState,PARTIAL,model.py:2730-2845
+same_column_winner,max soma potential above threshold fires,earliest predicted time after score event selection,UNRESOLVED,model.py:1285-1458
+intracolumn_inhibition,fired winner suppresses peers through cycle,one selected representative per column but no per-neuron suppression state,PARTIAL,model.py:1397-1458
+burst,no predictive neuron means all active-column neurons fire,unmatched proximal event activates all neurons,MATCH,model.py:2087-2318
+refractory,no second fire in current cycle,local DSNeuronState refractory test,PARTIAL,dynamics.py:150-181
+autonomous_propagation,actual fired spikes form next context,selected prediction cells become previous context,PARTIAL,model.py:2351-2384
+intercolumn_retrieval,V_inh(t) from other columns in soma equation,no strict membrane-level retrieval V_inh(t),UNKNOWN,fig9_competitive_inhibition.py is diagnostic post-processing

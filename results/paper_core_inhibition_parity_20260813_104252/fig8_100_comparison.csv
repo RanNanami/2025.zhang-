@@ -1,0 +1,3 @@
+variant,sentences,mean_levenshtein,expected_word_presence,early_stop_rate,mean_raw_columns,mean_cue_burst_cells,run_status
+OLD_RAW_L4_OR_EQUIVALENT,100,1.59,0.72,0.07,24.934895833333332,16.696,EXISTING_ARTIFACT
+PAPER_CORE_INHIBITION_CANDIDATE,100,,,,,,NOT_RUN_SOMA_AND_VINH_UNRESOLVED

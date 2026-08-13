@@ -1,0 +1,3 @@
+variant,records,mape,coverage,raw_predicted_columns,actual_fired_columns,run_status
+OLD_RAW_L4,250,0.5054500721931258,45/45,,,EXISTING_ARTIFACT
+PAPER_CORE_INHIBITION_CANDIDATE,250,,,,,NOT_RUN_FIG8_GATE_NOT_PASSED

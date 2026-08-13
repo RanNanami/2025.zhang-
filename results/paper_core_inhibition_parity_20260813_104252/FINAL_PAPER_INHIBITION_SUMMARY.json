@@ -1,0 +1,47 @@
+{
+  "paper_source": "Zhang et al. 2025 local PDF, Sections II-A, II-B, II-C, II-E",
+  "strict_defaults_changed": false,
+  "diagnostic_competition_changed": false,
+  "ground_truth_used_for_model_decision": false,
+  "new_fig8_runs": false,
+  "new_fig9_250_run": false,
+  "bounded_validation": {
+    "compileall": "passed",
+    "targeted_audit_tests": 11,
+    "full_test_suite": {
+      "tests": 622,
+      "status": "passed",
+      "elapsed_seconds": 200.278
+    },
+    "fig8_20_smoke": {
+      "retrieval_mode": "neural",
+      "mean_levenshtein": 0.4,
+      "status": "passed"
+    },
+    "git_diff_check": "passed"
+  },
+  "primary_conclusion": "INHIBITION_PARITY_REMAINS_UNRESOLVED",
+  "recommended_next_step": "AUDIT_CONTINUOUS_INTERCOLUMN_VINH",
+  "paper_explicit_matches": [
+    "unmatched proximal active column bursts all neurons",
+    "SSTD encoding selects ordered sparse columns",
+    "selected raw cells, rather than all valid segments, enter autonomous context"
+  ],
+  "unresolved_items": [
+    "full soma component trace per candidate",
+    "max soma potential same-column winner proof",
+    "cycle-wide hard intracolumn suppression state",
+    "retrieval-time continuous V_inh(t)",
+    "population-level refractory and actual-fired state"
+  ],
+  "existing_fig8_raw": {
+    "100_mean_levenshtein": 1.59,
+    "200_mean_levenshtein": 2.6
+  },
+  "existing_fig9_raw_l4": {
+    "records": 250,
+    "valid_predictions": 45,
+    "legacy_mape": 0.5054500721931258
+  },
+  "result_directory": "results/paper_core_inhibition_parity_20260813_104252"
+}
