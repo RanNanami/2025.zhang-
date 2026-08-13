@@ -1,0 +1,76 @@
+﻿{
+    "audit_timestamp":  "20260813_132057",
+    "git_commit_sha_at_generation":  "f011f2823338e7ab70b9e3b74f84ebfae2363717",
+    "paper_source":  "https://ira.lib.polyu.edu.hk/bitstream/10397/113864/1/Zhang_Toward_Building_Human-like.pdf",
+    "continuous_vinh":  {
+                            "status":  "PUBLICLY_UNDERSPECIFIED",
+                            "source":  "Zhang 2025 Eq.(3) semantic slot; no public formula recovered",
+                            "recoverable":  false
+                        },
+    "intracolumn_inhibition":  {
+                                   "status":  "PAPER_EXPLICIT_REFERENCE_DEFINED",
+                                   "source":  "Zhang 2025 II-B.5",
+                                   "value":  "constant large enough; exact numeric amplitude not required"
+                               },
+    "tau_m":  {
+                  "status":  "STILL_UNKNOWN",
+                  "source":  "Zhang 2025 Eq.(1) gives shape role only",
+                  "current_code":  0.1
+              },
+    "tau_s":  {
+                  "status":  "STILL_UNKNOWN",
+                  "source":  "Zhang 2025 Eq.(1) gives shape role only",
+                  "current_code":  0.02
+              },
+    "V0":  {
+               "status":  "STILL_UNKNOWN",
+               "source":  "Zhang 2025 Eq.(1) formula only",
+               "current_code":  "normalized peak when response_scale=None"
+           },
+    "psp_normalization":  {
+                              "status":  "PARTIAL",
+                              "source":  "formula explicit, normalization not stated",
+                              "current_code":  "peak normalized to 1 by local default"
+                          },
+    "oscillation_amplitude":  {
+                                  "status":  "PAPER_EXPLICIT",
+                                  "value":  0.5
+                              },
+    "oscillation_frequency":  {
+                                  "status":  "PAPER_EXPLICIT",
+                                  "value":  "layer-dependent; f_osc \u003c 1/(2K)"
+                              },
+    "phase_precession":  {
+                             "status":  "PARTIAL",
+                             "value":  "shift to trough, predictive state lasts half cycle, reset to phi_0"
+                         },
+    "refractory":  {
+                       "status":  "PAPER_EXPLICIT",
+                       "value":  "eta=-theta after firing in current cycle"
+                   },
+    "soma_winner":  {
+                        "status":  "UNPROVEN",
+                        "paper_rule":  "largest full soma membrane potential in column",
+                        "current_rule":  "candidate/event selection"
+                    },
+    "current_code_major_mismatch":  "No uniquely recoverable numeric V_inh formula; current normalized PSP and candidate-score WTA are unproven assumptions rather than paper-derived values.",
+    "primary_conclusion":  "CONTINUOUS_VINH_PUBLICLY_UNDERSPECIFIED",
+    "recommended_next_step":  "DO_NOT_MODIFY_MODEL_WITHOUT_MORE_EVIDENCE",
+    "formal_experiments_run":  false,
+    "tests_run":  {
+                      "compileall":  "passed",
+                      "full_unittest":  "passed (622 tests)",
+                      "git_diff_check":  "passed",
+                      "audit_script_py_compile":  "passed"
+                  },
+    "sources":  {
+                    "zhang_2025":  "https://ira.lib.polyu.edu.hk/bitstream/10397/113864/1/Zhang_Toward_Building_Human-like.pdf",
+                    "zhang_2025_record":  "https://ira.lib.polyu.edu.hk/handle/10397/113864",
+                    "zhang_delay_2020":  "https://researchportal.northumbria.ac.uk/files/27753488/A_Belatreche_Elsevier_Neurocomputing.pdf",
+                    "sun_delay_2024":  "https://backoffice.biblio.ugent.be/download/01JHQKDXSJFR0PG1DZR7MXC4GB/01JHQKKZEHGCADP620DMTB42AD",
+                    "htm_2011":  "https://numenta.com/assets/pdf/whitepapers/hierarchical-temporal-memory-cortical-learning-algorithm-0.2.1-en.pdf",
+                    "cui_htm_2016":  "https://www.cortical.io/static/downloads/continuous-online-sequence-learning.pdf",
+                    "zhang_minicolumn_2024":  "https://doi.org/10.1109/TNNLS.2022.3213688",
+                    "lan_minicolumn_2021":  "https://www.frontiersin.org/journals/neuroscience/articles/10.3389/fnins.2021.650430/full"
+                }
+}

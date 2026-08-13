@@ -1,0 +1,14 @@
+item,paper_or_reference_supported_value,current_code_value,current_source,status,notes
+continuous V_inh,no public formula,no continuous intercolumn V_inh implementation,src/seqmem/model.py: prediction selector and diagnostics,UNKNOWN,Eq.(3) semantic slot only
+intracolumn suppression,constant sufficiently large,boolean intracolumn selector; one selected candidate per column,src/seqmem/model.py:389,PARTIAL,"semantic parity, numeric mechanism not represented"
+soma winner,maximum full membrane potential in column,candidate/event score selection; no full soma component trace,src/seqmem/model.py:774,UNPROVEN,candidate score is not proven soma potential
+refractory eta,-theta after firing in current cycle,DSNeuronState returns -inf while refractory,src/seqmem/dynamics.py:178,PARTIAL,"same no-refire semantics, different numeric term"
+tau_m,not numerically specified,0.10,src/seqmem/dynamics.py:68,UNPROVEN,local default
+tau_s,not numerically specified,0.02,src/seqmem/dynamics.py:69,UNPROVEN,local default
+V0/PSP scale,formula has V0; numeric/normalization unspecified,response_scale=None normalizes unscaled peak to 1,src/seqmem/dynamics.py:45,UNPROVEN,local normalization assumption
+v_dep,0.5,0.5,src/seqmem/dynamics.py:72,MATCH,paper Table I
+A_osc,0.5,0.5,src/seqmem/dynamics.py:74,MATCH,paper Table I
+theta/theta_d,1.0/1.0,1.0/1.0,src/seqmem/dynamics.py:77,MATCH,paper Table I
+dt,not specified,0.005,src/seqmem/model.py:391,UNPROVEN,local numerical integration choice
+phase precession,shift to trough and reset,-cos after depolarization; reset via state clearing,src/seqmem/dynamics.py:166,PARTIAL,"qualitative semantic match, exact numeric rule not inherited"
+firing time,actual soma threshold crossing,continuous candidate solver after dendritic crossing,src/seqmem/model.py:2897,PARTIAL,no V_inh and no population WTA

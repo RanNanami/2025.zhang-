@@ -1,0 +1,19 @@
+item,paper_page,section_equation,paper_wording,numeric_value_given,reference_adjacent,explicit_inheritance,status
+V_pro,10146,II-B.3,proximal feedforward input directly contributes to soma potential,No,None,No,PAPER_EXPLICIT
+V_api,10146,II-B.3,apical feedback input directly contributes to soma potential,No,None,No,PAPER_EXPLICIT
+V_dis,10146/10149,"II-B.2, II-E",dendritic spike raises distal input to v_dep and creates predictive state,v_dep=0.5,[35]-[37],No,PAPER_EXPLICIT
+V_inh,10147,"II-B.5, Eq.(3)",inhibitory feedback from other mini-columns,No,None,No,STILL_UNKNOWN
+V_osc,10147,"II-B.4, Eq.(2)",layer-dependent subthreshold oscillation defined as a sine wave,A_osc=0.5; f bound; phi_0=0 or pi,[38]-[42],No,PAPER_EXPLICIT
+eta,10147,II-B.5,refractory kernel is -theta after firing in the current cycle and zero otherwise,-theta,None,No,PAPER_EXPLICIT
+theta,10150,Table I,firing threshold of neurons,1.0,None,No,PAPER_EXPLICIT
+theta_d,10150,Table I,firing threshold of distal dendrites,1.0,None,No,PAPER_EXPLICIT
+phase_precession,10147/10149,"II-B.4, II-E",depolarization shifts oscillation to the trough; oscillation returns to phi_0 after prediction,half-cycle depolarized duration,"[26]-[27], [39]-[42]",No,PAPER_EXPLICIT
+oscillation_frequency,10147/10150,"Eq.(2), Table I",frequency decreases in higher layers and is bounded relative to K,f_osc < 1/(2K),"[23]-[25], [38]",No,PAPER_EXPLICIT
+oscillation_amplitude,10150,Table I,amplitude of neural oscillation,0.5,None,No,PAPER_EXPLICIT
+synaptic_response_kernel,10146,Eq.(1),double exponential V0[exp(-t/tau_m)-exp(-t/tau_s)],V0/tau values absent,None,No,PAPER_EXPLICIT
+dendritic_spike,10145/10146,"II-A, II-B.1",distal potential reaching theta_d triggers local dendritic spike and reset,theta_d=1.0,None,No,PAPER_EXPLICIT
+soma_spike,10147,"II-B.5, Eq.(3)",largest membrane potential within mini-column and above theta fires,theta=1.0,None,No,PAPER_EXPLICIT
+intracolumn_inhibition,10147,II-B.5,constant large enough to suppress other neurons until cycle end,Exact amplitude not required,None,No,PAPER_EXPLICIT
+intercolumn_inhibition,10147,Eq.(3),feedback from other mini-columns,No,None,No,STILL_UNKNOWN
+refractory,10147,II-B.5,fired neuron cannot fire again in current cycle,eta=-theta after firing,None,No,PAPER_EXPLICIT
+winner_firing,10145/10147,"II-A, II-B.5",predictive neuron fires first and suppresses same-column peers; no predictive neuron causes burst,No,None,No,PAPER_EXPLICIT

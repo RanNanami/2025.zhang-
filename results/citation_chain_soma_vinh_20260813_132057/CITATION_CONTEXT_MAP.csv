@@ -1,0 +1,15 @@
+reference_number,Zhang_sentence_context,method_or_biology,explicit_follow_use_adopt,likely_parameter_source,priority
+20,synaptic delay plasticity is listed among forms of plasticity,method background,No,delay learning only,high
+21,synaptic delay plasticity is listed among forms of plasticity,method background,No,delay learning only,high
+22,structural plasticity is listed among forms of plasticity,biological motivation,No,structural plasticity only,medium
+23-25,neural oscillation is described as a biological mechanism,biology,No,oscillation motivation,high
+26-27,phase precession is described as a neurophysiological process,biology,No,phase-precession motivation,high
+28-29,synchronized neural activity is listed among mechanisms,biology,No,synchronization motivation,medium
+33,architecture is inspired by neocortex structure and computational properties,HTM/neocortex semantics,No,"hierarchy, mini-columns and predictive semantics; not Eq.(3) V_inh",high
+34,predictive/depolarized state is followed by a citation to subthreshold oscillations,cellular biology,No,oscillation/depolarization motivation,high
+35-37,depolarized state lasts half a cycle and is supported by dendritic literature,dendritic biology,No,dendritic spike motivation,high
+38,oscillation is introduced as a pacemaker mechanism,biology,No,pacemaker motivation,medium
+39-42,phase precession and oscillatory timing are discussed,biology,No,phase-precession motivation,high
+58,baseline methods and Fig.7/Fig.9 comparison source,benchmark/method,No,HTM benchmark provenance; not soma dynamics,high
+62,CBT data set source,dataset,No,dataset only,high
+64-65,LUMAKG/ANAKG comparison methods,benchmark,No,comparison methods only,high
