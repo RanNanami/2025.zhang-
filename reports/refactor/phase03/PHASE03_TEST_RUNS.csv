@@ -1,0 +1,6 @@
+kind,run,exit_code,elapsed_seconds,tests,modules,status,last_test,crash_signature
+compileall,1,0,,711,,PASS,,
+single_process,1,3221226505,59.634,,,NATIVE_CRASH,test_fig9_context_trajectory.ContextTrajectoryRunnerTests.test_runner_diagnostic_is_noninterfering,0xC0000409
+single_process,2,0,211.205,711,,PASS,,
+single_process,3,3221225477,53.587,,,NATIVE_CRASH,test_fig9_context_trajectory.ContextTrajectoryRunnerTests.test_runner_diagnostic_is_noninterfering,0xC0000005
+isolated_modules,1,0,216.5,711,51,PASS,,

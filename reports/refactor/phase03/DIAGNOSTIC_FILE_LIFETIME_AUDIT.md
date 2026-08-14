@@ -47,3 +47,18 @@ Only the generic strict diagnostic CSV functions are candidates for extraction
 after lazy-loading work is proven exact. Native crash logging, checkpoint
 writing, tracker payload structure, and tracker-specific streaming sinks stay
 in place during the first migration.
+
+## Final Phase 03 Result
+
+The strict one-shot writer, pending append sink, close registry, and append
+writer moved unchanged to `experiments/common/diagnostic_io.py`. Direct byte
+tests cover plain CSV, one-shot gzip content, multi-batch gzip content, pending
+file removal, and explicit close. Three real 20-record diagnostic fixtures
+also preserve all scientific CSV content.
+
+Tracker-specific temporal/autonomous streaming sinks did not move. Native crash
+logging, checkpoint atomic writes, process memory monitoring, `atexit` crash
+cleanup, and native traceback instrumentation did not move. The Phase 03
+single-process suite still reproduced native terminations, including an access
+violation inside continuous prediction. The writer extraction is therefore
+not presented as a native-crash fix or root-cause result.

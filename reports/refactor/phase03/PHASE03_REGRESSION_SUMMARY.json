@@ -1,0 +1,97 @@
+{
+  "phase": "PHASE03",
+  "phase_status": "PHASE03_PASS",
+  "scope": "ISOLATE_DIAGNOSTIC_IO_AND_REMOVE_STRICT_IMPORT_TIME_DIAGNOSTIC_COUPLING",
+  "frozen_scientific_reference": "1864f46aee5cc0aee814fd4e6154b06f8bfeb08f",
+  "golden_baselines": {
+    "fixtures": [
+      "fig8_10",
+      "fig8_20",
+      "fig8_50",
+      "fig9_10",
+      "fig9_20",
+      "fig9_50"
+    ],
+    "all_exact": true,
+    "fields": [
+      "prediction_sha256",
+      "metric",
+      "scenario_summary",
+      "SCIENCE_MODEL_SHA256",
+      "FULL_STATE_SHA256",
+      "RNG_SHA256",
+      "LEARNING_RNG_SHA256",
+      "DECODE_RNG_SHA256",
+      "PREVIOUS_ACTIVE_SHA256",
+      "PREVIOUS_WINNER_SHA256",
+      "CANDIDATE_SHA256",
+      "structure"
+    ]
+  },
+  "diagnostic_parity": {
+    "fixtures": 3,
+    "records_per_fixture": 20,
+    "all_scientific_fields_exact": true
+  },
+  "diagnostic_output_compatibility": {
+    "artifacts": 11,
+    "raw_byte_exact": 7,
+    "scientific_content_exact": 11,
+    "gzip_header_metadata_only": 2,
+    "commit_provenance_hash_only": 2
+  },
+  "imports": {
+    "direct_diagnostic_dependencies_before": 18,
+    "direct_diagnostic_dependencies_after": 1,
+    "diagnostic_implementation_modules_loaded_before": 18,
+    "diagnostic_implementation_modules_loaded_after": 1,
+    "retained_direct_module": "experiments.diagnostics.fig9_competitive_inhibition"
+  },
+  "strict_runner_loc": {
+    "before": 6040,
+    "after": 5917,
+    "net_change": -123
+  },
+  "invariants": {
+    "cli_changed": false,
+    "defaults_changed": false,
+    "diagnostic_semantics_changed": false,
+    "scientific_behavior_changed": false,
+    "model_py_changed": false,
+    "scenario_changed": false,
+    "prediction_changed": false,
+    "rollout_changed": false,
+    "checkpoint_format_changed": false,
+    "core_imports_experiments": false,
+    "historical_diagnostic_deleted": false,
+    "main_merged": false
+  },
+  "tests": {
+    "compileall": "PASS",
+    "single_process_runs": [
+      {
+        "run": 1,
+        "status": "NATIVE_CRASH",
+        "exit_code": 3221226505,
+        "signature": "0xC0000409"
+      },
+      {
+        "run": 2,
+        "status": "PASS",
+        "tests": 711
+      },
+      {
+        "run": 3,
+        "status": "NATIVE_CRASH",
+        "exit_code": 3221225477,
+        "signature": "0xC0000005"
+      }
+    ],
+    "isolated_modules": 51,
+    "isolated_tests": 711,
+    "isolated_failures": 0,
+    "isolated_native_crashes": 0
+  },
+  "native_runtime_status": "NATIVE_CRASH_REPRODUCED_IN_PHASE03_NOT_FIXED",
+  "recommended_next_phase": "DECOMPOSE_FIG9_NONSCIENTIFIC_RUNNER_IO"
+}
