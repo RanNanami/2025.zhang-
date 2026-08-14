@@ -38,6 +38,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 
 from experiments.common.hashing import sha256_file as file_sha256  # noqa: E402
+from experiments.common.jsonio import write_json, write_json_atomic  # noqa: E402
 from experiments.fig9 import (  # noqa: E402
     TaxiRecord,
     learn_actual_code,
@@ -422,23 +423,6 @@ def transient_fingerprint(model: SequentialMemory) -> str:
         )
     )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
-
-
-def write_json(path: Path, payload: object) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
-
-
-def write_json_atomic(path: Path, payload: object) -> None:
-    """Write JSON beside a checkpoint without exposing a partial file."""
-
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(path.name + ".tmp")
-    with temporary.open("w", encoding="utf-8") as handle:
-        handle.write(json.dumps(payload, indent=2, sort_keys=True))
-        handle.flush()
-        os.fsync(handle.fileno())
-    os.replace(temporary, path)
 
 
 def write_diagnostic_csv(

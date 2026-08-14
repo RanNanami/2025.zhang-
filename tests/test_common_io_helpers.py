@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import hashlib
+import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
 
 from experiments.common.hashing import sha256_file
+from experiments.common.jsonio import write_json, write_json_atomic
 from scripts.compare_phase01_baselines import BEHAVIOR_FIELDS
 
 
@@ -38,6 +41,29 @@ class CommonHashingTests(unittest.TestCase):
                 "structure",
             ),
         )
+
+
+class CommonJsonIoTests(unittest.TestCase):
+    def test_write_json_preserves_strict_runner_bytes(self) -> None:
+        payload = {"z": "中文", "a": [1, None, 2.5]}
+        expected = json.dumps(payload, indent=2, sort_keys=True).replace(
+            "\n", os.linesep
+        ).encode("utf-8")
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "nested" / "payload.json"
+            write_json(path, payload)
+            self.assertEqual(path.read_bytes(), expected)
+
+    def test_write_json_atomic_preserves_bytes_and_removes_temporary(self) -> None:
+        payload = {"b": True, "a": 3}
+        expected = json.dumps(payload, indent=2, sort_keys=True).replace(
+            "\n", os.linesep
+        ).encode("utf-8")
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "nested" / "payload.json"
+            write_json_atomic(path, payload)
+            self.assertEqual(path.read_bytes(), expected)
+            self.assertFalse(path.with_name(path.name + ".tmp").exists())
 
 
 if __name__ == "__main__":
