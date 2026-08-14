@@ -37,6 +37,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 
+from experiments.common.hashing import sha256_file as file_sha256  # noqa: E402
 from experiments.fig9 import (  # noqa: E402
     TaxiRecord,
     learn_actual_code,
@@ -1501,14 +1502,6 @@ def build_strict_model(
         ),
         tie_break_seed=config.seed,
     )
-
-
-def file_sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def stable_object_sha256(value: object) -> str:

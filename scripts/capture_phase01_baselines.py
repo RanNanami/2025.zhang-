@@ -29,6 +29,7 @@ if str(ROOT) not in sys.path:
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from experiments.common.hashing import sha256_file as file_sha256
 from experiments.fig8_sentence_memory import evaluate, read_cbt_sentences
 from experiments.fig9 import read_records, record_values
 from experiments.fig9_strict_reproduction import load_strict_checkpoint
@@ -110,14 +111,6 @@ def canonical_json(value: Any) -> str:
 
 def stable_sha256(value: Any) -> str:
     return hashlib.sha256(canonical_json(value).encode("utf-8")).hexdigest()
-
-
-def file_sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def git_head() -> str:

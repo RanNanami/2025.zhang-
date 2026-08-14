@@ -18,6 +18,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterable, Sequence
 
+from experiments.common.hashing import sha256_file as file_sha256
 from experiments.fig9.data import TaxiRecord, read_records, record_values
 from experiments.fig9.metrics import mape
 from experiments.fig9_strict_reproduction import (
@@ -38,14 +39,6 @@ PAPER_FIG9_DIGITIZATION_UNCERTAINTY = 0.01
 PAPER_CHANGE_DATE = datetime(2015, 4, 1)
 CURRENT_DATA_RELATIVE = Path("data/paper_nyc_taxi.csv")
 CURRENT_PERTURBED_RELATIVE = Path("data/paper_nyc_taxi_perturb.csv")
-
-
-def file_sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def _jsonable(value: object) -> object:
