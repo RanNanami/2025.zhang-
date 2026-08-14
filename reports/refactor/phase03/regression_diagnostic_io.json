@@ -1,0 +1,52 @@
+{
+  "reference_manifest": "C:\\Users\\苒苒\\Documents\\TorF_reproduction\\reports\\refactor\\phase01_20260814_233129\\baselines\\pre_refactor\\baseline_manifest.json",
+  "candidate_manifest": "C:\\Users\\苒苒\\Documents\\TorF_reproduction\\tmp\\phase03_writer_isolated\\baseline_manifest.json",
+  "behavior_fields": [
+    "prediction_sha256",
+    "metric",
+    "scenario_summary",
+    "SCIENCE_MODEL_SHA256",
+    "FULL_STATE_SHA256",
+    "RNG_SHA256",
+    "LEARNING_RNG_SHA256",
+    "DECODE_RNG_SHA256",
+    "PREVIOUS_ACTIVE_SHA256",
+    "PREVIOUS_WINNER_SHA256",
+    "CANDIDATE_SHA256",
+    "structure"
+  ],
+  "fixture_names_match": true,
+  "all_six_exact_match": true,
+  "fixtures": [
+    {
+      "name": "fig8_10",
+      "exact_match": true,
+      "different_fields": []
+    },
+    {
+      "name": "fig8_20",
+      "exact_match": true,
+      "different_fields": []
+    },
+    {
+      "name": "fig8_50",
+      "exact_match": true,
+      "different_fields": []
+    },
+    {
+      "name": "fig9_10",
+      "exact_match": true,
+      "different_fields": []
+    },
+    {
+      "name": "fig9_20",
+      "exact_match": true,
+      "different_fields": []
+    },
+    {
+      "name": "fig9_50",
+      "exact_match": true,
+      "different_fields": []
+    }
+  ]
+}
