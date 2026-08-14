@@ -1,0 +1,6 @@
+artifact,family,classification,commit,dataset_hash_available,protocol_available,seed_available,fingerprint_available,metric,usable_as_anchor,reason
+results/fig9_diagnostics/lmatch_stack_2x2_20260810/250/STRICT_RAW_L4,Fig9,B,unknown in artifact,True,True,True,True,MAPE=0.5054500721931258,True,Complete 45/45 predictions and model/RNG fingerprints
+results/fig9_diagnostics/lmatch_stack_2x2_20260810/250/STRICT_RAW_L2,Fig9,C,unknown in artifact,True,True,True,True,MAPE=0.5902013451316054,True,Explicit nonpaper L_match ablation anchor
+results/temporal_confirmation_semantics_20260814_phaseC_20_final_v2,Fig8,C,1864f46aee5cc0aee814fd4e6154b06f8bfeb08f,False,True,True,True,current=0.0; unique identity=0.45,True,Trace on/off fingerprints match; diagnostic fixture only
+results/fig8_strict_neural_retrieval_1000.csv,Fig8,B,not embedded,False,False,False,False,Mean distance=3.981,False,"Useful scientific result, insufficient exact-state provenance"
+results/fig7_strict_corrected,Fig7,B,not embedded,True,False,True,False,0.938/0.955/0.965,False,"Use as major-stage metric gate, not exact state baseline"

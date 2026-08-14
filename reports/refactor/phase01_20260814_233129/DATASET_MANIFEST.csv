@@ -1,0 +1,17 @@
+path,experiment_family,classification,role,source_claim,bytes,rows_or_lines,sha256,tracked,notes
+GENERATED_IN_MEMORY:fig7_reference58_sequence_stream,Fig7,PAPER_PROTOCOL_GENERATED,synthetic sequence/noise stream generator,reference [58] sequences and generator semantics,17379,generated,a0a617df824752bac88a59c594699877f68c21bc778d1859b030e15f37ba4e08,True,Hash covers both tracked Fig.7 generator/runner source files.
+data/CBTest/._BOOK_SPLIT.txt,Support,SUPPORT_FILE,dataset metadata/support,repository file,186,0,7eb1e00713022f5c58281b85c13f6c60729c26564a5c35f8dcd9cb7d22522558,True,
+data/CBTest/BOOK_SPLIT.txt,Support,SUPPORT_FILE,dataset metadata/support,repository file,6309,12,8a6150552909b9ab0a54ca497c60ed28b06fc67760f9c5ff02bd80149d441c36,True,
+data/CBTest/LICENSE.txt,Support,SUPPORT_FILE,dataset metadata/support,repository file,21444,125,3f29830279fe0c709dbffac4cd1597dd482f3ba5abfdbe861b7320f6905e091c,True,
+data/CBTest/README.txt,Support,SUPPORT_FILE,dataset metadata/support,repository file,3844,71,04bfcc0e2e04cab1614155321e036fb6fc927b307bdd795b36363de136d66011,True,
+data/CBTest/data/cbt_train.txt,Fig8,PAPER_DATASET,CBT source corpus,Facebook CBT/ParlAI-compatible copy,25742364,263519,13cfc7743cea6752b5f22fa49c8977292428e176b11963d3906f10528e491401,True,
+data/ETTh1.csv,Transfer,APPLICATION_TRANSFER,ETTh1 stress test,public ETT benchmark,2589657,17421,f18de3ad269cef59bb07b5438d79bb3042d3be49bdeecf01c1cd6d29695ee066,True,
+data/chinese_poetry_source/poet.tang.0.json,Fig8c,NONPAPER_APPROXIMATION,poem approximation,public chinese-poetry-derived data,408405,11622,4f88f429938082523cdc72a1612bd7a7c3e3f7a33f8192c61ae51340efc3c92d,True,
+data/chinese_poetry_source/poet.tang.1000.json,Fig8c,NONPAPER_APPROXIMATION,poem approximation,public chinese-poetry-derived data,477519,12874,6e703b8d8dcedbd6110f6d48d043665ca2131db2035a5bfcef5e59a19aeb6d75,True,
+data/chinese_poetry_source/poet.tang.2000.json,Fig8c,NONPAPER_APPROXIMATION,poem approximation,public chinese-poetry-derived data,417948,11826,ec28efa7e2ae9cdbbba09f0ed186e32ccae47a325ad1e5816b7ad56071c1665a,True,
+data/fig8c_poems.json,Fig8c,NONPAPER_APPROXIMATION,poem approximation,public chinese-poetry-derived data,67683,2421,2713d1544fd9a06245930dc52218348fccda830b6bbec282bbe6a07fffa8b22c,True,
+data/fig8c_stress_poems.json,Fig8c,NONPAPER_APPROXIMATION,poem approximation,public chinese-poetry-derived data,332241,13015,97619dfc61350d3df59f4b405688aab6cf993e93864c7624c56ade98d50307b2,True,
+data/nyc_taxi.csv,Fig9,HISTORICAL_INPUT,legacy taxi input,local historical asset,265771,10320,d8fa6f7f0734bf5c8be12c52a94e20a82664c397d9dec4449156bd453d32856d,True,
+data/paper_nyc_taxi.csv,Fig9,PAPER_CANDIDATE,strict original stream,reference [58] processed NYC taxi candidate,577247,17523,092d957f5bb0d2cd62f85098ed2268114a47b4738a5f4b29ea6be4be7349fc4d,True,
+data/paper_nyc_taxi_perturb.csv,Fig9,PAPER_CANDIDATE,strict changed stream,derived perturbation aligned to reference [58],619237,17523,47eb800405d3574c0ba3b820b3c11d8fdd96c4510d5f490932d4748e6d420bd9,True,
+data/weather/weather.csv,Transfer,APPLICATION_TRANSFER,Weather stress test,public Weather benchmark,7235425,52697,34ee981d07313e51da2a50bb600072c8ae4a69cb4b0651f4cb93a069d7a2ba63,True,

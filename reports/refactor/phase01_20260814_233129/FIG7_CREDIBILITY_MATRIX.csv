@@ -1,0 +1,3 @@
+artifact_or_claim,classification,protocol_status,mechanism_status,numerical_status,known_gap,evidence,allowed_claim
+Corrected repeated sequence trials,B,Substantially aligned with paper/reference [58],Event-driven approximation with corrected burst/winner separation,0.938+/-0.114; 0.955+/-0.056; 0.965+/-0.022 final accuracy,Slower and less reliable convergence than paper curves near 1.0,RESULTS_STATUS.md; results/fig7_strict_corrected,Protocol-aligned partial numerical reproduction
+Locally retrained HTM/TDNN/LSTM/ELM,C,Nonpaper local comparison,Different implementations/training,Not author baseline values,Cannot establish paper baseline reproduction,experiments/diagnostics/fig7_nonpaper_baselines.py,Diagnostic comparison only
