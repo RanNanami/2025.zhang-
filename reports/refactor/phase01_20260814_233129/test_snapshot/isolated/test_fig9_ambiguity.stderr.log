@@ -1,0 +1,10 @@
+test_diagnostic_is_read_only_and_stream_is_split (tests.test_fig9_ambiguity.Fig9AmbiguityIntegrationTests.test_diagnostic_is_read_only_and_stream_is_split) ... ok
+test_actual_rows_keep_l2_labels_and_candidate_identity (tests.test_fig9_ambiguity.Fig9AmbiguityUnitTests.test_actual_rows_keep_l2_labels_and_candidate_identity) ... ok
+test_autonomous_rows_are_separate_and_have_no_ground_truth_label (tests.test_fig9_ambiguity.Fig9AmbiguityUnitTests.test_autonomous_rows_are_separate_and_have_no_ground_truth_label) ... ok
+test_context_signature_is_stable_and_does_not_use_object_identity (tests.test_fig9_ambiguity.Fig9AmbiguityUnitTests.test_context_signature_is_stable_and_does_not_use_object_identity) ... ok
+test_score_summary_is_deterministic (tests.test_fig9_ambiguity.Fig9AmbiguityUnitTests.test_score_summary_is_deterministic) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 4.523s
+
+OK

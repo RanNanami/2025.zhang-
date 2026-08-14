@@ -1,0 +1,14 @@
+test_a_b_c_remains_autonomous (tests.test_fig8_branch_coherence.Fig8BranchCoherenceTests.test_a_b_c_remains_autonomous) ... ok
+test_beam_has_no_ground_truth_or_provenance_inputs (tests.test_fig8_branch_coherence.Fig8BranchCoherenceTests.test_beam_has_no_ground_truth_or_provenance_inputs) ... ok
+test_beam_is_read_only_and_order_independent (tests.test_fig8_branch_coherence.Fig8BranchCoherenceTests.test_beam_is_read_only_and_order_independent) ... ok
+test_beam_uses_real_candidates_without_encoding (tests.test_fig8_branch_coherence.Fig8BranchCoherenceTests.test_beam_uses_real_candidates_without_encoding) ... ok
+test_burst_classification (tests.test_fig8_branch_coherence.Fig8BranchCoherenceTests.test_burst_classification) ... ok
+test_burst_labels_preserve_active_cell_identity (tests.test_fig8_branch_coherence.Fig8BranchCoherenceTests.test_burst_labels_preserve_active_cell_identity) ... ok
+test_provenance_switch_preserves_training_prediction_and_rng (tests.test_fig8_branch_coherence.Fig8BranchCoherenceTests.test_provenance_switch_preserves_training_prediction_and_rng) ... ok
+test_psp_decomposition_sums_to_total (tests.test_fig8_branch_coherence.Fig8BranchCoherenceTests.test_psp_decomposition_sums_to_total) ... ok
+test_strict_defaults_remain_unchanged (tests.test_fig8_branch_coherence.Fig8BranchCoherenceTests.test_strict_defaults_remain_unchanged) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 0.079s
+
+OK

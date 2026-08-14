@@ -1,0 +1,13 @@
+test_candidate_event_id_does_not_use_object_identity (tests.test_fig9_candidate_context_oracle.CandidateContextOracleTests.test_candidate_event_id_does_not_use_object_identity) ... ok
+test_candidate_event_id_is_deterministic (tests.test_fig9_candidate_context_oracle.CandidateContextOracleTests.test_candidate_event_id_is_deterministic) ... ok
+test_exact_match_regime_vocabulary_is_unambiguous (tests.test_fig9_candidate_context_oracle.CandidateContextOracleTests.test_exact_match_regime_vocabulary_is_unambiguous) ... ok
+test_join_outputs_are_gzip_readable (tests.test_fig9_candidate_context_oracle.CandidateContextOracleTests.test_join_outputs_are_gzip_readable) ... ok
+test_lossless_join_detects_duplicate_ids (tests.test_fig9_candidate_context_oracle.CandidateContextOracleTests.test_lossless_join_detects_duplicate_ids) ... ok
+test_offline_bootstrap_seed_is_process_stable (tests.test_fig9_candidate_context_oracle.CandidateContextOracleTests.test_offline_bootstrap_seed_is_process_stable) ... ok
+test_oracle_label_is_not_in_model_selector_source (tests.test_fig9_candidate_context_oracle.CandidateContextOracleTests.test_oracle_label_is_not_in_model_selector_source) ... ok
+test_projected_actual_rows_have_explicit_row_unit_and_posthoc_label (tests.test_fig9_candidate_context_oracle.CandidateContextOracleTests.test_projected_actual_rows_have_explicit_row_unit_and_posthoc_label) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 0.017s
+
+OK

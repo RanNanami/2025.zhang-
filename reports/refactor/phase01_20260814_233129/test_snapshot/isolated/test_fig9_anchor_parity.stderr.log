@@ -1,0 +1,54 @@
+test_01_cell_a_is_historical_anchor (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_01_cell_a_is_historical_anchor) ... ok
+test_02_cell_b_observes_current (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_02_cell_b_observes_current) ... ok
+test_03_cell_b_target_is_t_plus_5 (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_03_cell_b_target_is_t_plus_5) ... ok
+test_04_cell_b_last_observed_to_target_is_2_5_hours (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_04_cell_b_last_observed_to_target_is_2_5_hours) ... ok
+test_05_cell_c_does_not_observe_current (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_05_cell_c_does_not_observe_current) ... ok
+test_06_cell_c_target_is_t_plus_4 (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_06_cell_c_target_is_t_plus_4) ... ok
+test_07_cell_c_last_observed_to_target_is_2_5_hours (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_07_cell_c_last_observed_to_target_is_2_5_hours) ... ok
+test_08_cell_d_does_not_observe_current (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_08_cell_d_does_not_observe_current) ... ok
+test_09_cell_d_uses_six_steps (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_09_cell_d_uses_six_steps) ... ok
+test_10_cell_d_target_is_t_plus_5 (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_10_cell_d_target_is_t_plus_5) ... ok
+test_11_cell_d_endpoint_matches_target (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_11_cell_d_endpoint_matches_target) ... ok
+test_12_cell_a_endpoint_does_not_match_target (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_12_cell_a_endpoint_does_not_match_target) ... ok
+test_13_cell_b_has_no_off_by_one (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_13_cell_b_has_no_off_by_one) ... ok
+test_14_cell_c_has_no_off_by_one (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_14_cell_c_has_no_off_by_one) ... ok
+test_15_cell_d_has_no_off_by_one (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_15_cell_d_has_no_off_by_one) ... ok
+test_16_predict_api_cannot_receive_future_ground_truth (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_16_predict_api_cannot_receive_future_ground_truth) ... ok
+test_17_observe_then_predict_orders_calls (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_17_observe_then_predict_orders_calls) ... ok
+test_18_score_api_receives_prediction_before_ground_truth (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_18_score_api_receives_prediction_before_ground_truth) ... ok
+test_19_all_cells_share_prestate_fields (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_19_all_cells_share_prestate_fields) ... ok
+test_20_model_clone_preserves_rng_and_state (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_20_model_clone_preserves_rng_and_state) ... ok
+test_21_standard_mape_fixture (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_21_standard_mape_fixture) ... ok
+test_22_repository_metric_fixture (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_22_repository_metric_fixture) ... ok
+test_23_zero_target_handling_differs_explicitly (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_23_zero_target_handling_differs_explicitly) ... ok
+test_24_local_target_change_is_posthoc (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_24_local_target_change_is_posthoc) ... ok
+test_25_a_and_c_can_share_exact_prediction (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_25_a_and_c_can_share_exact_prediction) ... ok
+test_26_strict_default_is_unchanged (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_26_strict_default_is_unchanged) ... ok
+test_27_lmatch_remains_four (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_27_lmatch_remains_four) ... ok
+test_28_forgetting_remains_65 (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_28_forgetting_remains_65) ... ok
+test_29_no_compensation_or_future_context (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_29_no_compensation_or_future_context) ... ok
+test_30_historical_asset_and_constants_exist (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_30_historical_asset_and_constants_exist) ... ok
+test_31_current_data_hash_is_fixed (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_31_current_data_hash_is_fixed) ... ok
+test_32_common_anchor_set_requires_all_cells (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_32_common_anchor_set_requires_all_cells) ... ok
+test_33_summary_uses_common_anchor_set (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_33_summary_uses_common_anchor_set) ... ok
+test_34_pairwise_table_has_six_rows (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_34_pairwise_table_has_six_rows) ... ok
+test_35_relative_improvement_fixture (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_35_relative_improvement_fixture) ... ok
+test_36_effect_classification_boundaries (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_36_effect_classification_boundaries) ... ok
+test_37_correlation_fixtures (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_37_correlation_fixtures) ... ok
+test_38_quartiles_cover_every_anchor (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_38_quartiles_cover_every_anchor) ... ok
+test_39_time_of_day_fixed_boundaries (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_39_time_of_day_fixed_boundaries) ... ok
+test_40_timeofday_rows_always_use_fixed_four_bands (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_40_timeofday_rows_always_use_fixed_four_bands) ... ok
+test_41_timeline_step_counts (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_41_timeline_step_counts) ... ok
+test_42_sampling_interval_is_30_minutes (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_42_sampling_interval_is_30_minutes) ... ok
+test_43_missing_prediction_has_blank_error (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_43_missing_prediction_has_blank_error) ... ok
+test_44_repository_contributions_sum_to_metric (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_44_repository_contributions_sum_to_metric) ... ok
+test_45_local_change_analysis_is_deterministic (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_45_local_change_analysis_is_deterministic) ... ok
+test_46_inconclusive_when_prerequisites_fail (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_46_inconclusive_when_prerequisites_fail) ... ok
+test_47_b_target_offset_from_label_is_150_minutes (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_47_b_target_offset_from_label_is_150_minutes) ... ok
+test_48_c_target_offset_from_label_is_120_minutes (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_48_c_target_offset_from_label_is_120_minutes) ... ok
+test_49_small_best_effect_is_not_promoted_to_primary_cause (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_49_small_best_effect_is_not_promoted_to_primary_cause) ... ok
+
+----------------------------------------------------------------------
+Ran 49 tests in 0.016s
+
+OK

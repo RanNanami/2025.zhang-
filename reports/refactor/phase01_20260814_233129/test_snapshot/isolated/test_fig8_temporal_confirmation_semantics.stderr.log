@@ -1,0 +1,15 @@
+test_candidate_classification (tests.test_fig8_temporal_confirmation_semantics.Fig8TemporalConfirmationSemanticsTests.test_candidate_classification) ... ok
+test_delta_bins_have_fixed_boundaries (tests.test_fig8_temporal_confirmation_semantics.Fig8TemporalConfirmationSemanticsTests.test_delta_bins_have_fixed_boundaries) ... ok
+test_identity_mode_does_not_create_s2_or_s3_for_timing_only_failure (tests.test_fig8_temporal_confirmation_semantics.Fig8TemporalConfirmationSemanticsTests.test_identity_mode_does_not_create_s2_or_s3_for_timing_only_failure) ... ok
+test_identity_mode_is_read_only_when_learning_is_disabled (tests.test_fig8_temporal_confirmation_semantics.Fig8TemporalConfirmationSemanticsTests.test_identity_mode_is_read_only_when_learning_is_disabled) ... ok
+test_multiple_candidates_remain_current_behavior (tests.test_fig8_temporal_confirmation_semantics.Fig8TemporalConfirmationSemanticsTests.test_multiple_candidates_remain_current_behavior) ... ok
+test_sstd_rank_is_local_k_rank (tests.test_fig8_temporal_confirmation_semantics.Fig8TemporalConfirmationSemanticsTests.test_sstd_rank_is_local_k_rank) ... ok
+test_temporal_confirmation_mode_defaults_to_current (tests.test_fig8_temporal_confirmation_semantics.Fig8TemporalConfirmationSemanticsTests.test_temporal_confirmation_mode_defaults_to_current) ... ok
+test_trace_is_default_off (tests.test_fig8_temporal_confirmation_semantics.Fig8TemporalConfirmationSemanticsTests.test_trace_is_default_off) ... ok
+test_trace_on_off_replays_exact_training (tests.test_fig8_temporal_confirmation_semantics.Fig8TemporalConfirmationSemanticsTests.test_trace_on_off_replays_exact_training) ... ok
+test_unique_identity_reuses_same_candidate_segment_after_time_rejection (tests.test_fig8_temporal_confirmation_semantics.Fig8TemporalConfirmationSemanticsTests.test_unique_identity_reuses_same_candidate_segment_after_time_rejection) ... ok
+
+----------------------------------------------------------------------
+Ran 10 tests in 0.006s
+
+OK

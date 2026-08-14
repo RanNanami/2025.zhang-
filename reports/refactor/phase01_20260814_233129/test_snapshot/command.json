@@ -1,0 +1,25 @@
+{
+  "command": [
+    ".\\.venv\\Scripts\\python.exe",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-v"
+  ],
+  "environment": {
+    "PYTHONFAULTHANDLER": "1",
+    "PYTHONPATH": "C:\\Users\\\u82d2\u82d2\\Documents\\TorF_reproduction\\src;C:\\Users\\\u82d2\u82d2\\Documents\\TorF_reproduction",
+    "PYTHONUNBUFFERED": "1"
+  },
+  "python_args": [
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-v"
+  ],
+  "working_directory": "C:\\Users\\\u82d2\u82d2\\Documents\\TorF_reproduction"
+}

@@ -1,0 +1,24 @@
+{
+  "exit_code": 3221225477,
+  "elapsed_seconds": 151.73957560001872,
+  "timestamp": "2026-08-15 00:08:22",
+  "command": [
+    ".\\.venv\\Scripts\\python.exe",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-v"
+  ],
+  "checkpoint_path": "C:\\Users\\\u82d2\u82d2\\Documents\\TorF_reproduction\\reports\\refactor\\phase01_20260814_233129\\test_snapshot\\unused_checkpoint.pkl",
+  "last_completed_index": null,
+  "last_progress_index": null,
+  "checkpoint_next_index": null,
+  "last_native_phase_index": null,
+  "last_native_phase": null,
+  "last_native_prune_index": null,
+  "last_native_prune_phase": null,
+  "native_crash_log_path": "C:\\Users\\\u82d2\u82d2\\Documents\\TorF_reproduction\\reports\\refactor\\phase01_20260814_233129\\test_snapshot\\native_crash_faulthandler.log",
+  "dump_directory": null
+}

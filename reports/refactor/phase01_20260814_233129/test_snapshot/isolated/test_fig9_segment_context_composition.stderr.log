@@ -1,0 +1,8 @@
+test_real_observation_produces_l2_composition_rows (tests.test_fig9_segment_context_composition.SegmentContextCompositionTests.test_real_observation_produces_l2_composition_rows) ... ok
+test_record_observation_only_updates_tracker_history (tests.test_fig9_segment_context_composition.SegmentContextCompositionTests.test_record_observation_only_updates_tracker_history) ... ok
+test_snapshot_is_read_only_and_keeps_multilabel_source_roles (tests.test_fig9_segment_context_composition.SegmentContextCompositionTests.test_snapshot_is_read_only_and_keeps_multilabel_source_roles) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.001s
+
+OK

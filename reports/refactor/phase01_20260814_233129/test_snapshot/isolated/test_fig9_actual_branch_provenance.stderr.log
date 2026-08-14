@@ -1,0 +1,13 @@
+test_anchor_identity_does_not_depend_on_first_seen_index (tests.test_fig9_actual_branch_provenance.ActualBranchProvenanceTests.test_anchor_identity_does_not_depend_on_first_seen_index) ... ok
+test_checkpoint_round_trip_preserves_stable_ids (tests.test_fig9_actual_branch_provenance.ActualBranchProvenanceTests.test_checkpoint_round_trip_preserves_stable_ids) ... ok
+test_distinct_actual_source_is_mixed_not_silently_selected (tests.test_fig9_actual_branch_provenance.ActualBranchProvenanceTests.test_distinct_actual_source_is_mixed_not_silently_selected) ... ok
+test_metadata_is_explicitly_non_interfering (tests.test_fig9_actual_branch_provenance.ActualBranchProvenanceTests.test_metadata_is_explicitly_non_interfering) ... ok
+test_multiple_parent_lineages_are_marked_as_merge (tests.test_fig9_actual_branch_provenance.ActualBranchProvenanceTests.test_multiple_parent_lineages_are_marked_as_merge) ... ok
+test_one_lineage_can_contain_many_anchors (tests.test_fig9_actual_branch_provenance.ActualBranchProvenanceTests.test_one_lineage_can_contain_many_anchors) ... ok
+test_registry_writer_preserves_anchor_fields (tests.test_fig9_actual_branch_provenance.ActualBranchProvenanceTests.test_registry_writer_preserves_anchor_fields) ... ok
+test_repeated_actual_reinforcement_keeps_anchor_identity (tests.test_fig9_actual_branch_provenance.ActualBranchProvenanceTests.test_repeated_actual_reinforcement_keeps_anchor_identity) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 0.026s
+
+OK

@@ -1,0 +1,12 @@
+test_causal_subset_is_minimal_at_threshold (tests.test_fig8_scenario1_contribution.Fig8Scenario1ContributionTests.test_causal_subset_is_minimal_at_threshold) ... ok
+test_continuous_modes_only_select_real_active_synapses (tests.test_fig8_scenario1_contribution.Fig8Scenario1ContributionTests.test_continuous_modes_only_select_real_active_synapses) ... ok
+test_contribution_selection_has_no_ground_truth_parameter (tests.test_fig8_scenario1_contribution.Fig8Scenario1ContributionTests.test_contribution_selection_has_no_ground_truth_parameter) ... ok
+test_evaluation_is_read_only_for_all_contribution_modes (tests.test_fig8_scenario1_contribution.Fig8Scenario1ContributionTests.test_evaluation_is_read_only_for_all_contribution_modes) ... ok
+test_scenario1_uses_the_matching_prediction_candidate (tests.test_fig8_scenario1_contribution.Fig8Scenario1ContributionTests.test_scenario1_uses_the_matching_prediction_candidate) ... ok
+test_strict_default_remains_arrival_window (tests.test_fig8_scenario1_contribution.Fig8Scenario1ContributionTests.test_strict_default_remains_arrival_window) ... ok
+test_trace_toggle_preserves_prediction_metadata_and_rng (tests.test_fig8_scenario1_contribution.Fig8Scenario1ContributionTests.test_trace_toggle_preserves_prediction_metadata_and_rng) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 0.052s
+
+OK

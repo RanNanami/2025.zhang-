@@ -1,0 +1,23 @@
+{
+  "classification": "REGRESSION_FIXTURE",
+  "paper_result": false,
+  "family": "Fig8",
+  "frozen_scientific_commit": "1864f46aee5cc0aee814fd4e6154b06f8bfeb08f",
+  "capture_parent_commit": "aec2ce533a730219494f21472bef5425b5a62ed2",
+  "python": "3.12.13 (main, Aug  7 2026, 02:26:41) [MSC v.1944 64 bit (AMD64)]",
+  "dataset": "data/CBTest/data/cbt_train.txt",
+  "dataset_sha256": "13cfc7743cea6752b5f22fa49c8977292428e176b11963d3906f10528e491401",
+  "size": 10,
+  "seed": 11,
+  "sentence_length": 10,
+  "prefix_length": 6,
+  "suffix_length": 4,
+  "num_columns": 100,
+  "neurons_per_column": 10,
+  "k": 10,
+  "l_match": 3,
+  "forgetting_threshold": 500.0,
+  "retrieval_mode": "neural",
+  "neural_propagation": "raw",
+  "input_rows_sha256": "f6431019a3be0c32efe9ec3a4a3654e0a6722a2824d39e7aaa4323da7fdb7d68"
+}

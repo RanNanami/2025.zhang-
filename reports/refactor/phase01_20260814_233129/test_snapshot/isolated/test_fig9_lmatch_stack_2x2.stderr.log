@@ -1,0 +1,12 @@
+test_effects_use_difference_in_differences (tests.test_fig9_lmatch_stack_2x2.Fig9LMatchStackProtocolTests.test_effects_use_difference_in_differences) ... ok
+test_expected_prediction_counts (tests.test_fig9_lmatch_stack_2x2.Fig9LMatchStackProtocolTests.test_expected_prediction_counts) ... ok
+test_forbidden_mechanisms_are_off (tests.test_fig9_lmatch_stack_2x2.Fig9LMatchStackProtocolTests.test_forbidden_mechanisms_are_off) ... ok
+test_mapping_accepts_explicit_limit_suffix (tests.test_fig9_lmatch_stack_2x2.Fig9LMatchStackProtocolTests.test_mapping_accepts_explicit_limit_suffix) ... ok
+test_matrix_has_four_named_cells (tests.test_fig9_lmatch_stack_2x2.Fig9LMatchStackProtocolTests.test_matrix_has_four_named_cells) ... ok
+test_raw_pair_only_changes_l_match_and_labels (tests.test_fig9_lmatch_stack_2x2.Fig9LMatchStackProtocolTests.test_raw_pair_only_changes_l_match_and_labels) ... ok
+test_stack_pair_only_changes_l_match_and_labels (tests.test_fig9_lmatch_stack_2x2.Fig9LMatchStackProtocolTests.test_stack_pair_only_changes_l_match_and_labels) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 0.109s
+
+OK

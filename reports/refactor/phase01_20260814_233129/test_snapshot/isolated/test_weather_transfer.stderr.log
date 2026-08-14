@@ -1,0 +1,7 @@
+test_daily_seasonal_source_never_uses_future_data (tests.test_weather_transfer.WeatherTransferTests.test_daily_seasonal_source_never_uses_future_data) ... ok
+test_record_values_use_ten_minute_slot (tests.test_weather_transfer.WeatherTransferTests.test_record_values_use_ten_minute_slot) ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.000s
+
+OK

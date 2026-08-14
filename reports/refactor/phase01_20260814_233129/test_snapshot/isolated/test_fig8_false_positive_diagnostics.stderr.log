@@ -1,0 +1,15 @@
+test_a_b_c_works_with_raw_and_eventwise_without_replay (tests.test_fig8_false_positive_diagnostics.Fig8FalsePositiveDiagnosticTests.test_a_b_c_works_with_raw_and_eventwise_without_replay) ... ok
+test_event_selection_has_no_ground_truth_input (tests.test_fig8_false_positive_diagnostics.Fig8FalsePositiveDiagnosticTests.test_event_selection_has_no_ground_truth_input) ... ok
+test_eventwise_inhibited_code_is_sparse (tests.test_fig8_false_positive_diagnostics.Fig8FalsePositiveDiagnosticTests.test_eventwise_inhibited_code_is_sparse) ... ok
+test_eventwise_inhibition_preserves_real_prediction_neurons (tests.test_fig8_false_positive_diagnostics.Fig8FalsePositiveDiagnosticTests.test_eventwise_inhibition_preserves_real_prediction_neurons) ... ok
+test_main_fig8_cli_keeps_raw_propagation_as_default (tests.test_fig8_false_positive_diagnostics.Fig8FalsePositiveDiagnosticTests.test_main_fig8_cli_keeps_raw_propagation_as_default) ... ok
+test_prefix_diagnostics_are_read_only (tests.test_fig8_false_positive_diagnostics.Fig8FalsePositiveDiagnosticTests.test_prefix_diagnostics_are_read_only) ... ok
+test_raw_and_inhibited_evaluate_same_trained_state_order_independently (tests.test_fig8_false_positive_diagnostics.Fig8FalsePositiveDiagnosticTests.test_raw_and_inhibited_evaluate_same_trained_state_order_independently) ... ok
+test_response_scale_semantics (tests.test_fig8_false_positive_diagnostics.Fig8FalsePositiveDiagnosticTests.test_response_scale_semantics) ... ok
+test_scenario1_summary_keeps_full_contributor_distribution (tests.test_fig8_false_positive_diagnostics.Fig8FalsePositiveDiagnosticTests.test_scenario1_summary_keeps_full_contributor_distribution) ... ok
+test_trace_does_not_change_prediction_decode_or_rng (tests.test_fig8_false_positive_diagnostics.Fig8FalsePositiveDiagnosticTests.test_trace_does_not_change_prediction_decode_or_rng) ... ok
+
+----------------------------------------------------------------------
+Ran 10 tests in 0.066s
+
+OK

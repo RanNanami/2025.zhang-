@@ -1,0 +1,62 @@
+{
+  "name": "fig9_20",
+  "protocol": {
+    "classification": "REGRESSION_FIXTURE",
+    "paper_result": false,
+    "reduced_warmup": true,
+    "family": "Fig9",
+    "frozen_scientific_commit": "1864f46aee5cc0aee814fd4e6154b06f8bfeb08f",
+    "capture_parent_commit": "aec2ce533a730219494f21472bef5425b5a62ed2",
+    "python": "3.12.13 (main, Aug  7 2026, 02:26:41) [MSC v.1944 64 bit (AMD64)]",
+    "dataset": "data/paper_nyc_taxi.csv",
+    "dataset_sha256": "092d957f5bb0d2cd62f85098ed2268114a47b4738a5f4b29ea6be4be7349fc4d",
+    "size": 20,
+    "warmup": 5,
+    "prediction_horizon": 5,
+    "seed": 0,
+    "l_match": 4,
+    "continuous_impl": "reference",
+    "streams": [
+      "original"
+    ],
+    "diagnostics": {
+      "long_sequence_ledger": true,
+      "all_model_diagnostics": false
+    },
+    "input_rows_sha256": "5604c4e54f364e26056ee07bb2558c0e8bad857ec200f39810d7a7f8903d5287",
+    "runner_protocol_sha256": "b0cab3c5cb65304199059b490d32f78b71a522eb5fd347e94225fcc61f7ff537"
+  },
+  "prediction_sha256": "dcd28fa1c3e4dd7b3bb2e4dd24e9ad3a703bcb1164e5f9705fca4f41e4a4c189",
+  "metric": {
+    "mape": 0.8049129150296643,
+    "coverage": 1.0,
+    "predictions": 10,
+    "mean_raw_column_count": 46.2,
+    "peak_raw_column_count": 90
+  },
+  "scenario_summary": {
+    "Scenario1_evaluated_observations": 19,
+    "Scenario2A_evaluated_observations": 125,
+    "Scenario2B_evaluated_observations": 156,
+    "Scenario3_wrong_prediction_count": null,
+    "Scenario3_note": "Not persistently counted by the strict runner; null is intentional."
+  },
+  "SCIENCE_MODEL_SHA256": "035829408fd245e63f2436c59df7e0061a1d11ad6dfcb524726c2b00920e6233",
+  "FULL_STATE_SHA256": "d202ec60bfb281eeccf684a2e40e5719fa44b7e8ebec49fc2b5cff4d647c02dd",
+  "RNG_SHA256": "68840aba7f6d827d4fcd94f7dee2779d7fe962e9c18eef995e4be40fd75dd9b6",
+  "LEARNING_RNG_SHA256": "96a5c45d3878ae0266a791c069049d4490ca998ea03bc6fc44455cb7e000c98f",
+  "DECODE_RNG_SHA256": "d6c9a7bf243a1a6354991df096c14a8395587a0b4571f57c21ba5d08bfce0ba2",
+  "PREVIOUS_ACTIVE_SHA256": "9f541915bd0e0d3eb22343b20a86d59647d9b7dddcbde680945df64d576ee5bf",
+  "PREVIOUS_WINNER_SHA256": "a97c43d7a724b6e87fb41692db6c71766f2a752106d153941c95883c905698c1",
+  "CANDIDATE_SHA256": "60759e89210367fd123a9604ba4a6c984bfb07f4941acd5d55d4a6d522201cf9",
+  "structure": {
+    "column_count": 570,
+    "neuron_count": 18240,
+    "segment_count": 241,
+    "active_segment_count": 241,
+    "synapse_count": 9930,
+    "scenario1_segment_reinforcement_count": 0,
+    "scenario2_segment_reinforcement_count": 0
+  },
+  "checkpoint_next_index": 15
+}

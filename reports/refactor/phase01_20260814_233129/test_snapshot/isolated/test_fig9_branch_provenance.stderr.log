@@ -1,0 +1,16 @@
+test_checkpoint_keeps_v1_and_rebindable_sidecar (tests.test_fig9_branch_provenance.Fig9BranchProvenanceIntegrationTests.test_checkpoint_keeps_v1_and_rebindable_sidecar) ... ok
+test_diagnostic_preserves_predictions_model_rng_and_traces (tests.test_fig9_branch_provenance.Fig9BranchProvenanceIntegrationTests.test_diagnostic_preserves_predictions_model_rng_and_traces) ... ok
+test_off_checkpoint_has_no_diagnostic_sidecar (tests.test_fig9_branch_provenance.Fig9BranchProvenanceIntegrationTests.test_off_checkpoint_has_no_diagnostic_sidecar) ... ok
+test_offline_analysis_writes_required_outputs (tests.test_fig9_branch_provenance.Fig9BranchProvenanceIntegrationTests.test_offline_analysis_writes_required_outputs) ... ok
+test_trace_schema_and_same_candidate_segment_mapping (tests.test_fig9_branch_provenance.Fig9BranchProvenanceIntegrationTests.test_trace_schema_and_same_candidate_segment_mapping) ... ok
+test_empty_trace_analysis_is_safe (tests.test_fig9_branch_provenance.Fig9BranchProvenanceUnitTests.test_empty_trace_analysis_is_safe) ... ok
+test_exact_created_segment_capture_matches_full_scan (tests.test_fig9_branch_provenance.Fig9BranchProvenanceUnitTests.test_exact_created_segment_capture_matches_full_scan) ... ok
+test_registry_does_not_mutate_model_and_rebinds_after_pickle (tests.test_fig9_branch_provenance.Fig9BranchProvenanceUnitTests.test_registry_does_not_mutate_model_and_rebinds_after_pickle) ... ok
+test_source_fingerprint_is_order_independent (tests.test_fig9_branch_provenance.Fig9BranchProvenanceUnitTests.test_source_fingerprint_is_order_independent) ... ok
+test_stable_segment_id_is_repeatable (tests.test_fig9_branch_provenance.Fig9BranchProvenanceUnitTests.test_stable_segment_id_is_repeatable) ... ok
+test_trace_mapping_does_not_predict_observe_or_learn (tests.test_fig9_branch_provenance.Fig9BranchProvenanceUnitTests.test_trace_mapping_does_not_predict_observe_or_learn) ... ok
+
+----------------------------------------------------------------------
+Ran 11 tests in 11.531s
+
+OK

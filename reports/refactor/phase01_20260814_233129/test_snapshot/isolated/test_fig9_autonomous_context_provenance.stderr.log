@@ -1,0 +1,9 @@
+test_candidate_trace_is_bounded_and_gzip_is_readable (tests.test_fig9_autonomous_context_provenance.AutonomousContextProvenanceTests.test_candidate_trace_is_bounded_and_gzip_is_readable) ... ok
+test_identity_and_current_activation_are_separate (tests.test_fig9_autonomous_context_provenance.AutonomousContextProvenanceTests.test_identity_and_current_activation_are_separate) ... ok
+test_rollout_id_is_deterministic_and_does_not_use_object_ids (tests.test_fig9_autonomous_context_provenance.AutonomousContextProvenanceTests.test_rollout_id_is_deterministic_and_does_not_use_object_ids) ... ok
+test_step_origin_and_depth_are_propagated (tests.test_fig9_autonomous_context_provenance.AutonomousContextProvenanceTests.test_step_origin_and_depth_are_propagated) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.016s
+
+OK

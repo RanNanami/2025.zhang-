@@ -1,0 +1,9 @@
+test_component_effects_use_p0_as_common_baseline (tests.test_fig9_l2_stack_component.Fig9L2StackComponentTests.test_component_effects_use_p0_as_common_baseline) ... ok
+test_component_matrix_has_expected_factor_cells (tests.test_fig9_l2_stack_component.Fig9L2StackComponentTests.test_component_matrix_has_expected_factor_cells) ... ok
+test_density_trace_candidate_fields_are_aggregated_without_model_access (tests.test_fig9_l2_stack_component.Fig9L2StackComponentTests.test_density_trace_candidate_fields_are_aggregated_without_model_access) ... ok
+test_native_history_combines_distinct_attempt_directories (tests.test_fig9_l2_stack_component.Fig9L2StackComponentTests.test_native_history_combines_distinct_attempt_directories) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.010s
+
+OK

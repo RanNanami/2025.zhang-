@@ -1,0 +1,9 @@
+test_analyzer_writes_complete_output_set (tests.test_fig9_segment_reinforcement.SegmentReinforcementDiagnosticTests.test_analyzer_writes_complete_output_set) ... ok
+test_primary_labels_are_mutually_exclusive (tests.test_fig9_segment_reinforcement.SegmentReinforcementDiagnosticTests.test_primary_labels_are_mutually_exclusive) ... ok
+test_reference_unavailable_is_never_wrong (tests.test_fig9_segment_reinforcement.SegmentReinforcementDiagnosticTests.test_reference_unavailable_is_never_wrong) ... ok
+test_runner_trace_is_noninterfering_and_checkpoint_safe (tests.test_fig9_segment_reinforcement.SegmentReinforcementDiagnosticTests.test_runner_trace_is_noninterfering_and_checkpoint_safe) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 3.045s
+
+OK

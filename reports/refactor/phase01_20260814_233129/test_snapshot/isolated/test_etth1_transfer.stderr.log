@@ -1,0 +1,7 @@
+test_empty_model_coverage_has_defined_metrics (tests.test_etth1_transfer.ETTh1TransferTests.test_empty_model_coverage_has_defined_metrics) ... ok
+test_seasonal_source_never_uses_future_data (tests.test_etth1_transfer.ETTh1TransferTests.test_seasonal_source_never_uses_future_data) ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.000s
+
+OK

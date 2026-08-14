@@ -1,0 +1,17 @@
+test_analyzer_writes_complete_auditable_outputs (tests.test_fig9_lmatch_ablation.Fig9LMatchAnalysisTests.test_analyzer_writes_complete_auditable_outputs) ... ok
+test_improved_error_with_ambiguity_growth_is_unstable (tests.test_fig9_lmatch_ablation.Fig9LMatchAnalysisTests.test_improved_error_with_ambiguity_growth_is_unstable) ... ok
+test_paired_bootstrap_is_reproducible (tests.test_fig9_lmatch_ablation.Fig9LMatchAnalysisTests.test_paired_bootstrap_is_reproducible) ... ok
+test_protocol_comparison_allows_only_lmatch_difference (tests.test_fig9_lmatch_ablation.Fig9LMatchAnalysisTests.test_protocol_comparison_allows_only_lmatch_difference) ... ok
+test_checkpoint_records_and_rejects_mismatched_lmatch (tests.test_fig9_lmatch_ablation.Fig9LMatchConfigurationTests.test_checkpoint_records_and_rejects_mismatched_lmatch) ... ok
+test_cli_accepts_only_real_ablation_values (tests.test_fig9_lmatch_ablation.Fig9LMatchConfigurationTests.test_cli_accepts_only_real_ablation_values) ... ok
+test_default_and_explicit_l4_predictions_are_identical (tests.test_fig9_lmatch_ablation.Fig9LMatchConfigurationTests.test_default_and_explicit_l4_predictions_are_identical) ... ok
+test_manual_script_excludes_lmatch_one_and_requires_opt_in (tests.test_fig9_lmatch_ablation.Fig9LMatchConfigurationTests.test_manual_script_excludes_lmatch_one_and_requires_opt_in) ... ok
+test_protocol_records_real_lmatch (tests.test_fig9_lmatch_ablation.Fig9LMatchConfigurationTests.test_protocol_records_real_lmatch) ... ok
+test_real_lmatch_changes_scenario2_gate (tests.test_fig9_lmatch_ablation.Fig9LMatchConfigurationTests.test_real_lmatch_changes_scenario2_gate) ... ok
+test_real_lmatch_reaches_model_params (tests.test_fig9_lmatch_ablation.Fig9LMatchConfigurationTests.test_real_lmatch_reaches_model_params) ... ok
+test_strict_default_remains_four (tests.test_fig9_lmatch_ablation.Fig9LMatchConfigurationTests.test_strict_default_remains_four) ... ok
+
+----------------------------------------------------------------------
+Ran 12 tests in 6.870s
+
+OK

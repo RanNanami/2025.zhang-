@@ -1,0 +1,9 @@
+test_eight_numeric_fields_use_976_columns (tests.test_multivariate_fig9_transfer.MultivariateFig9TransferTests.test_eight_numeric_fields_use_976_columns) ... ok
+test_etth1_record_contains_time_and_selected_fields (tests.test_multivariate_fig9_transfer.MultivariateFig9TransferTests.test_etth1_record_contains_time_and_selected_fields) ... ok
+test_multihorizon_parser_sorts_and_deduplicates (tests.test_multivariate_fig9_transfer.MultivariateFig9TransferTests.test_multihorizon_parser_sorts_and_deduplicates) ... ok
+test_selection_keeps_target_last (tests.test_multivariate_fig9_transfer.MultivariateFig9TransferTests.test_selection_keeps_target_last) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.000s
+
+OK

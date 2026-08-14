@@ -1,0 +1,11 @@
+test_comparison_counts_target_and_false_rescue (tests.test_fig9_competition_policy_comparison.Fig9CompetitionPolicyComparisonTests.test_comparison_counts_target_and_false_rescue) ... ok
+test_comparison_outputs_are_explicitly_diagnostic (tests.test_fig9_competition_policy_comparison.Fig9CompetitionPolicyComparisonTests.test_comparison_outputs_are_explicitly_diagnostic) ... ok
+test_historical_trace_without_appended_columns_is_readable (tests.test_fig9_competition_policy_comparison.Fig9CompetitionPolicyComparisonTests.test_historical_trace_without_appended_columns_is_readable) ... ok
+test_strict_alignment_accepts_reordered_rows (tests.test_fig9_competition_policy_comparison.Fig9CompetitionPolicyComparisonTests.test_strict_alignment_accepts_reordered_rows) ... ok
+test_strict_alignment_rejects_duplicate_key (tests.test_fig9_competition_policy_comparison.Fig9CompetitionPolicyComparisonTests.test_strict_alignment_rejects_duplicate_key) ... ok
+test_strict_alignment_rejects_missing_row (tests.test_fig9_competition_policy_comparison.Fig9CompetitionPolicyComparisonTests.test_strict_alignment_rejects_missing_row) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.004s
+
+OK

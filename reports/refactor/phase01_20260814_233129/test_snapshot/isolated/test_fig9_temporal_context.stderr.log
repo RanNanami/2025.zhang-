@@ -1,0 +1,55 @@
+test_01_protocol_is_diagnostic_only (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_01_protocol_is_diagnostic_only) ... ok
+test_02_protocol_default_off (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_02_protocol_default_off) ... ok
+test_03_protocol_is_causal (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_03_protocol_is_causal) ... ok
+test_04_protocol_no_ground_truth_selection (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_04_protocol_no_ground_truth_selection) ... ok
+test_05_protocol_no_future_selection (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_05_protocol_no_future_selection) ... ok
+test_06_age_mean (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_06_age_mean) ... ok
+test_07_age_median (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_07_age_median) ... ok
+test_08_age_min (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_08_age_min) ... ok
+test_09_age_max (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_09_age_max) ... ok
+test_10_age_std (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_10_age_std) ... ok
+test_11_age_span (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_11_age_span) ... ok
+test_12_age_iqr (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_12_age_iqr) ... ok
+test_13_entropy_is_finite (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_13_entropy_is_finite) ... ok
+test_14_recent_1 (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_14_recent_1) ... ok
+test_15_recent_3 (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_15_recent_3) ... ok
+test_16_recent_5 (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_16_recent_5) ... ok
+test_17_recent_10 (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_17_recent_10) ... ok
+test_18_recent_20 (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_18_recent_20) ... ok
+test_19_negative_age_is_removed (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_19_negative_age_is_removed) ... ok
+test_20_missing_age_is_na (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_20_missing_age_is_na) ... ok
+test_21_empty_recent_fraction_is_zero (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_21_empty_recent_fraction_is_zero) ... ok
+test_22_compactness_is_finite (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_22_compactness_is_finite) ... ok
+test_23_recentness_concentration_matches_recent5 (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_23_recentness_concentration_matches_recent5) ... ok
+test_24_gap_mean (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_24_gap_mean) ... ok
+test_25_gap_max (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_25_gap_max) ... ok
+test_26_recent_cluster_size (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_26_recent_cluster_size) ... ok
+test_27_source_fingerprint_is_order_invariant (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_27_source_fingerprint_is_order_invariant) ... ok
+test_28_source_fingerprint_is_not_object_id (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_28_source_fingerprint_is_not_object_id) ... ok
+test_29_actual_and_autonomous_labels_are_distinct (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_29_actual_and_autonomous_labels_are_distinct) ... ok
+test_30_actual_history_age (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_30_actual_history_age) ... ok
+test_31_autonomous_history_is_separate (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_31_autonomous_history_is_separate) ... ok
+test_32_unknown_history_is_not_zero (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_32_unknown_history_is_not_zero) ... ok
+test_33_candidate_row_has_stable_id (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_33_candidate_row_has_stable_id) ... ok
+test_34_candidate_row_is_fixed_width (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_34_candidate_row_is_fixed_width) ... ok
+test_35_candidate_score_is_preserved (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_35_candidate_score_is_preserved) ... ok
+test_36_response_peak_is_preserved (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_36_response_peak_is_preserved) ... ok
+test_37_delay_mean_is_preserved (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_37_delay_mean_is_preserved) ... ok
+test_38_delay_span_is_preserved (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_38_delay_span_is_preserved) ... ok
+test_39_order_template_is_explicitly_unavailable (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_39_order_template_is_explicitly_unavailable) ... ok
+test_40_source_age_monotonicity_not_invented (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_40_source_age_monotonicity_not_invented) ... ok
+test_41_reinforcement_time_not_invented (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_41_reinforcement_time_not_invented) ... ok
+test_42_reinforcement_count_preserved (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_42_reinforcement_count_preserved) ... ok
+test_43_recurrent_flag_is_step_sensitive (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_43_recurrent_flag_is_step_sensitive) ... ok
+test_44_checkpoint_round_trip (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_44_checkpoint_round_trip) ... ok
+test_45_begin_record_resets_autonomous_history (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_45_begin_record_resets_autonomous_history) ... ok
+test_46_record_actual_updates_only_actual_history (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_46_record_actual_updates_only_actual_history) ... ok
+test_47_record_autonomous_updates_only_autonomous_history (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_47_record_autonomous_updates_only_autonomous_history) ... ok
+test_48_actual_source_summary_is_bounded (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_48_actual_source_summary_is_bounded) ... ok
+test_49_actual_source_false_rows_are_ignored (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_49_actual_source_false_rows_are_ignored) ... ok
+test_50_streaming_trace_reaches_gzip_eof (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_50_streaming_trace_reaches_gzip_eof) ... ok
+
+----------------------------------------------------------------------
+Ran 50 tests in 0.022s
+
+OK

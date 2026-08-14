@@ -1,0 +1,26 @@
+{
+  "classification": "REGRESSION_FIXTURE",
+  "paper_result": false,
+  "reduced_warmup": true,
+  "family": "Fig9",
+  "frozen_scientific_commit": "1864f46aee5cc0aee814fd4e6154b06f8bfeb08f",
+  "capture_parent_commit": "aec2ce533a730219494f21472bef5425b5a62ed2",
+  "python": "3.12.13 (main, Aug  7 2026, 02:26:41) [MSC v.1944 64 bit (AMD64)]",
+  "dataset": "data/paper_nyc_taxi.csv",
+  "dataset_sha256": "092d957f5bb0d2cd62f85098ed2268114a47b4738a5f4b29ea6be4be7349fc4d",
+  "size": 10,
+  "warmup": 2,
+  "prediction_horizon": 5,
+  "seed": 0,
+  "l_match": 4,
+  "continuous_impl": "reference",
+  "streams": [
+    "original"
+  ],
+  "diagnostics": {
+    "long_sequence_ledger": true,
+    "all_model_diagnostics": false
+  },
+  "input_rows_sha256": "e0c431906bf4cbe0d262d7de117db16023aaa1d6e76d94c9ef780de2aaa4b691",
+  "runner_protocol_sha256": "0f28ea127b2e3e1f26e8bcc045219889c9946a33b1719dd12414f49bfaaf346a"
+}

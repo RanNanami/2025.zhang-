@@ -1,0 +1,7 @@
+test_merge_uses_checkpoint_boundary_and_formal_window (tests.test_fig9_resume_diagnostic_assembly.Fig9ResumeDiagnosticAssemblyTests.test_merge_uses_checkpoint_boundary_and_formal_window) ... ok
+test_observe_trace_restores_event_missing_from_context (tests.test_fig9_resume_diagnostic_assembly.Fig9ResumeDiagnosticAssemblyTests.test_observe_trace_restores_event_missing_from_context) ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.056s
+
+OK

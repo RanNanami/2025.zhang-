@@ -1,0 +1,32 @@
+[
+  {
+    "name": "fig8_10",
+    "attempts": 2,
+    "all_behavior_fingerprints_equal": true
+  },
+  {
+    "name": "fig8_20",
+    "attempts": 2,
+    "all_behavior_fingerprints_equal": true
+  },
+  {
+    "name": "fig8_50",
+    "attempts": 2,
+    "all_behavior_fingerprints_equal": true
+  },
+  {
+    "name": "fig9_10",
+    "attempts": 2,
+    "all_behavior_fingerprints_equal": true
+  },
+  {
+    "name": "fig9_20",
+    "attempts": 2,
+    "all_behavior_fingerprints_equal": true
+  },
+  {
+    "name": "fig9_50",
+    "attempts": 2,
+    "all_behavior_fingerprints_equal": true
+  }
+]

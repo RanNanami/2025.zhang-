@@ -1,0 +1,10 @@
+test_clause_split_recovers_four_five_character_lines (tests.test_fig8c_poem_memory.Fig8CPoemTests.test_clause_split_recovers_four_five_character_lines) ... ok
+test_goal_feedback_round_trip (tests.test_fig8c_poem_memory.Fig8CPoemTests.test_goal_feedback_round_trip) ... ok
+test_source_neurons_separate_colliding_concepts (tests.test_fig8c_poem_memory.Fig8CPoemTests.test_source_neurons_separate_colliding_concepts) ... ok
+test_stress_dataset_is_unique_but_contextually_ambiguous (tests.test_fig8c_poem_memory.Fig8CPoemTests.test_stress_dataset_is_unique_but_contextually_ambiguous) ... ok
+test_unlearned_concept_has_no_feedback (tests.test_fig8c_poem_memory.Fig8CPoemTests.test_unlearned_concept_has_no_feedback) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.008s
+
+OK

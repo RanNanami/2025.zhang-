@@ -1,0 +1,42 @@
+test_01_dataset_row_count_audit (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_01_dataset_row_count_audit) ... ok
+test_02_timestamp_interval_audit (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_02_timestamp_interval_audit) ... ok
+test_03_missing_interval_audit (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_03_missing_interval_audit) ... ok
+test_04_dataset_duplicate_audit (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_04_dataset_duplicate_audit) ... ok
+test_05_sha_capture (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_05_sha_capture) ... ok
+test_06_current_strict_actual_data_path (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_06_current_strict_actual_data_path) ... ok
+test_07_current_data_is_reference_asset_copy (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_07_current_data_is_reference_asset_copy) ... ok
+test_08_short_nab_file_is_exact_prefix (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_08_short_nab_file_is_exact_prefix) ... ok
+test_09_paper_year_range_stays_unknown (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_09_paper_year_range_stays_unknown) ... ok
+test_10_paper_aggregation_stays_unknown (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_10_paper_aggregation_stays_unknown) ... ok
+test_11_no_current_value_backfill_into_paper_fingerprint (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_11_no_current_value_backfill_into_paper_fingerprint) ... ok
+test_12_k10_fixture (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_12_k10_fixture) ... ok
+test_13_field_column_count_fixture (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_13_field_column_count_fixture) ... ok
+test_14_encoding_fixture_event_count (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_14_encoding_fixture_event_count) ... ok
+test_15_weekday_periodic_boundary (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_15_weekday_periodic_boundary) ... ok
+test_16_time_periodic_boundary (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_16_time_periodic_boundary) ... ok
+test_17_passenger_neighboring_value_overlap (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_17_passenger_neighboring_value_overlap) ... ok
+test_18_encoder_is_deterministic (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_18_encoder_is_deterministic) ... ok
+test_19_spike_order_is_deterministic (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_19_spike_order_is_deterministic) ... ok
+test_20_spike_order_affects_decode (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_20_spike_order_affects_decode) ... ok
+test_21_ideal_encode_decode_roundtrip_sample (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_21_ideal_encode_decode_roundtrip_sample) ... ok
+test_22_decoder_boundary_values (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_22_decoder_boundary_values) ... ok
+test_23_decoder_api_has_no_future_target (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_23_decoder_api_has_no_future_target) ... ok
+test_24_horizon_reported_timestamp_is_plus_2_5_hours (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_24_horizon_reported_timestamp_is_plus_2_5_hours) ... ok
+test_25_step5_causal_target_alignment_is_audited (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_25_step5_causal_target_alignment_is_audited) ... ok
+test_26_current_off_by_one_is_detected (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_26_current_off_by_one_is_detected) ... ok
+test_27_desired_five_step_fixture_has_no_off_by_one (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_27_desired_five_step_fixture_has_no_off_by_one) ... ok
+test_28_mape_definition_fixture (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_28_mape_definition_fixture) ... ok
+test_29_warmup_provenance_is_reported (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_29_warmup_provenance_is_reported) ... ok
+test_30_parity_matrix_has_at_least_100_items (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_30_parity_matrix_has_at_least_100_items) ... ok
+test_31_mismatch_severity_order_is_deterministic (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_31_mismatch_severity_order_is_deterministic) ... ok
+test_32_run_family_classification (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_32_run_family_classification) ... ok
+test_33_audit_primitives_do_not_alter_model (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_33_audit_primitives_do_not_alter_model) ... ok
+test_34_no_compensation_in_strict_defaults (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_34_no_compensation_in_strict_defaults) ... ok
+test_35_no_future_covariates_in_strict_defaults (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_35_no_future_covariates_in_strict_defaults) ... ok
+test_36_strict_default_core_values_are_unchanged (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_36_strict_default_core_values_are_unchanged) ... ok
+test_37_full_roundtrip_summary_regression (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_37_full_roundtrip_summary_regression) ... ok
+
+----------------------------------------------------------------------
+Ran 37 tests in 7.397s
+
+OK

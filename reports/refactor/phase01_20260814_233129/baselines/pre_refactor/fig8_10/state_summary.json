@@ -1,0 +1,55 @@
+{
+  "name": "fig8_10",
+  "protocol": {
+    "classification": "REGRESSION_FIXTURE",
+    "paper_result": false,
+    "family": "Fig8",
+    "frozen_scientific_commit": "1864f46aee5cc0aee814fd4e6154b06f8bfeb08f",
+    "capture_parent_commit": "aec2ce533a730219494f21472bef5425b5a62ed2",
+    "python": "3.12.13 (main, Aug  7 2026, 02:26:41) [MSC v.1944 64 bit (AMD64)]",
+    "dataset": "data/CBTest/data/cbt_train.txt",
+    "dataset_sha256": "13cfc7743cea6752b5f22fa49c8977292428e176b11963d3906f10528e491401",
+    "size": 10,
+    "seed": 11,
+    "sentence_length": 10,
+    "prefix_length": 6,
+    "suffix_length": 4,
+    "num_columns": 100,
+    "neurons_per_column": 10,
+    "k": 10,
+    "l_match": 3,
+    "forgetting_threshold": 500.0,
+    "retrieval_mode": "neural",
+    "neural_propagation": "raw",
+    "input_rows_sha256": "f6431019a3be0c32efe9ec3a4a3654e0a6722a2824d39e7aaa4323da7fdb7d68"
+  },
+  "prediction_sha256": "896a71d3a0fbeb9df0d80b035b710ccd3d1d3bbf732f51d69ca3498035bccf15",
+  "metric": {
+    "mean_levenshtein": 0.4,
+    "evaluated_sentences": 10
+  },
+  "scenario_summary": {
+    "Scenario1": 17,
+    "Scenario2A": 2,
+    "Scenario2B": 981,
+    "Scenario3": 1040
+  },
+  "SCIENCE_MODEL_SHA256": "40c051a84b86ba5d80c00e24e93bcb14d179d77b6af6f45998b0f30b1d4b523e",
+  "FULL_STATE_SHA256": "b205e389c177c9d7dfee97da1cdfabd08738f454975d1501ed83c08efb97323b",
+  "RNG_SHA256": "a8d6fa2329667961f0d20bbf317feac95fcf1bdc7759cb24d95813a658291c28",
+  "LEARNING_RNG_SHA256": "df34395043034487cad83fed8da37b9a1b7af30d671ddf9c3028aee33e575b93",
+  "DECODE_RNG_SHA256": "ce2e075758e07803fc1aeed08637cd27cd291b66991455db44d4933f9eed7a09",
+  "PREVIOUS_ACTIVE_SHA256": "c284e0327364c33d8956734354ba1eaca045075d7cd2981f91563634e155f06c",
+  "PREVIOUS_WINNER_SHA256": "7b2a12741ec3eabb0d4007ab32960c04848696dfa223432a29de36fe3645f707",
+  "CANDIDATE_SHA256": "60ad88e003c53fdaf8ef1e51c3aed0812bde5f34cfe5da176cb51586582ed648",
+  "structure": {
+    "column_count": 100,
+    "neuron_count": 1000,
+    "segment_count": 881,
+    "active_segment_count": 881,
+    "synapse_count": 8830,
+    "scenario1_segment_reinforcement_count": 0,
+    "scenario2_segment_reinforcement_count": 0
+  },
+  "evaluation_read_only_verified": true
+}

@@ -1,0 +1,14 @@
+test_column_event_id_is_deterministic_and_has_no_object_identity (tests.test_fig9_readout_dynamics.Fig9ReadoutDynamicsTests.test_column_event_id_is_deterministic_and_has_no_object_identity) ... ok
+test_competition_outcomes_are_aggregate_per_column (tests.test_fig9_readout_dynamics.Fig9ReadoutDynamicsTests.test_competition_outcomes_are_aggregate_per_column) ... ok
+test_incremental_trace_matches_one_shot_rows (tests.test_fig9_readout_dynamics.Fig9ReadoutDynamicsTests.test_incremental_trace_matches_one_shot_rows) ... ok
+test_legacy_zero_contributor_ledger_is_marked_missing (tests.test_fig9_readout_dynamics.Fig9ReadoutDynamicsTests.test_legacy_zero_contributor_ledger_is_marked_missing) ... ok
+test_missing_contributor_is_not_zero (tests.test_fig9_readout_dynamics.Fig9ReadoutDynamicsTests.test_missing_contributor_is_not_zero) ... ok
+test_posthoc_target_is_field_aware (tests.test_fig9_readout_dynamics.Fig9ReadoutDynamicsTests.test_posthoc_target_is_field_aware) ... ok
+test_preselector_and_maxscore_representative_are_persisted (tests.test_fig9_readout_dynamics.Fig9ReadoutDynamicsTests.test_preselector_and_maxscore_representative_are_persisted) ... ok
+test_selector_bucket_fields_are_deterministically_derived (tests.test_fig9_readout_dynamics.Fig9ReadoutDynamicsTests.test_selector_bucket_fields_are_deterministically_derived) ... ok
+test_target_false_funnel_sums_are_explicit (tests.test_fig9_readout_dynamics.Fig9ReadoutDynamicsTests.test_target_false_funnel_sums_are_explicit) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 0.090s
+
+OK

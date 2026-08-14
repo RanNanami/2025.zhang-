@@ -1,0 +1,8 @@
+test_full_traceback_capture_regression (tests.test_fig9_process_logging.Fig9ProcessLoggingTests.test_full_traceback_capture_regression) ... ok
+test_stderr_traceback_and_native_exit_code_are_preserved (tests.test_fig9_process_logging.Fig9ProcessLoggingTests.test_stderr_traceback_and_native_exit_code_are_preserved) ... ok
+test_success_writes_result_without_failure (tests.test_fig9_process_logging.Fig9ProcessLoggingTests.test_success_writes_result_without_failure) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.524s
+
+OK

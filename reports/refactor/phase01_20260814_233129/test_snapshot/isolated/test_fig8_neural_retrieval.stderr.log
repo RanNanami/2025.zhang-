@@ -1,0 +1,14 @@
+test_a_b_c_retrieves_autonomously_without_observing_b (tests.test_fig8_neural_retrieval.Fig8NeuralRetrievalTests.test_a_b_c_retrieves_autonomously_without_observing_b) ... ok
+test_advance_contains_only_prediction_active_cells (tests.test_fig8_neural_retrieval.Fig8NeuralRetrievalTests.test_advance_contains_only_prediction_active_cells) ... ok
+test_checkpoint_evaluation_does_not_change_training_or_rng (tests.test_fig8_neural_retrieval.Fig8NeuralRetrievalTests.test_checkpoint_evaluation_does_not_change_training_or_rng) ... ok
+test_checkpoint_excludes_reproducible_response_cache (tests.test_fig8_neural_retrieval.Fig8NeuralRetrievalTests.test_checkpoint_excludes_reproducible_response_cache) ... ok
+test_decode_from_prediction_does_not_predict_again (tests.test_fig8_neural_retrieval.Fig8NeuralRetrievalTests.test_decode_from_prediction_does_not_predict_again) ... ok
+test_neural_recall_does_not_modify_long_term_memory (tests.test_fig8_neural_retrieval.Fig8NeuralRetrievalTests.test_neural_recall_does_not_modify_long_term_memory) ... ok
+test_predict_symbol_apis_call_predict_code_once_each (tests.test_fig8_neural_retrieval.Fig8NeuralRetrievalTests.test_predict_symbol_apis_call_predict_code_once_each) ... ok
+test_proximal_replay_mode_preserves_legacy_behavior (tests.test_fig8_neural_retrieval.Fig8NeuralRetrievalTests.test_proximal_replay_mode_preserves_legacy_behavior) ... ok
+test_spike_response_cache_is_bounded_without_changing_values (tests.test_fig8_neural_retrieval.Fig8NeuralRetrievalTests.test_spike_response_cache_is_bounded_without_changing_values) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 0.242s
+
+OK

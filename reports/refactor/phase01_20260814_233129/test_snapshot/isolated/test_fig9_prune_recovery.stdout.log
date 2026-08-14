@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+RuntimeError: stop
+
+===== child stderr tail (last 300 lines) =====
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+RuntimeError: stop

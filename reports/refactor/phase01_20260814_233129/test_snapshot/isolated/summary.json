@@ -1,0 +1,502 @@
+{
+  "captured_at": "2026-08-15 00:16:53",
+  "python": "3.12.13 (main, Aug  7 2026, 02:26:41) [MSC v.1944 64 bit (AMD64)]",
+  "module_count": 49,
+  "passed_module_count": 49,
+  "failed_module_count": 0,
+  "native_crash_count": 0,
+  "total_reported_tests": 696,
+  "single_process_equivalent": false,
+  "modules": [
+    {
+      "module": "tests.test_architecture_boundaries",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 5,
+      "elapsed_seconds": 0.26880140000139363,
+      "stdout_log": "test_architecture_boundaries.stdout.log",
+      "stderr_log": "test_architecture_boundaries.stderr.log",
+      "tail": "test_importing_diagnostics_preserves_memory_defaults (tests.test_architecture_boundaries.ArchitectureBoundaryTests.test_importing_diagnostics_preserves_memory_defaults)\n�������ģ�鲻���޸�ȫ�� strict/model Ĭ�ϲ����� ... ok\ntest_legacy_fig9_module_reexports_stable_helpers (tests.test_architecture_boundaries.ArchitectureBoundaryTests.test_legacy_fig9_module_reexports_stable_helpers)\n�� import ·������ת�����µ��ȶ�ʵ�֣����ܸ��Ƴ��ڶ����߼��� ... ok\ntest_pickle_class_module_paths_remain_stable (tests.test_architecture_boundaries.ArchitectureBoundaryTests.test_pickle_class_module_paths_remain_stable)\n�� pickle checkpoint ������Щ������·���� ... ok\ntest_seqmem_does_not_import_experiments_or_diagnostics (tests.test_architecture_boundaries.ArchitectureBoundaryTests.test_seqmem_does_not_import_experiments_or_diagnostics)\n����ģ�Ͳ��ܷ�������ʵ����ڻ����ģ�顣 ... ok\ntest_strict_entrypoint_only_uses_stable_fig9_helpers (tests.test_architecture_boundaries.ArchitectureBoundaryTests.test_strict_entrypoint_only_uses_stable_fig9_helpers)\nstrict ��ڲ������������ʷģ��� historical ���� ... ok\n\n----------------------------------------------------------------------\nRan 5 tests in 0.124s\n\nOK"
+    },
+    {
+      "module": "tests.test_etth1_transfer",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 2,
+      "elapsed_seconds": 0.15778820001287386,
+      "stdout_log": "test_etth1_transfer.stdout.log",
+      "stderr_log": "test_etth1_transfer.stderr.log",
+      "tail": "test_empty_model_coverage_has_defined_metrics (tests.test_etth1_transfer.ETTh1TransferTests.test_empty_model_coverage_has_defined_metrics) ... ok\ntest_seasonal_source_never_uses_future_data (tests.test_etth1_transfer.ETTh1TransferTests.test_seasonal_source_never_uses_future_data) ... ok\n\n----------------------------------------------------------------------\nRan 2 tests in 0.000s\n\nOK"
+    },
+    {
+      "module": "tests.test_fig8_branch_coherence",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 9,
+      "elapsed_seconds": 0.3059860000212211,
+      "stdout_log": "test_fig8_branch_coherence.stdout.log",
+      "stderr_log": "test_fig8_branch_coherence.stderr.log",
+      "tail": "test_a_b_c_remains_autonomous (tests.test_fig8_branch_coherence.Fig8BranchCoherenceTests.test_a_b_c_remains_autonomous) ... ok\ntest_beam_has_no_ground_truth_or_provenance_inputs (tests.test_fig8_branch_coherence.Fig8BranchCoherenceTests.test_beam_has_no_ground_truth_or_provenance_inputs) ... ok\ntest_beam_is_read_only_and_order_independent (tests.test_fig8_branch_coherence.Fig8BranchCoherenceTests.test_beam_is_read_only_and_order_independent) ... ok\ntest_beam_uses_real_candidates_without_encoding (tests.test_fig8_branch_coherence.Fig8BranchCoherenceTests.test_beam_uses_real_candidates_without_encoding) ... ok\ntest_burst_classification (tests.test_fig8_branch_coherence.Fig8BranchCoherenceTests.test_burst_classification) ... ok\ntest_burst_labels_preserve_active_cell_identity (tests.test_fig8_branch_coherence.Fig8BranchCoherenceTests.test_burst_labels_preserve_active_cell_identity) ... ok\ntest_provenance_switch_preserves_training_prediction_and_rng (tests.test_fig8_branch_coherence.Fig8BranchCoherenceTests.test_provenance_switch_preserves_training_prediction_and_rng) ... ok\ntest_psp_decomposition_sums_to_total (tests.test_fig8_branch_coherence.Fig8BranchCoherenceTests.test_psp_decomposition_sums_to_total) ... ok\ntest_strict_defaults_remain_unchanged (tests.test_fig8_branch_coherence.Fig8BranchCoherenceTests.test_strict_defaults_remain_unchanged) ... ok\n\n----------------------------------------------------------------------\nRan 9 tests in 0.079s\n\nOK"
+    },
+    {
+      "module": "tests.test_fig8_false_positive_diagnostics",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 10,
+      "elapsed_seconds": 0.24537859999691136,
+      "stdout_log": "test_fig8_false_positive_diagnostics.stdout.log",
+      "stderr_log": "test_fig8_false_positive_diagnostics.stderr.log",
+      "tail": "test_a_b_c_works_with_raw_and_eventwise_without_replay (tests.test_fig8_false_positive_diagnostics.Fig8FalsePositiveDiagnosticTests.test_a_b_c_works_with_raw_and_eventwise_without_replay) ... ok\ntest_event_selection_has_no_ground_truth_input (tests.test_fig8_false_positive_diagnostics.Fig8FalsePositiveDiagnosticTests.test_event_selection_has_no_ground_truth_input) ... ok\ntest_eventwise_inhibited_code_is_sparse (tests.test_fig8_false_positive_diagnostics.Fig8FalsePositiveDiagnosticTests.test_eventwise_inhibited_code_is_sparse) ... ok\ntest_eventwise_inhibition_preserves_real_prediction_neurons (tests.test_fig8_false_positive_diagnostics.Fig8FalsePositiveDiagnosticTests.test_eventwise_inhibition_preserves_real_prediction_neurons) ... ok\ntest_main_fig8_cli_keeps_raw_propagation_as_default (tests.test_fig8_false_positive_diagnostics.Fig8FalsePositiveDiagnosticTests.test_main_fig8_cli_keeps_raw_propagation_as_default) ... ok\ntest_prefix_diagnostics_are_read_only (tests.test_fig8_false_positive_diagnostics.Fig8FalsePositiveDiagnosticTests.test_prefix_diagnostics_are_read_only) ... ok\ntest_raw_and_inhibited_evaluate_same_trained_state_order_independently (tests.test_fig8_false_positive_diagnostics.Fig8FalsePositiveDiagnosticTests.test_raw_and_inhibited_evaluate_same_trained_state_order_independently) ... ok\ntest_response_scale_semantics (tests.test_fig8_false_positive_diagnostics.Fig8FalsePositiveDiagnosticTests.test_response_scale_semantics) ... ok\ntest_scenario1_summary_keeps_full_contributor_distribution (tests.test_fig8_false_positive_diagnostics.Fig8FalsePositiveDiagnosticTests.test_scenario1_summary_keeps_full_contributor_distribution) ... ok\ntest_trace_does_not_change_prediction_decode_or_rng (tests.test_fig8_false_positive_diagnostics.Fig8FalsePositiveDiagnosticTests.test_trace_does_not_change_prediction_decode_or_rng) ... ok\n\n----------------------------------------------------------------------\nRan 10 tests in 0.066s\n\nOK"
+    },
+    {
+      "module": "tests.test_fig8_intralayer_plasticity_parity",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 33,
+      "elapsed_seconds": 0.4886333999747876,
+      "stdout_log": "test_fig8_intralayer_plasticity_parity.stdout.log",
+      "stderr_log": "test_fig8_intralayer_plasticity_parity.stderr.log",
+      "tail": "test_same_segment_noncontributors_are_aged (tests.test_fig8_intralayer_plasticity_parity.Fig8IntralayerPlasticityParityTests.test_same_segment_noncontributors_are_aged) ... ok\ntest_same_segment_noncontributors_are_weakened (tests.test_fig8_intralayer_plasticity_parity.Fig8IntralayerPlasticityParityTests.test_same_segment_noncontributors_are_weakened) ... ok\ntest_scenario1_does_not_reselect_segment (tests.test_fig8_intralayer_plasticity_parity.Fig8IntralayerPlasticityParityTests.test_scenario1_does_not_reselect_segment) ... ok\ntest_scenario1_does_not_use_l_match (tests.test_fig8_intralayer_plasticity_parity.Fig8IntralayerPlasticityParityTests.test_scenario1_does_not_use_l_match) ... ok\ntest_scenario1_event_has_candidate_identity (tests.test_fig8_intralayer_plasticity_parity.Fig8IntralayerPlasticityParityTests.test_scenario1_event_has_candidate_identity) ... ok\ntest_scenario1_learning_neuron_matches_prediction (tests.test_fig8_intralayer_plasticity_parity.Fig8IntralayerPlasticityParityTests.test_scenario1_learning_neuron_matches_prediction) ... ok\ntest_scenario1_prediction_candidate_is_saved_until_learning (tests.test_fig8_intralayer_plasticity_parity.Fig8IntralayerPlasticityParityTests.test_scenario1_prediction_candidate_is_saved_until_learning) ... ok\ntest_scenario1_segment_matches_prediction (tests.test_fig8_intralayer_plasticity_parity.Fig8IntralayerPlasticityParityTests.test_scenario1_segment_matches_prediction) ... ok\ntest_scenario1_strengthened_sources_are_contributors (tests.test_fig8_intralayer_plasticity_parity.Fig8IntralayerPlasticityParityTests.test_scenario1_strengthened_sources_are_contributors) ... ok\ntest_scenario2_growth_uses_previous_winners (tests.test_fig8_intralayer_plasticity_parity.Fig8IntralayerPlasticityParityTests.test_scenario2_growth_uses_previous_winners) ... ok\ntest_scenario3_callback_reports_failed_predictive_branch (tests.test_fig8_intralayer_plasticity_parity.Fig8IntralayerPlasticityParityTests.test_scenario3_callback_reports_failed_predictive_branch) ... ok\ntest_trace_records_observation_event (tests.test_fig8_intralayer_plasticity_parity.Fig8IntralayerPlasticityParityTests.test_trace_records_observation_event) ... ok\ntest_trace_toggle_preserves_decode_rng (tests.test_fig8_intralayer_plasticity_parity.Fig8IntralayerPlasticityParityTests.test_trace_toggle_preserves_decode_rng) ... ok\ntest_trace_toggle_preserves_learning_rng (tests.test_fig8_intralayer_plasticity_parity.Fig8IntralayerPlasticityParityTests.test_trace_toggle_preserves_learning_rng) ... ok\ntest_trace_toggle_preserves_structure (tests.test_fig8_intralayer_plasticity_parity.Fig8IntralayerPlasticityParityTests.test_trace_toggle_preserves_structure) ... ok\n\n----------------------------------------------------------------------\nRan 33 tests in 0.354s\n\nOK"
+    },
+    {
+      "module": "tests.test_fig8_neural_retrieval",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 9,
+      "elapsed_seconds": 0.41772040000068955,
+      "stdout_log": "test_fig8_neural_retrieval.stdout.log",
+      "stderr_log": "test_fig8_neural_retrieval.stderr.log",
+      "tail": "test_a_b_c_retrieves_autonomously_without_observing_b (tests.test_fig8_neural_retrieval.Fig8NeuralRetrievalTests.test_a_b_c_retrieves_autonomously_without_observing_b) ... ok\ntest_advance_contains_only_prediction_active_cells (tests.test_fig8_neural_retrieval.Fig8NeuralRetrievalTests.test_advance_contains_only_prediction_active_cells) ... ok\ntest_checkpoint_evaluation_does_not_change_training_or_rng (tests.test_fig8_neural_retrieval.Fig8NeuralRetrievalTests.test_checkpoint_evaluation_does_not_change_training_or_rng) ... ok\ntest_checkpoint_excludes_reproducible_response_cache (tests.test_fig8_neural_retrieval.Fig8NeuralRetrievalTests.test_checkpoint_excludes_reproducible_response_cache) ... ok\ntest_decode_from_prediction_does_not_predict_again (tests.test_fig8_neural_retrieval.Fig8NeuralRetrievalTests.test_decode_from_prediction_does_not_predict_again) ... ok\ntest_neural_recall_does_not_modify_long_term_memory (tests.test_fig8_neural_retrieval.Fig8NeuralRetrievalTests.test_neural_recall_does_not_modify_long_term_memory) ... ok\ntest_predict_symbol_apis_call_predict_code_once_each (tests.test_fig8_neural_retrieval.Fig8NeuralRetrievalTests.test_predict_symbol_apis_call_predict_code_once_each) ... ok\ntest_proximal_replay_mode_preserves_legacy_behavior (tests.test_fig8_neural_retrieval.Fig8NeuralRetrievalTests.test_proximal_replay_mode_preserves_legacy_behavior) ... ok\ntest_spike_response_cache_is_bounded_without_changing_values (tests.test_fig8_neural_retrieval.Fig8NeuralRetrievalTests.test_spike_response_cache_is_bounded_without_changing_values) ... ok\n\n----------------------------------------------------------------------\nRan 9 tests in 0.242s\n\nOK"
+    },
+    {
+      "module": "tests.test_fig8_prediction_competition",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 7,
+      "elapsed_seconds": 0.2407676000148058,
+      "stdout_log": "test_fig8_prediction_competition.stdout.log",
+      "stderr_log": "test_fig8_prediction_competition.stderr.log",
+      "tail": "test_a_b_c_autonomous_recall_survives_reasonable_modes (tests.test_fig8_prediction_competition.Fig8PredictionCompetitionTests.test_a_b_c_autonomous_recall_survives_reasonable_modes) ... ok\ntest_all_rankings_are_read_only (tests.test_fig8_prediction_competition.Fig8PredictionCompetitionTests.test_all_rankings_are_read_only) ... ok\ntest_peak_aligned_mode_only_changes_new_synapse_delay (tests.test_fig8_prediction_competition.Fig8PredictionCompetitionTests.test_peak_aligned_mode_only_changes_new_synapse_delay) ... ok\ntest_peak_and_crossing_metadata_belong_to_selected_candidate (tests.test_fig8_prediction_competition.Fig8PredictionCompetitionTests.test_peak_and_crossing_metadata_belong_to_selected_candidate) ... ok\ntest_ranking_apis_have_no_ground_truth_parameters (tests.test_fig8_prediction_competition.Fig8PredictionCompetitionTests.test_ranking_apis_have_no_ground_truth_parameters) ... ok\ntest_strict_defaults_remain_current_score_and_current_delay (tests.test_fig8_prediction_competition.Fig8PredictionCompetitionTests.test_strict_defaults_remain_current_score_and_current_delay) ... ok\ntest_trace_switch_preserves_prediction_training_and_rng (tests.test_fig8_prediction_competition.Fig8PredictionCompetitionTests.test_trace_switch_preserves_prediction_training_and_rng) ... ok\n\n----------------------------------------------------------------------\nRan 7 tests in 0.099s\n\nOK"
+    },
+    {
+      "module": "tests.test_fig8_scenario1_contribution",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 7,
+      "elapsed_seconds": 0.16761430000769906,
+      "stdout_log": "test_fig8_scenario1_contribution.stdout.log",
+      "stderr_log": "test_fig8_scenario1_contribution.stderr.log",
+      "tail": "test_causal_subset_is_minimal_at_threshold (tests.test_fig8_scenario1_contribution.Fig8Scenario1ContributionTests.test_causal_subset_is_minimal_at_threshold) ... ok\ntest_continuous_modes_only_select_real_active_synapses (tests.test_fig8_scenario1_contribution.Fig8Scenario1ContributionTests.test_continuous_modes_only_select_real_active_synapses) ... ok\ntest_contribution_selection_has_no_ground_truth_parameter (tests.test_fig8_scenario1_contribution.Fig8Scenario1ContributionTests.test_contribution_selection_has_no_ground_truth_parameter) ... ok\ntest_evaluation_is_read_only_for_all_contribution_modes (tests.test_fig8_scenario1_contribution.Fig8Scenario1ContributionTests.test_evaluation_is_read_only_for_all_contribution_modes) ... ok\ntest_scenario1_uses_the_matching_prediction_candidate (tests.test_fig8_scenario1_contribution.Fig8Scenario1ContributionTests.test_scenario1_uses_the_matching_prediction_candidate) ... ok\ntest_strict_default_remains_arrival_window (tests.test_fig8_scenario1_contribution.Fig8Scenario1ContributionTests.test_strict_default_remains_arrival_window) ... ok\ntest_trace_toggle_preserves_prediction_metadata_and_rng (tests.test_fig8_scenario1_contribution.Fig8Scenario1ContributionTests.test_trace_toggle_preserves_prediction_metadata_and_rng) ... ok\n\n----------------------------------------------------------------------\nRan 7 tests in 0.052s\n\nOK"
+    },
+    {
+      "module": "tests.test_fig8_scenario_temporal_credit_parity",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 27,
+      "elapsed_seconds": 0.1686201999837067,
+      "stdout_log": "test_fig8_scenario_temporal_credit_parity.stdout.log",
+      "stderr_log": "test_fig8_scenario_temporal_credit_parity.stderr.log",
+      "tail": "test_paper_s3_has_no_new_segment (tests.test_fig8_scenario_temporal_credit_parity.Fig8ScenarioTemporalCreditParityTests.test_paper_s3_has_no_new_segment) ... ok\ntest_s2_new_segment_is_not_paper_s3 (tests.test_fig8_scenario_temporal_credit_parity.Fig8ScenarioTemporalCreditParityTests.test_s2_new_segment_is_not_paper_s3) ... ok\ntest_s3_punishment_does_not_create_segment (tests.test_fig8_scenario_temporal_credit_parity.Fig8ScenarioTemporalCreditParityTests.test_s3_punishment_does_not_create_segment) ... ok\ntest_s3_timing_only_classification (tests.test_fig8_scenario_temporal_credit_parity.Fig8ScenarioTemporalCreditParityTests.test_s3_timing_only_classification) ... ok\ntest_same_candidate_identity_is_a_distinct_field (tests.test_fig8_scenario_temporal_credit_parity.Fig8ScenarioTemporalCreditParityTests.test_same_candidate_identity_is_a_distinct_field) ... ok\ntest_same_column_is_not_same_neuron (tests.test_fig8_scenario_temporal_credit_parity.Fig8ScenarioTemporalCreditParityTests.test_same_column_is_not_same_neuron) ... ok\ntest_same_neuron_matching_is_deterministic (tests.test_fig8_scenario_temporal_credit_parity.Fig8ScenarioTemporalCreditParityTests.test_same_neuron_matching_is_deterministic) ... ok\ntest_strict_default_is_unchanged (tests.test_fig8_scenario_temporal_credit_parity.Fig8ScenarioTemporalCreditParityTests.test_strict_default_is_unchanged) ... ok\ntest_taxonomy_trace_is_posthoc_only (tests.test_fig8_scenario_temporal_credit_parity.Fig8ScenarioTemporalCreditParityTests.test_taxonomy_trace_is_posthoc_only) ... ok\ntest_timing_bin_boundaries (tests.test_fig8_scenario_temporal_credit_parity.Fig8ScenarioTemporalCreditParityTests.test_timing_bin_boundaries) ... ok\ntest_trace_on_off_decode_rng_is_equal (tests.test_fig8_scenario_temporal_credit_parity.Fig8ScenarioTemporalCreditParityTests.test_trace_on_off_decode_rng_is_equal) ... ok\ntest_trace_on_off_learning_rng_is_equal (tests.test_fig8_scenario_temporal_credit_parity.Fig8ScenarioTemporalCreditParityTests.test_trace_on_off_learning_rng_is_equal) ... ok\ntest_trace_on_off_predictions_are_equal (tests.test_fig8_scenario_temporal_credit_parity.Fig8ScenarioTemporalCreditParityTests.test_trace_on_off_predictions_are_equal) ... ok\ntest_trace_on_off_weights_are_equal (tests.test_fig8_scenario_temporal_credit_parity.Fig8ScenarioTemporalCreditParityTests.test_trace_on_off_weights_are_equal) ... ok\ntest_v0_default_is_unchanged (tests.test_fig8_scenario_temporal_credit_parity.Fig8ScenarioTemporalCreditParityTests.test_v0_default_is_unchanged) ... ok\n\n----------------------------------------------------------------------\nRan 27 tests in 0.029s\n\nOK"
+    },
+    {
+      "module": "tests.test_fig8_temporal_confirmation_semantics",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 10,
+      "elapsed_seconds": 0.13968429999658838,
+      "stdout_log": "test_fig8_temporal_confirmation_semantics.stdout.log",
+      "stderr_log": "test_fig8_temporal_confirmation_semantics.stderr.log",
+      "tail": "test_candidate_classification (tests.test_fig8_temporal_confirmation_semantics.Fig8TemporalConfirmationSemanticsTests.test_candidate_classification) ... ok\ntest_delta_bins_have_fixed_boundaries (tests.test_fig8_temporal_confirmation_semantics.Fig8TemporalConfirmationSemanticsTests.test_delta_bins_have_fixed_boundaries) ... ok\ntest_identity_mode_does_not_create_s2_or_s3_for_timing_only_failure (tests.test_fig8_temporal_confirmation_semantics.Fig8TemporalConfirmationSemanticsTests.test_identity_mode_does_not_create_s2_or_s3_for_timing_only_failure) ... ok\ntest_identity_mode_is_read_only_when_learning_is_disabled (tests.test_fig8_temporal_confirmation_semantics.Fig8TemporalConfirmationSemanticsTests.test_identity_mode_is_read_only_when_learning_is_disabled) ... ok\ntest_multiple_candidates_remain_current_behavior (tests.test_fig8_temporal_confirmation_semantics.Fig8TemporalConfirmationSemanticsTests.test_multiple_candidates_remain_current_behavior) ... ok\ntest_sstd_rank_is_local_k_rank (tests.test_fig8_temporal_confirmation_semantics.Fig8TemporalConfirmationSemanticsTests.test_sstd_rank_is_local_k_rank) ... ok\ntest_temporal_confirmation_mode_defaults_to_current (tests.test_fig8_temporal_confirmation_semantics.Fig8TemporalConfirmationSemanticsTests.test_temporal_confirmation_mode_defaults_to_current) ... ok\ntest_trace_is_default_off (tests.test_fig8_temporal_confirmation_semantics.Fig8TemporalConfirmationSemanticsTests.test_trace_is_default_off) ... ok\ntest_trace_on_off_replays_exact_training (tests.test_fig8_temporal_confirmation_semantics.Fig8TemporalConfirmationSemanticsTests.test_trace_on_off_replays_exact_training) ... ok\ntest_unique_identity_reuses_same_candidate_segment_after_time_rejection (tests.test_fig8_temporal_confirmation_semantics.Fig8TemporalConfirmationSemanticsTests.test_unique_identity_reuses_same_candidate_segment_after_time_rejection) ... ok\n\n----------------------------------------------------------------------\nRan 10 tests in 0.006s\n\nOK"
+    },
+    {
+      "module": "tests.test_fig8c_poem_memory",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 5,
+      "elapsed_seconds": 0.1553297000064049,
+      "stdout_log": "test_fig8c_poem_memory.stdout.log",
+      "stderr_log": "test_fig8c_poem_memory.stderr.log",
+      "tail": "test_clause_split_recovers_four_five_character_lines (tests.test_fig8c_poem_memory.Fig8CPoemTests.test_clause_split_recovers_four_five_character_lines) ... ok\ntest_goal_feedback_round_trip (tests.test_fig8c_poem_memory.Fig8CPoemTests.test_goal_feedback_round_trip) ... ok\ntest_source_neurons_separate_colliding_concepts (tests.test_fig8c_poem_memory.Fig8CPoemTests.test_source_neurons_separate_colliding_concepts) ... ok\ntest_stress_dataset_is_unique_but_contextually_ambiguous (tests.test_fig8c_poem_memory.Fig8CPoemTests.test_stress_dataset_is_unique_but_contextually_ambiguous) ... ok\ntest_unlearned_concept_has_no_feedback (tests.test_fig8c_poem_memory.Fig8CPoemTests.test_unlearned_concept_has_no_feedback) ... ok\n\n----------------------------------------------------------------------\nRan 5 tests in 0.008s\n\nOK"
+    },
+    {
+      "module": "tests.test_fig9_actual_branch_provenance",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 8,
+      "elapsed_seconds": 0.17424679998657666,
+      "stdout_log": "test_fig9_actual_branch_provenance.stdout.log",
+      "stderr_log": "test_fig9_actual_branch_provenance.stderr.log",
+      "tail": "test_anchor_identity_does_not_depend_on_first_seen_index (tests.test_fig9_actual_branch_provenance.ActualBranchProvenanceTests.test_anchor_identity_does_not_depend_on_first_seen_index) ... ok\ntest_checkpoint_round_trip_preserves_stable_ids (tests.test_fig9_actual_branch_provenance.ActualBranchProvenanceTests.test_checkpoint_round_trip_preserves_stable_ids) ... ok\ntest_distinct_actual_source_is_mixed_not_silently_selected (tests.test_fig9_actual_branch_provenance.ActualBranchProvenanceTests.test_distinct_actual_source_is_mixed_not_silently_selected) ... ok\ntest_metadata_is_explicitly_non_interfering (tests.test_fig9_actual_branch_provenance.ActualBranchProvenanceTests.test_metadata_is_explicitly_non_interfering) ... ok\ntest_multiple_parent_lineages_are_marked_as_merge (tests.test_fig9_actual_branch_provenance.ActualBranchProvenanceTests.test_multiple_parent_lineages_are_marked_as_merge) ... ok\ntest_one_lineage_can_contain_many_anchors (tests.test_fig9_actual_branch_provenance.ActualBranchProvenanceTests.test_one_lineage_can_contain_many_anchors) ... ok\ntest_registry_writer_preserves_anchor_fields (tests.test_fig9_actual_branch_provenance.ActualBranchProvenanceTests.test_registry_writer_preserves_anchor_fields) ... ok\ntest_repeated_actual_reinforcement_keeps_anchor_identity (tests.test_fig9_actual_branch_provenance.ActualBranchProvenanceTests.test_repeated_actual_reinforcement_keeps_anchor_identity) ... ok\n\n----------------------------------------------------------------------\nRan 8 tests in 0.026s\n\nOK"
+    },
+    {
+      "module": "tests.test_fig9_ambiguity",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 5,
+      "elapsed_seconds": 4.833702100004302,
+      "stdout_log": "test_fig9_ambiguity.stdout.log",
+      "stderr_log": "test_fig9_ambiguity.stderr.log",
+      "tail": "test_diagnostic_is_read_only_and_stream_is_split (tests.test_fig9_ambiguity.Fig9AmbiguityIntegrationTests.test_diagnostic_is_read_only_and_stream_is_split) ... ok\ntest_actual_rows_keep_l2_labels_and_candidate_identity (tests.test_fig9_ambiguity.Fig9AmbiguityUnitTests.test_actual_rows_keep_l2_labels_and_candidate_identity) ... ok\ntest_autonomous_rows_are_separate_and_have_no_ground_truth_label (tests.test_fig9_ambiguity.Fig9AmbiguityUnitTests.test_autonomous_rows_are_separate_and_have_no_ground_truth_label) ... ok\ntest_context_signature_is_stable_and_does_not_use_object_identity (tests.test_fig9_ambiguity.Fig9AmbiguityUnitTests.test_context_signature_is_stable_and_does_not_use_object_identity) ... ok\ntest_score_summary_is_deterministic (tests.test_fig9_ambiguity.Fig9AmbiguityUnitTests.test_score_summary_is_deterministic) ... ok\n\n----------------------------------------------------------------------\nRan 5 tests in 4.523s\n\nOK"
+    },
+    {
+      "module": "tests.test_fig9_anchor_parity",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 49,
+      "elapsed_seconds": 0.2852331000030972,
+      "stdout_log": "test_fig9_anchor_parity.stdout.log",
+      "stderr_log": "test_fig9_anchor_parity.stderr.log",
+      "tail": "test_35_relative_improvement_fixture (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_35_relative_improvement_fixture) ... ok\ntest_36_effect_classification_boundaries (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_36_effect_classification_boundaries) ... ok\ntest_37_correlation_fixtures (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_37_correlation_fixtures) ... ok\ntest_38_quartiles_cover_every_anchor (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_38_quartiles_cover_every_anchor) ... ok\ntest_39_time_of_day_fixed_boundaries (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_39_time_of_day_fixed_boundaries) ... ok\ntest_40_timeofday_rows_always_use_fixed_four_bands (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_40_timeofday_rows_always_use_fixed_four_bands) ... ok\ntest_41_timeline_step_counts (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_41_timeline_step_counts) ... ok\ntest_42_sampling_interval_is_30_minutes (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_42_sampling_interval_is_30_minutes) ... ok\ntest_43_missing_prediction_has_blank_error (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_43_missing_prediction_has_blank_error) ... ok\ntest_44_repository_contributions_sum_to_metric (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_44_repository_contributions_sum_to_metric) ... ok\ntest_45_local_change_analysis_is_deterministic (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_45_local_change_analysis_is_deterministic) ... ok\ntest_46_inconclusive_when_prerequisites_fail (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_46_inconclusive_when_prerequisites_fail) ... ok\ntest_47_b_target_offset_from_label_is_150_minutes (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_47_b_target_offset_from_label_is_150_minutes) ... ok\ntest_48_c_target_offset_from_label_is_120_minutes (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_48_c_target_offset_from_label_is_120_minutes) ... ok\ntest_49_small_best_effect_is_not_promoted_to_primary_cause (tests.test_fig9_anchor_parity.Fig9AnchorParityTests.test_49_small_best_effect_is_not_promoted_to_primary_cause) ... ok\n\n----------------------------------------------------------------------\nRan 49 tests in 0.016s\n\nOK"
+    },
+    {
+      "module": "tests.test_fig9_autonomous_context_provenance",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 4,
+      "elapsed_seconds": 0.15971360000548884,
+      "stdout_log": "test_fig9_autonomous_context_provenance.stdout.log",
+      "stderr_log": "test_fig9_autonomous_context_provenance.stderr.log",
+      "tail": "test_candidate_trace_is_bounded_and_gzip_is_readable (tests.test_fig9_autonomous_context_provenance.AutonomousContextProvenanceTests.test_candidate_trace_is_bounded_and_gzip_is_readable) ... ok\ntest_identity_and_current_activation_are_separate (tests.test_fig9_autonomous_context_provenance.AutonomousContextProvenanceTests.test_identity_and_current_activation_are_separate) ... ok\ntest_rollout_id_is_deterministic_and_does_not_use_object_ids (tests.test_fig9_autonomous_context_provenance.AutonomousContextProvenanceTests.test_rollout_id_is_deterministic_and_does_not_use_object_ids) ... ok\ntest_step_origin_and_depth_are_propagated (tests.test_fig9_autonomous_context_provenance.AutonomousContextProvenanceTests.test_step_origin_and_depth_are_propagated) ... ok\n\n----------------------------------------------------------------------\nRan 4 tests in 0.016s\n\nOK"
+    },
+    {
+      "module": "tests.test_fig9_branch_identity",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 4,
+      "elapsed_seconds": 0.10182569999597035,
+      "stdout_log": "test_fig9_branch_identity.stdout.log",
+      "stderr_log": "test_fig9_branch_identity.stderr.log",
+      "tail": "test_branch_rows_ignore_anchor_rows_from_legacy_registry (tests.test_fig9_branch_identity.Fig9BranchIdentityTests.test_branch_rows_ignore_anchor_rows_from_legacy_registry) ... ok\ntest_explicit_lineage_trace_is_preserved (tests.test_fig9_branch_identity.Fig9BranchIdentityTests.test_explicit_lineage_trace_is_preserved) ... ok\ntest_lineage_does_not_claim_parent_without_trace_evidence (tests.test_fig9_branch_identity.Fig9BranchIdentityTests.test_lineage_does_not_claim_parent_without_trace_evidence) ... ok\ntest_segment_growth_counts_only_explicit_trace_ids (tests.test_fig9_branch_identity.Fig9BranchIdentityTests.test_segment_growth_counts_only_explicit_trace_ids) ... ok\n\n----------------------------------------------------------------------\nRan 4 tests in 0.000s\n\nOK"
+    },
+    {
+      "module": "tests.test_fig9_branch_provenance",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 11,
+      "elapsed_seconds": 11.786988999985624,
+      "stdout_log": "test_fig9_branch_provenance.stdout.log",
+      "stderr_log": "test_fig9_branch_provenance.stderr.log",
+      "tail": "test_checkpoint_keeps_v1_and_rebindable_sidecar (tests.test_fig9_branch_provenance.Fig9BranchProvenanceIntegrationTests.test_checkpoint_keeps_v1_and_rebindable_sidecar) ... ok\ntest_diagnostic_preserves_predictions_model_rng_and_traces (tests.test_fig9_branch_provenance.Fig9BranchProvenanceIntegrationTests.test_diagnostic_preserves_predictions_model_rng_and_traces) ... ok\ntest_off_checkpoint_has_no_diagnostic_sidecar (tests.test_fig9_branch_provenance.Fig9BranchProvenanceIntegrationTests.test_off_checkpoint_has_no_diagnostic_sidecar) ... ok\ntest_offline_analysis_writes_required_outputs (tests.test_fig9_branch_provenance.Fig9BranchProvenanceIntegrationTests.test_offline_analysis_writes_required_outputs) ... ok\ntest_trace_schema_and_same_candidate_segment_mapping (tests.test_fig9_branch_provenance.Fig9BranchProvenanceIntegrationTests.test_trace_schema_and_same_candidate_segment_mapping) ... ok\ntest_empty_trace_analysis_is_safe (tests.test_fig9_branch_provenance.Fig9BranchProvenanceUnitTests.test_empty_trace_analysis_is_safe) ... ok\ntest_exact_created_segment_capture_matches_full_scan (tests.test_fig9_branch_provenance.Fig9BranchProvenanceUnitTests.test_exact_created_segment_capture_matches_full_scan) ... ok\ntest_registry_does_not_mutate_model_and_rebinds_after_pickle (tests.test_fig9_branch_provenance.Fig9BranchProvenanceUnitTests.test_registry_does_not_mutate_model_and_rebinds_after_pickle) ... ok\ntest_source_fingerprint_is_order_independent (tests.test_fig9_branch_provenance.Fig9BranchProvenanceUnitTests.test_source_fingerprint_is_order_independent) ... ok\ntest_stable_segment_id_is_repeatable (tests.test_fig9_branch_provenance.Fig9BranchProvenanceUnitTests.test_stable_segment_id_is_repeatable) ... ok\ntest_trace_mapping_does_not_predict_observe_or_learn (tests.test_fig9_branch_provenance.Fig9BranchProvenanceUnitTests.test_trace_mapping_does_not_predict_observe_or_learn) ... ok\n\n----------------------------------------------------------------------\nRan 11 tests in 11.531s\n\nOK"
+    },
+    {
+      "module": "tests.test_fig9_candidate_context_oracle",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 8,
+      "elapsed_seconds": 0.1693348000117112,
+      "stdout_log": "test_fig9_candidate_context_oracle.stdout.log",
+      "stderr_log": "test_fig9_candidate_context_oracle.stderr.log",
+      "tail": "test_candidate_event_id_does_not_use_object_identity (tests.test_fig9_candidate_context_oracle.CandidateContextOracleTests.test_candidate_event_id_does_not_use_object_identity) ... ok\ntest_candidate_event_id_is_deterministic (tests.test_fig9_candidate_context_oracle.CandidateContextOracleTests.test_candidate_event_id_is_deterministic) ... ok\ntest_exact_match_regime_vocabulary_is_unambiguous (tests.test_fig9_candidate_context_oracle.CandidateContextOracleTests.test_exact_match_regime_vocabulary_is_unambiguous) ... ok\ntest_join_outputs_are_gzip_readable (tests.test_fig9_candidate_context_oracle.CandidateContextOracleTests.test_join_outputs_are_gzip_readable) ... ok\ntest_lossless_join_detects_duplicate_ids (tests.test_fig9_candidate_context_oracle.CandidateContextOracleTests.test_lossless_join_detects_duplicate_ids) ... ok\ntest_offline_bootstrap_seed_is_process_stable (tests.test_fig9_candidate_context_oracle.CandidateContextOracleTests.test_offline_bootstrap_seed_is_process_stable) ... ok\ntest_oracle_label_is_not_in_model_selector_source (tests.test_fig9_candidate_context_oracle.CandidateContextOracleTests.test_oracle_label_is_not_in_model_selector_source) ... ok\ntest_projected_actual_rows_have_explicit_row_unit_and_posthoc_label (tests.test_fig9_candidate_context_oracle.CandidateContextOracleTests.test_projected_actual_rows_have_explicit_row_unit_and_posthoc_label) ... ok\n\n----------------------------------------------------------------------\nRan 8 tests in 0.017s\n\nOK"
+    },
+    {
+      "module": "tests.test_fig9_candidate_score_separability",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 20,
+      "elapsed_seconds": 11.374772699986352,
+      "stdout_log": "test_fig9_candidate_score_separability.stdout.log",
+      "stderr_log": "test_fig9_candidate_score_separability.stderr.log",
+      "tail": "test_empty_candidates_are_safe (tests.test_fig9_candidate_score_separability.Fig9CandidateSeparabilityMetricTests.test_empty_candidates_are_safe) ... ok\ntest_fixed_budget_recall (tests.test_fig9_candidate_score_separability.Fig9CandidateSeparabilityMetricTests.test_fixed_budget_recall) ... ok\ntest_missing_csv_schema_is_explicit (tests.test_fig9_candidate_score_separability.Fig9CandidateSeparabilityMetricTests.test_missing_csv_schema_is_explicit) ... ok\ntest_protocol_ranges_and_field_mapping (tests.test_fig9_candidate_score_separability.Fig9CandidateSeparabilityMetricTests.test_protocol_ranges_and_field_mapping) ... ok\ntest_protocol_rejects_invalid_total (tests.test_fig9_candidate_score_separability.Fig9CandidateSeparabilityMetricTests.test_protocol_rejects_invalid_total) ... ok\ntest_single_class_metrics_are_defined_as_unavailable (tests.test_fig9_candidate_score_separability.Fig9CandidateSeparabilityMetricTests.test_single_class_metrics_are_defined_as_unavailable) ... ok\ntest_step_one_alignment_and_later_divergence_marker (tests.test_fig9_candidate_score_separability.Fig9CandidateSeparabilityMetricTests.test_step_one_alignment_and_later_divergence_marker) ... ok\ntest_threshold_sweep_is_monotonic (tests.test_fig9_candidate_score_separability.Fig9CandidateSeparabilityMetricTests.test_threshold_sweep_is_monotonic) ... ok\ntest_threshold_sweep_keeps_tied_scores_together (tests.test_fig9_candidate_score_separability.Fig9CandidateSeparabilityMetricTests.test_threshold_sweep_keeps_tied_scores_together) ... ok\ntest_end_to_end_analysis_writes_all_required_outputs (tests.test_fig9_candidate_score_separability.Fig9CandidateSeparabilityTraceTests.test_end_to_end_analysis_writes_all_required_outputs) ... ok\ntest_trace_has_analysis_only_markers_and_candidate_fields (tests.test_fig9_candidate_score_separability.Fig9CandidateSeparabilityTraceTests.test_trace_has_analysis_only_markers_and_candidate_fields) ... ok\ntest_trace_requires_oracle_and_competition (tests.test_fig9_candidate_score_separability.Fig9CandidateSeparabilityTraceTests.test_trace_requires_oracle_and_competition) ... ok\ntest_trace_switch_preserves_checkpoint_v1 (tests.test_fig9_candidate_score_separability.Fig9CandidateSeparabilityTraceTests.test_trace_switch_preserves_checkpoint_v1) ... ok\ntest_trace_switch_preserves_predictions_and_fingerprints (tests.test_fig9_candidate_score_separability.Fig9CandidateSeparabilityTraceTests.test_trace_switch_preserves_predictions_and_fingerprints) ... ok\ntest_trace_switch_preserves_stable_competition_trace (tests.test_fig9_candidate_score_separability.Fig9CandidateSeparabilityTraceTests.test_trace_switch_preserves_stable_competition_trace) ... ok\n\n----------------------------------------------------------------------\nRan 20 tests in 11.121s\n\nOK"
+    },
+    {
+      "module": "tests.test_fig9_competition_policy_comparison",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 6,
+      "elapsed_seconds": 0.10341890002018772,
+      "stdout_log": "test_fig9_competition_policy_comparison.stdout.log",
+      "stderr_log": "test_fig9_competition_policy_comparison.stderr.log",
+      "tail": "test_comparison_counts_target_and_false_rescue (tests.test_fig9_competition_policy_comparison.Fig9CompetitionPolicyComparisonTests.test_comparison_counts_target_and_false_rescue) ... ok\ntest_comparison_outputs_are_explicitly_diagnostic (tests.test_fig9_competition_policy_comparison.Fig9CompetitionPolicyComparisonTests.test_comparison_outputs_are_explicitly_diagnostic) ... ok\ntest_historical_trace_without_appended_columns_is_readable (tests.test_fig9_competition_policy_comparison.Fig9CompetitionPolicyComparisonTests.test_historical_trace_without_appended_columns_is_readable) ... ok\ntest_strict_alignment_accepts_reordered_rows (tests.test_fig9_competition_policy_comparison.Fig9CompetitionPolicyComparisonTests.test_strict_alignment_accepts_reordered_rows) ... ok\ntest_strict_alignment_rejects_duplicate_key (tests.test_fig9_competition_policy_comparison.Fig9CompetitionPolicyComparisonTests.test_strict_alignment_rejects_duplicate_key) ... ok\ntest_strict_alignment_rejects_missing_row (tests.test_fig9_competition_policy_comparison.Fig9CompetitionPolicyComparisonTests.test_strict_alignment_rejects_missing_row) ... ok\n\n----------------------------------------------------------------------\nRan 6 tests in 0.004s\n\nOK"
+    },
+    {
+      "module": "tests.test_fig9_competitive_inhibition",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 25,
+      "elapsed_seconds": 14.308894399990095,
+      "stdout_log": "test_fig9_competitive_inhibition.stdout.log",
+      "stderr_log": "test_fig9_competitive_inhibition.stderr.log",
+      "tail": "test_equal_times_share_one_batch (tests.test_fig9_competitive_inhibition.Fig9CompetitiveInhibitionTests.test_equal_times_share_one_batch) ... ok\ntest_half_even_batch_boundaries_are_stable (tests.test_fig9_competitive_inhibition.Fig9CompetitiveInhibitionTests.test_half_even_batch_boundaries_are_stable) ... ok\ntest_inhibition_decays_with_time_distance (tests.test_fig9_competitive_inhibition.Fig9CompetitiveInhibitionTests.test_inhibition_decays_with_time_distance) ... ok\ntest_neighboring_bucket_can_suppress (tests.test_fig9_competitive_inhibition.Fig9CompetitiveInhibitionTests.test_neighboring_bucket_can_suppress) ... ok\ntest_off_mode_matches_raw_rollout (tests.test_fig9_competitive_inhibition.Fig9CompetitiveInhibitionTests.test_off_mode_matches_raw_rollout) ... ok\ntest_raw_checkpoint_and_protocol_remain_strict (tests.test_fig9_competitive_inhibition.Fig9CompetitiveInhibitionTests.test_raw_checkpoint_and_protocol_remain_strict) ... ok\ntest_repeated_and_shuffled_inputs_are_deterministic (tests.test_fig9_competitive_inhibition.Fig9CompetitiveInhibitionTests.test_repeated_and_shuffled_inputs_are_deterministic) ... ok\ntest_same_batch_candidates_do_not_inhibit_each_other (tests.test_fig9_competitive_inhibition.Fig9CompetitiveInhibitionTests.test_same_batch_candidates_do_not_inhibit_each_other) ... ok\ntest_same_column_does_not_create_inhibition (tests.test_fig9_competitive_inhibition.Fig9CompetitiveInhibitionTests.test_same_column_does_not_create_inhibition) ... ok\ntest_same_column_is_excluded_across_batches (tests.test_fig9_competitive_inhibition.Fig9CompetitiveInhibitionTests.test_same_column_is_excluded_across_batches) ... ok\ntest_strict_protocol_fingerprint_has_no_competition_flags (tests.test_fig9_competitive_inhibition.Fig9CompetitiveInhibitionTests.test_strict_protocol_fingerprint_has_no_competition_flags) ... ok\ntest_tiny_time_difference_in_same_bucket_has_same_outcome (tests.test_fig9_competitive_inhibition.Fig9CompetitiveInhibitionTests.test_tiny_time_difference_in_same_bucket_has_same_outcome) ... ok\ntest_zero_strength_batched_returns_raw_code_verbatim (tests.test_fig9_competitive_inhibition.Fig9CompetitiveInhibitionTests.test_zero_strength_batched_returns_raw_code_verbatim) ... ok\ntest_zero_strength_predictions_csv_matches_raw_bytes (tests.test_fig9_competitive_inhibition.Fig9CompetitiveInhibitionTests.test_zero_strength_predictions_csv_matches_raw_bytes) ... ok\ntest_zero_strength_returns_raw_code_verbatim (tests.test_fig9_competitive_inhibition.Fig9CompetitiveInhibitionTests.test_zero_strength_returns_raw_code_verbatim) ... ok\n\n----------------------------------------------------------------------\nRan 25 tests in 14.046s\n\nOK"
+    },
+    {
+      "module": "tests.test_fig9_context_trajectory",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 5,
+      "elapsed_seconds": 40.397718099993654,
+      "stdout_log": "test_fig9_context_trajectory.stdout.log",
+      "stderr_log": "test_fig9_context_trajectory.stderr.log",
+      "tail": "test_analyzer_writes_required_outputs (tests.test_fig9_context_trajectory.ContextTrajectoryAnalyzerTests.test_analyzer_writes_required_outputs) ... ok\ntest_runner_diagnostic_is_noninterfering (tests.test_fig9_context_trajectory.ContextTrajectoryRunnerTests.test_runner_diagnostic_is_noninterfering) ... ok\ntest_actual_and_autonomous_histories_remain_separate (tests.test_fig9_context_trajectory.ContextTrajectoryUnitTests.test_actual_and_autonomous_histories_remain_separate) ... ok\ntest_loss_stages_are_mutually_exclusive (tests.test_fig9_context_trajectory.ContextTrajectoryUnitTests.test_loss_stages_are_mutually_exclusive) ... ok\ntest_only_inactive_source_rows_are_joined (tests.test_fig9_context_trajectory.ContextTrajectoryUnitTests.test_only_inactive_source_rows_are_joined) ... ok\n\n----------------------------------------------------------------------\nRan 5 tests in 40.072s\n\nOK"
+    },
+    {
+      "module": "tests.test_fig9_evaluation_metric_audit",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 21,
+      "elapsed_seconds": 13.770886200014502,
+      "stdout_log": "test_fig9_evaluation_metric_audit.stdout.log",
+      "stderr_log": "test_fig9_evaluation_metric_audit.stderr.log",
+      "tail": "test_invalid_empty_metric_is_zero (tests.test_fig9_evaluation_metric_audit.EvaluationMetricAuditTests.test_invalid_empty_metric_is_zero) ... ok\ntest_learning_curve_has_cumulative_and_rolling_rows (tests.test_fig9_evaluation_metric_audit.EvaluationMetricAuditTests.test_learning_curve_has_cumulative_and_rolling_rows) ... ok\ntest_learning_curve_uses_no_future_rows (tests.test_fig9_evaluation_metric_audit.EvaluationMetricAuditTests.test_learning_curve_uses_no_future_rows) ... ok\ntest_legacy_repo_metric_is_preserved (tests.test_fig9_evaluation_metric_audit.EvaluationMetricAuditTests.test_legacy_repo_metric_is_preserved) ... ok\ntest_median_ape_fixture (tests.test_fig9_evaluation_metric_audit.EvaluationMetricAuditTests.test_median_ape_fixture) ... ok\ntest_metric_audit_does_not_change_strict_defaults (tests.test_fig9_evaluation_metric_audit.EvaluationMetricAuditTests.test_metric_audit_does_not_change_strict_defaults) ... ok\ntest_metric_audit_does_not_touch_global_rng (tests.test_fig9_evaluation_metric_audit.EvaluationMetricAuditTests.test_metric_audit_does_not_touch_global_rng) ... ok\ntest_metric_is_posthoc_only (tests.test_fig9_evaluation_metric_audit.EvaluationMetricAuditTests.test_metric_is_posthoc_only) ... ok\ntest_metric_values_include_requested_statistics (tests.test_fig9_evaluation_metric_audit.EvaluationMetricAuditTests.test_metric_values_include_requested_statistics) ... ok\ntest_no_compensation_is_required_by_audit (tests.test_fig9_evaluation_metric_audit.EvaluationMetricAuditTests.test_no_compensation_is_required_by_audit) ... ok\ntest_prediction_count_is_limit_minus_warmup_minus_horizon (tests.test_fig9_evaluation_metric_audit.EvaluationMetricAuditTests.test_prediction_count_is_limit_minus_warmup_minus_horizon) ... ok\ntest_report_contains_required_files (tests.test_fig9_evaluation_metric_audit.EvaluationMetricAuditTests.test_report_contains_required_files) ... ok\ntest_standard_mape_fixture (tests.test_fig9_evaluation_metric_audit.EvaluationMetricAuditTests.test_standard_mape_fixture) ... ok\ntest_wape_fixture (tests.test_fig9_evaluation_metric_audit.EvaluationMetricAuditTests.test_wape_fixture) ... ok\ntest_zero_target_policy_is_explicit (tests.test_fig9_evaluation_metric_audit.EvaluationMetricAuditTests.test_zero_target_policy_is_explicit) ... ok\n\n----------------------------------------------------------------------\nRan 21 tests in 13.385s\n\nOK"
+    },
+    {
+      "module": "tests.test_fig9_independent_reference",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 3,
+      "elapsed_seconds": 0.1685328000166919,
+      "stdout_log": "test_fig9_independent_reference.stdout.log",
+      "stderr_log": "test_fig9_independent_reference.stderr.log",
+      "tail": "test_branch_id_is_process_independent (tests.test_fig9_independent_reference.IndependentReferenceTests.test_branch_id_is_process_independent) ... ok\ntest_markers_and_statuses_are_explicit (tests.test_fig9_independent_reference.IndependentReferenceTests.test_markers_and_statuses_are_explicit) ... ok\ntest_tracker_checkpoint_round_trip_uses_stable_fields (tests.test_fig9_independent_reference.IndependentReferenceTests.test_tracker_checkpoint_round_trip_uses_stable_fields) ... ok\n\n----------------------------------------------------------------------\nRan 3 tests in 0.000s\n\nOK"
+    },
+    {
+      "module": "tests.test_fig9_intracolumn_selector",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 10,
+      "elapsed_seconds": 11.172282899991842,
+      "stdout_log": "test_fig9_intracolumn_selector.stdout.log",
+      "stderr_log": "test_fig9_intracolumn_selector.stderr.log",
+      "tail": "test_alternative_policy_preserves_training_and_rng (tests.test_fig9_intracolumn_selector.IntracolumnSelectorIntegrationTests.test_alternative_policy_preserves_training_and_rng) ... ok\ntest_existing_diagnostic_is_read_only (tests.test_fig9_intracolumn_selector.IntracolumnSelectorIntegrationTests.test_existing_diagnostic_is_read_only) ... ok\ntest_offline_analyzer_writes_required_outputs (tests.test_fig9_intracolumn_selector.IntracolumnSelectorIntegrationTests.test_offline_analyzer_writes_required_outputs) ... ok\ntest_each_policy_uses_declared_key (tests.test_fig9_intracolumn_selector.IntracolumnSelectorUnitTests.test_each_policy_uses_declared_key) ... ok\ntest_empty_pool_is_safe (tests.test_fig9_intracolumn_selector.IntracolumnSelectorUnitTests.test_empty_pool_is_safe) ... ok\ntest_equal_metrics_keep_original_stable_order (tests.test_fig9_intracolumn_selector.IntracolumnSelectorUnitTests.test_equal_metrics_keep_original_stable_order) ... ok\ntest_nonfinite_metric_sorts_after_finite (tests.test_fig9_intracolumn_selector.IntracolumnSelectorUnitTests.test_nonfinite_metric_sorts_after_finite) ... ok\ntest_selector_source_does_not_read_ground_truth_or_rng (tests.test_fig9_intracolumn_selector.IntracolumnSelectorUnitTests.test_selector_source_does_not_read_ground_truth_or_rng) ... ok\ntest_single_candidate_is_identical_for_every_policy (tests.test_fig9_intracolumn_selector.IntracolumnSelectorUnitTests.test_single_candidate_is_identical_for_every_policy) ... ok\ntest_trace_projection_has_no_posthoc_target_label (tests.test_fig9_intracolumn_selector.IntracolumnSelectorUnitTests.test_trace_projection_has_no_posthoc_target_label) ... ok\n\n----------------------------------------------------------------------\nRan 10 tests in 10.823s\n\nOK"
+    },
+    {
+      "module": "tests.test_fig9_l2_stack_component",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 4,
+      "elapsed_seconds": 0.19116529999882914,
+      "stdout_log": "test_fig9_l2_stack_component.stdout.log",
+      "stderr_log": "test_fig9_l2_stack_component.stderr.log",
+      "tail": "test_component_effects_use_p0_as_common_baseline (tests.test_fig9_l2_stack_component.Fig9L2StackComponentTests.test_component_effects_use_p0_as_common_baseline) ... ok\ntest_component_matrix_has_expected_factor_cells (tests.test_fig9_l2_stack_component.Fig9L2StackComponentTests.test_component_matrix_has_expected_factor_cells) ... ok\ntest_density_trace_candidate_fields_are_aggregated_without_model_access (tests.test_fig9_l2_stack_component.Fig9L2StackComponentTests.test_density_trace_candidate_fields_are_aggregated_without_model_access) ... ok\ntest_native_history_combines_distinct_attempt_directories (tests.test_fig9_l2_stack_component.Fig9L2StackComponentTests.test_native_history_combines_distinct_attempt_directories) ... ok\n\n----------------------------------------------------------------------\nRan 4 tests in 0.010s\n\nOK"
+    },
+    {
+      "module": "tests.test_fig9_lmatch_ablation",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 12,
+      "elapsed_seconds": 7.350450099998852,
+      "stdout_log": "test_fig9_lmatch_ablation.stdout.log",
+      "stderr_log": "test_fig9_lmatch_ablation.stderr.log",
+      "tail": "test_analyzer_writes_complete_auditable_outputs (tests.test_fig9_lmatch_ablation.Fig9LMatchAnalysisTests.test_analyzer_writes_complete_auditable_outputs) ... ok\ntest_improved_error_with_ambiguity_growth_is_unstable (tests.test_fig9_lmatch_ablation.Fig9LMatchAnalysisTests.test_improved_error_with_ambiguity_growth_is_unstable) ... ok\ntest_paired_bootstrap_is_reproducible (tests.test_fig9_lmatch_ablation.Fig9LMatchAnalysisTests.test_paired_bootstrap_is_reproducible) ... ok\ntest_protocol_comparison_allows_only_lmatch_difference (tests.test_fig9_lmatch_ablation.Fig9LMatchAnalysisTests.test_protocol_comparison_allows_only_lmatch_difference) ... ok\ntest_checkpoint_records_and_rejects_mismatched_lmatch (tests.test_fig9_lmatch_ablation.Fig9LMatchConfigurationTests.test_checkpoint_records_and_rejects_mismatched_lmatch) ... ok\ntest_cli_accepts_only_real_ablation_values (tests.test_fig9_lmatch_ablation.Fig9LMatchConfigurationTests.test_cli_accepts_only_real_ablation_values) ... ok\ntest_default_and_explicit_l4_predictions_are_identical (tests.test_fig9_lmatch_ablation.Fig9LMatchConfigurationTests.test_default_and_explicit_l4_predictions_are_identical) ... ok\ntest_manual_script_excludes_lmatch_one_and_requires_opt_in (tests.test_fig9_lmatch_ablation.Fig9LMatchConfigurationTests.test_manual_script_excludes_lmatch_one_and_requires_opt_in) ... ok\ntest_protocol_records_real_lmatch (tests.test_fig9_lmatch_ablation.Fig9LMatchConfigurationTests.test_protocol_records_real_lmatch) ... ok\ntest_real_lmatch_changes_scenario2_gate (tests.test_fig9_lmatch_ablation.Fig9LMatchConfigurationTests.test_real_lmatch_changes_scenario2_gate) ... ok\ntest_real_lmatch_reaches_model_params (tests.test_fig9_lmatch_ablation.Fig9LMatchConfigurationTests.test_real_lmatch_reaches_model_params) ... ok\ntest_strict_default_remains_four (tests.test_fig9_lmatch_ablation.Fig9LMatchConfigurationTests.test_strict_default_remains_four) ... ok\n\n----------------------------------------------------------------------\nRan 12 tests in 6.870s\n\nOK"
+    },
+    {
+      "module": "tests.test_fig9_lmatch_stack_2x2",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 7,
+      "elapsed_seconds": 0.24503670001286082,
+      "stdout_log": "test_fig9_lmatch_stack_2x2.stdout.log",
+      "stderr_log": "test_fig9_lmatch_stack_2x2.stderr.log",
+      "tail": "test_effects_use_difference_in_differences (tests.test_fig9_lmatch_stack_2x2.Fig9LMatchStackProtocolTests.test_effects_use_difference_in_differences) ... ok\ntest_expected_prediction_counts (tests.test_fig9_lmatch_stack_2x2.Fig9LMatchStackProtocolTests.test_expected_prediction_counts) ... ok\ntest_forbidden_mechanisms_are_off (tests.test_fig9_lmatch_stack_2x2.Fig9LMatchStackProtocolTests.test_forbidden_mechanisms_are_off) ... ok\ntest_mapping_accepts_explicit_limit_suffix (tests.test_fig9_lmatch_stack_2x2.Fig9LMatchStackProtocolTests.test_mapping_accepts_explicit_limit_suffix) ... ok\ntest_matrix_has_four_named_cells (tests.test_fig9_lmatch_stack_2x2.Fig9LMatchStackProtocolTests.test_matrix_has_four_named_cells) ... ok\ntest_raw_pair_only_changes_l_match_and_labels (tests.test_fig9_lmatch_stack_2x2.Fig9LMatchStackProtocolTests.test_raw_pair_only_changes_l_match_and_labels) ... ok\ntest_stack_pair_only_changes_l_match_and_labels (tests.test_fig9_lmatch_stack_2x2.Fig9LMatchStackProtocolTests.test_stack_pair_only_changes_l_match_and_labels) ... ok\n\n----------------------------------------------------------------------\nRan 7 tests in 0.109s\n\nOK"
+    },
+    {
+      "module": "tests.test_fig9_long_sequence",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 4,
+      "elapsed_seconds": 0.2804063000075985,
+      "stdout_log": "test_fig9_long_sequence.stdout.log",
+      "stderr_log": "test_fig9_long_sequence.stderr.log",
+      "tail": "test_expected_count_and_requested_ranges (tests.test_fig9_long_sequence.Fig9LongSequenceTests.test_expected_count_and_requested_ranges) ... ok\ntest_ledger_writer_preserves_one_row_per_observation (tests.test_fig9_long_sequence.Fig9LongSequenceTests.test_ledger_writer_preserves_one_row_per_observation) ... ok\ntest_overall_stepwise_error_uses_all_requested_records (tests.test_fig9_long_sequence.Fig9LongSequenceTests.test_overall_stepwise_error_uses_all_requested_records) ... ok\ntest_process_attempt_summary_counts_recovery_and_native_crashes (tests.test_fig9_long_sequence.Fig9LongSequenceTests.test_process_attempt_summary_counts_recovery_and_native_crashes) ... ok\n\n----------------------------------------------------------------------\nRan 4 tests in 0.009s\n\nOK"
+    },
+    {
+      "module": "tests.test_fig9_match_overlap",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 34,
+      "elapsed_seconds": 3.9482419999840204,
+      "stdout_log": "test_fig9_match_overlap.stdout.log",
+      "stderr_log": "test_fig9_match_overlap.stderr.log",
+      "tail": "test_remaining_timing_eligibility_paths_are_explicit (tests.test_fig9_match_overlap.MatchOverlapCaptureTests.test_remaining_timing_eligibility_paths_are_explicit) ... ok\ntest_same_and_cross_field_partition (tests.test_fig9_match_overlap.MatchOverlapCaptureTests.test_same_and_cross_field_partition) ... ok\ntest_segment_level_omits_source_rows (tests.test_fig9_match_overlap.MatchOverlapCaptureTests.test_segment_level_omits_source_rows) ... ok\ntest_source_level_maps_fields (tests.test_fig9_match_overlap.MatchOverlapCaptureTests.test_source_level_maps_fields) ... ok\ntest_source_level_schema_contains_auditable_identity_fields (tests.test_fig9_match_overlap.MatchOverlapCaptureTests.test_source_level_schema_contains_auditable_identity_fields) ... ok\ntest_source_loss_primary_reasons_are_mutually_exclusive (tests.test_fig9_match_overlap.MatchOverlapCaptureTests.test_source_loss_primary_reasons_are_mutually_exclusive) ... ok\ntest_source_retention_uses_exact_cell_identity (tests.test_fig9_match_overlap.MatchOverlapCaptureTests.test_source_retention_uses_exact_cell_identity) ... ok\ntest_source_trace_filter_is_output_only_and_boundary_exact (tests.test_fig9_match_overlap.MatchOverlapCaptureTests.test_source_trace_filter_is_output_only_and_boundary_exact) ... ok\ntest_summary_level_does_not_allocate_segment_or_source_rows (tests.test_fig9_match_overlap.MatchOverlapCaptureTests.test_summary_level_does_not_allocate_segment_or_source_rows) ... ok\ntest_timing_decomposition_uses_real_arrival_window (tests.test_fig9_match_overlap.MatchOverlapCaptureTests.test_timing_decomposition_uses_real_arrival_window) ... ok\ntest_timing_failure_is_distinguished (tests.test_fig9_match_overlap.MatchOverlapCaptureTests.test_timing_failure_is_distinguished) ... ok\ntest_unknown_level_rejected (tests.test_fig9_match_overlap.MatchOverlapCaptureTests.test_unknown_level_rejected) ... ok\ntest_winner_only_context_is_separate (tests.test_fig9_match_overlap.MatchOverlapCaptureTests.test_winner_only_context_is_separate) ... ok\ntest_without_burst_only_context (tests.test_fig9_match_overlap.MatchOverlapCaptureTests.test_without_burst_only_context) ... ok\ntest_wrong_neuron_is_distinguished (tests.test_fig9_match_overlap.MatchOverlapCaptureTests.test_wrong_neuron_is_distinguished) ... ok\n\n----------------------------------------------------------------------\nRan 34 tests in 3.529s\n\nOK"
+    },
+    {
+      "module": "tests.test_fig9_native_crash_logging",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 8,
+      "elapsed_seconds": 6.820930699992459,
+      "stdout_log": "test_fig9_native_crash_logging.stdout.log",
+      "stderr_log": "test_fig9_native_crash_logging.stderr.log",
+      "tail": "test_debug_end_index_cannot_advance_more_than_ten (tests.test_fig9_native_crash_logging.Fig9NativeCrashLoggingTests.test_debug_end_index_cannot_advance_more_than_ten) ... ok\ntest_dedicated_faulthandler_file_and_breadcrumb (tests.test_fig9_native_crash_logging.Fig9NativeCrashLoggingTests.test_dedicated_faulthandler_file_and_breadcrumb) ... ok\ntest_environment_collection_does_not_require_optional_imports (tests.test_fig9_native_crash_logging.Fig9NativeCrashLoggingTests.test_environment_collection_does_not_require_optional_imports) ... ok\ntest_module_state_integrity_detects_exp_rebinding (tests.test_fig9_native_crash_logging.Fig9NativeCrashLoggingTests.test_module_state_integrity_detects_exp_rebinding) ... ok\ntest_module_state_integrity_records_expected_types (tests.test_fig9_native_crash_logging.Fig9NativeCrashLoggingTests.test_module_state_integrity_records_expected_types) ... ok\ntest_native_runtime_debug_is_boundary_only_by_default (tests.test_fig9_native_crash_logging.Fig9NativeCrashLoggingTests.test_native_runtime_debug_is_boundary_only_by_default) ... ok\ntest_segment_runtime_trace_requires_runtime_debug (tests.test_fig9_native_crash_logging.Fig9NativeCrashLoggingTests.test_segment_runtime_trace_requires_runtime_debug) ... ok\ntest_working_set_measurement_is_positive (tests.test_fig9_native_crash_logging.Fig9NativeCrashLoggingTests.test_working_set_measurement_is_positive) ... ok\n\n----------------------------------------------------------------------\nRan 8 tests in 6.461s\n\nOK"
+    },
+    {
+      "module": "tests.test_fig9_oracle_candidate",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 16,
+      "elapsed_seconds": 6.377864300011424,
+      "stdout_log": "test_fig9_oracle_candidate.stdout.log",
+      "stderr_log": "test_fig9_oracle_candidate.stderr.log",
+      "tail": "test_empty_predictions_and_duplicate_columns_are_safe (tests.test_fig9_oracle_candidate.Fig9OracleCandidateTests.test_empty_predictions_and_duplicate_columns_are_safe) ... ok\ntest_ground_truth_is_absent_from_competition_interfaces (tests.test_fig9_oracle_candidate.Fig9OracleCandidateTests.test_ground_truth_is_absent_from_competition_interfaces) ... ok\ntest_missing_provenance_is_not_invented (tests.test_fig9_oracle_candidate.Fig9OracleCandidateTests.test_missing_provenance_is_not_invented) ... ok\ntest_oracle_off_and_on_predictions_csv_are_identical (tests.test_fig9_oracle_candidate.Fig9OracleCandidateTests.test_oracle_off_and_on_predictions_csv_are_identical) ... ok\ntest_oracle_on_preserves_checkpoint_v1 (tests.test_fig9_oracle_candidate.Fig9OracleCandidateTests.test_oracle_on_preserves_checkpoint_v1) ... ok\ntest_oracle_on_preserves_competition_trace (tests.test_fig9_oracle_candidate.Fig9OracleCandidateTests.test_oracle_on_preserves_competition_trace) ... ok\ntest_oracle_on_preserves_model_and_rng_fingerprints (tests.test_fig9_oracle_candidate.Fig9OracleCandidateTests.test_oracle_on_preserves_model_and_rng_fingerprints) ... ok\ntest_oracle_outputs_are_explicitly_analysis_only (tests.test_fig9_oracle_candidate.Fig9OracleCandidateTests.test_oracle_outputs_are_explicitly_analysis_only) ... ok\ntest_raw_and_emitted_target_recall_are_correct (tests.test_fig9_oracle_candidate.Fig9OracleCandidateTests.test_raw_and_emitted_target_recall_are_correct) ... ok\ntest_strict_protocol_contains_no_oracle_marker (tests.test_fig9_oracle_candidate.Fig9OracleCandidateTests.test_strict_protocol_contains_no_oracle_marker) ... ok\ntest_summary_reports_first_target_loss_step (tests.test_fig9_oracle_candidate.Fig9OracleCandidateTests.test_summary_reports_first_target_loss_step) ... ok\ntest_suppressed_target_columns_are_reported (tests.test_fig9_oracle_candidate.Fig9OracleCandidateTests.test_suppressed_target_columns_are_reported) ... ok\ntest_target_columns_match_composite_encoder_output (tests.test_fig9_oracle_candidate.Fig9OracleCandidateTests.test_target_columns_match_composite_encoder_output) ... ok\ntest_target_scores_and_ranks_use_saved_decisions (tests.test_fig9_oracle_candidate.Fig9OracleCandidateTests.test_target_scores_and_ranks_use_saved_decisions) ... ok\ntest_three_field_ranges_are_disjoint (tests.test_fig9_oracle_candidate.Fig9OracleCandidateTests.test_three_field_ranges_are_disjoint) ... ok\n\n----------------------------------------------------------------------\nRan 16 tests in 6.030s\n\nOK"
+    },
+    {
+      "module": "tests.test_fig9_pairwise_context",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 53,
+      "elapsed_seconds": 0.18300260000978597,
+      "stdout_log": "test_fig9_pairwise_context.stdout.log",
+      "stderr_log": "test_fig9_pairwise_context.stderr.log",
+      "tail": "test_ranking_returns_zero_without_targets (tests.test_fig9_pairwise_context.PairwiseContextTests.test_ranking_returns_zero_without_targets) ... ok\ntest_ranking_top1_detects_target (tests.test_fig9_pairwise_context.PairwiseContextTests.test_ranking_top1_detects_target) ... ok\ntest_safe_ratio_zero_denominator_is_zero (tests.test_fig9_pairwise_context.PairwiseContextTests.test_safe_ratio_zero_denominator_is_zero) ... ok\ntest_same_field_pair_flag_is_boolean (tests.test_fig9_pairwise_context.PairwiseContextTests.test_same_field_pair_flag_is_boolean) ... ok\ntest_segment_source_sets_keep_overlap_ids (tests.test_fig9_pairwise_context.PairwiseContextTests.test_segment_source_sets_keep_overlap_ids) ... ok\ntest_self_pair_is_rejected (tests.test_fig9_pairwise_context.PairwiseContextTests.test_self_pair_is_rejected) ... ok\ntest_shrunk_pmi_is_bounded_by_raw_value (tests.test_fig9_pairwise_context.PairwiseContextTests.test_shrunk_pmi_is_bounded_by_raw_value) ... ok\ntest_shrunk_pmi_is_zero_without_support (tests.test_fig9_pairwise_context.PairwiseContextTests.test_shrunk_pmi_is_zero_without_support) ... ok\ntest_source_metadata_is_indexed_by_record_and_segment (tests.test_fig9_pairwise_context.PairwiseContextTests.test_source_metadata_is_indexed_by_record_and_segment) ... ok\ntest_source_pairs_empty_is_empty (tests.test_fig9_pairwise_context.PairwiseContextTests.test_source_pairs_empty_is_empty) ... ok\ntest_source_pairs_remove_duplicates (tests.test_fig9_pairwise_context.PairwiseContextTests.test_source_pairs_remove_duplicates) ... ok\ntest_support_buckets_are_explicit (tests.test_fig9_pairwise_context.PairwiseContextTests.test_support_buckets_are_explicit) ... ok\ntest_trace_does_not_mutate_candidate_input (tests.test_fig9_pairwise_context.PairwiseContextTests.test_trace_does_not_mutate_candidate_input) ... ok\ntest_trace_id_is_not_object_id (tests.test_fig9_pairwise_context.PairwiseContextTests.test_trace_id_is_not_object_id) ... ok\ntest_trace_rows_have_pair_row_unit (tests.test_fig9_pairwise_context.PairwiseContextTests.test_trace_rows_have_pair_row_unit) ... ok\n\n----------------------------------------------------------------------\nRan 53 tests in 0.027s\n\nOK"
+    },
+    {
+      "module": "tests.test_fig9_paper_code_parity",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 37,
+      "elapsed_seconds": 7.766789699991932,
+      "stdout_log": "test_fig9_paper_code_parity.stdout.log",
+      "stderr_log": "test_fig9_paper_code_parity.stderr.log",
+      "tail": "test_23_decoder_api_has_no_future_target (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_23_decoder_api_has_no_future_target) ... ok\ntest_24_horizon_reported_timestamp_is_plus_2_5_hours (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_24_horizon_reported_timestamp_is_plus_2_5_hours) ... ok\ntest_25_step5_causal_target_alignment_is_audited (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_25_step5_causal_target_alignment_is_audited) ... ok\ntest_26_current_off_by_one_is_detected (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_26_current_off_by_one_is_detected) ... ok\ntest_27_desired_five_step_fixture_has_no_off_by_one (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_27_desired_five_step_fixture_has_no_off_by_one) ... ok\ntest_28_mape_definition_fixture (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_28_mape_definition_fixture) ... ok\ntest_29_warmup_provenance_is_reported (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_29_warmup_provenance_is_reported) ... ok\ntest_30_parity_matrix_has_at_least_100_items (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_30_parity_matrix_has_at_least_100_items) ... ok\ntest_31_mismatch_severity_order_is_deterministic (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_31_mismatch_severity_order_is_deterministic) ... ok\ntest_32_run_family_classification (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_32_run_family_classification) ... ok\ntest_33_audit_primitives_do_not_alter_model (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_33_audit_primitives_do_not_alter_model) ... ok\ntest_34_no_compensation_in_strict_defaults (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_34_no_compensation_in_strict_defaults) ... ok\ntest_35_no_future_covariates_in_strict_defaults (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_35_no_future_covariates_in_strict_defaults) ... ok\ntest_36_strict_default_core_values_are_unchanged (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_36_strict_default_core_values_are_unchanged) ... ok\ntest_37_full_roundtrip_summary_regression (tests.test_fig9_paper_code_parity.Fig9PaperCodeParityTests.test_37_full_roundtrip_summary_regression) ... ok\n\n----------------------------------------------------------------------\nRan 37 tests in 7.397s\n\nOK"
+    },
+    {
+      "module": "tests.test_fig9_preselection_segments",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 11,
+      "elapsed_seconds": 35.19081639999058,
+      "stdout_log": "test_fig9_preselection_segments.stdout.log",
+      "stderr_log": "test_fig9_preselection_segments.stderr.log",
+      "tail": "test_checkpoint_v1_and_stable_sidecar_ids (tests.test_fig9_preselection_segments.Fig9PreselectionIntegrationTests.test_checkpoint_v1_and_stable_sidecar_ids) ... ok\ntest_crossing_schema_and_saved_candidate_mapping (tests.test_fig9_preselection_segments.Fig9PreselectionIntegrationTests.test_crossing_schema_and_saved_candidate_mapping) ... ok\ntest_funnel_counts_are_monotonic_and_accounted (tests.test_fig9_preselection_segments.Fig9PreselectionIntegrationTests.test_funnel_counts_are_monotonic_and_accounted) ... ok\ntest_on_off_preserves_all_outputs_and_fingerprints (tests.test_fig9_preselection_segments.Fig9PreselectionIntegrationTests.test_on_off_preserves_all_outputs_and_fingerprints) ... ok\ntest_protocol_and_analysis_outputs (tests.test_fig9_preselection_segments.Fig9PreselectionIntegrationTests.test_protocol_and_analysis_outputs) ... ok\ntest_summary_full_and_gzip_levels (tests.test_fig9_preselection_segments.Fig9PreselectionIntegrationTests.test_summary_full_and_gzip_levels) ... ok\ntest_empty_analysis_is_safe (tests.test_fig9_preselection_segments.Fig9PreselectionUnitTests.test_empty_analysis_is_safe) ... ok\ntest_ground_truth_is_absent_from_prediction_signature (tests.test_fig9_preselection_segments.Fig9PreselectionUnitTests.test_ground_truth_is_absent_from_prediction_signature) ... ok\ntest_internal_replacement_cannot_change_column_label (tests.test_fig9_preselection_segments.Fig9PreselectionUnitTests.test_internal_replacement_cannot_change_column_label) ... ok\ntest_offline_mapping_does_not_predict_observe_or_learn (tests.test_fig9_preselection_segments.Fig9PreselectionUnitTests.test_offline_mapping_does_not_predict_observe_or_learn) ... ok\ntest_stable_group_id_uses_every_fingerprint_input (tests.test_fig9_preselection_segments.Fig9PreselectionUnitTests.test_stable_group_id_uses_every_fingerprint_input) ... ok\n\n----------------------------------------------------------------------\nRan 11 tests in 34.854s\n\nOK"
+    },
+    {
+      "module": "tests.test_fig9_process_logging",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 3,
+      "elapsed_seconds": 0.70621969999047,
+      "stdout_log": "test_fig9_process_logging.stdout.log",
+      "stderr_log": "test_fig9_process_logging.stderr.log",
+      "tail": "test_full_traceback_capture_regression (tests.test_fig9_process_logging.Fig9ProcessLoggingTests.test_full_traceback_capture_regression) ... ok\ntest_stderr_traceback_and_native_exit_code_are_preserved (tests.test_fig9_process_logging.Fig9ProcessLoggingTests.test_stderr_traceback_and_native_exit_code_are_preserved) ... ok\ntest_success_writes_result_without_failure (tests.test_fig9_process_logging.Fig9ProcessLoggingTests.test_success_writes_result_without_failure) ... ok\n\n----------------------------------------------------------------------\nRan 3 tests in 0.524s\n\nOK"
+    },
+    {
+      "module": "tests.test_fig9_prune_recovery",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 5,
+      "elapsed_seconds": 1.6763631999783684,
+      "stdout_log": "test_fig9_prune_recovery.stdout.log",
+      "stderr_log": "test_fig9_prune_recovery.stderr.log",
+      "tail": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nRuntimeError: stop\n\n===== child stderr tail (last 300 lines) =====\nTraceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nRuntimeError: stop\ntest_checkpoint_metadata_is_atomic_and_has_boundary (tests.test_fig9_prune_recovery.Fig9PruneRecoveryTests.test_checkpoint_metadata_is_atomic_and_has_boundary) ... ok\ntest_gzip_resume_trim_is_eof_valid_and_semantic_deduplicated (tests.test_fig9_prune_recovery.Fig9PruneRecoveryTests.test_gzip_resume_trim_is_eof_valid_and_semantic_deduplicated) ... ok\ntest_progress_is_not_reported_as_completed_checkpoint (tests.test_fig9_prune_recovery.Fig9PruneRecoveryTests.test_progress_is_not_reported_as_completed_checkpoint) ... ok\ntest_prune_breadcrumb_hook_is_scalar_and_non_interfering (tests.test_fig9_prune_recovery.Fig9PruneRecoveryTests.test_prune_breadcrumb_hook_is_scalar_and_non_interfering) ... ok\ntest_supervisor_reads_metadata_without_unpickling (tests.test_fig9_prune_recovery.Fig9PruneRecoveryTests.test_supervisor_reads_metadata_without_unpickling) ... ok\n\n----------------------------------------------------------------------\nRan 5 tests in 1.283s\n\nOK"
+    },
+    {
+      "module": "tests.test_fig9_readout_dynamics",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 9,
+      "elapsed_seconds": 0.3472081999934744,
+      "stdout_log": "test_fig9_readout_dynamics.stdout.log",
+      "stderr_log": "test_fig9_readout_dynamics.stderr.log",
+      "tail": "test_column_event_id_is_deterministic_and_has_no_object_identity (tests.test_fig9_readout_dynamics.Fig9ReadoutDynamicsTests.test_column_event_id_is_deterministic_and_has_no_object_identity) ... ok\ntest_competition_outcomes_are_aggregate_per_column (tests.test_fig9_readout_dynamics.Fig9ReadoutDynamicsTests.test_competition_outcomes_are_aggregate_per_column) ... ok\ntest_incremental_trace_matches_one_shot_rows (tests.test_fig9_readout_dynamics.Fig9ReadoutDynamicsTests.test_incremental_trace_matches_one_shot_rows) ... ok\ntest_legacy_zero_contributor_ledger_is_marked_missing (tests.test_fig9_readout_dynamics.Fig9ReadoutDynamicsTests.test_legacy_zero_contributor_ledger_is_marked_missing) ... ok\ntest_missing_contributor_is_not_zero (tests.test_fig9_readout_dynamics.Fig9ReadoutDynamicsTests.test_missing_contributor_is_not_zero) ... ok\ntest_posthoc_target_is_field_aware (tests.test_fig9_readout_dynamics.Fig9ReadoutDynamicsTests.test_posthoc_target_is_field_aware) ... ok\ntest_preselector_and_maxscore_representative_are_persisted (tests.test_fig9_readout_dynamics.Fig9ReadoutDynamicsTests.test_preselector_and_maxscore_representative_are_persisted) ... ok\ntest_selector_bucket_fields_are_deterministically_derived (tests.test_fig9_readout_dynamics.Fig9ReadoutDynamicsTests.test_selector_bucket_fields_are_deterministically_derived) ... ok\ntest_target_false_funnel_sums_are_explicit (tests.test_fig9_readout_dynamics.Fig9ReadoutDynamicsTests.test_target_false_funnel_sums_are_explicit) ... ok\n\n----------------------------------------------------------------------\nRan 9 tests in 0.090s\n\nOK"
+    },
+    {
+      "module": "tests.test_fig9_resume_diagnostic_assembly",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 2,
+      "elapsed_seconds": 0.21243710000999272,
+      "stdout_log": "test_fig9_resume_diagnostic_assembly.stdout.log",
+      "stderr_log": "test_fig9_resume_diagnostic_assembly.stderr.log",
+      "tail": "test_merge_uses_checkpoint_boundary_and_formal_window (tests.test_fig9_resume_diagnostic_assembly.Fig9ResumeDiagnosticAssemblyTests.test_merge_uses_checkpoint_boundary_and_formal_window) ... ok\ntest_observe_trace_restores_event_missing_from_context (tests.test_fig9_resume_diagnostic_assembly.Fig9ResumeDiagnosticAssemblyTests.test_observe_trace_restores_event_missing_from_context) ... ok\n\n----------------------------------------------------------------------\nRan 2 tests in 0.056s\n\nOK"
+    },
+    {
+      "module": "tests.test_fig9_segment_context_composition",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 3,
+      "elapsed_seconds": 0.23937759999535047,
+      "stdout_log": "test_fig9_segment_context_composition.stdout.log",
+      "stderr_log": "test_fig9_segment_context_composition.stderr.log",
+      "tail": "test_real_observation_produces_l2_composition_rows (tests.test_fig9_segment_context_composition.SegmentContextCompositionTests.test_real_observation_produces_l2_composition_rows) ... ok\ntest_record_observation_only_updates_tracker_history (tests.test_fig9_segment_context_composition.SegmentContextCompositionTests.test_record_observation_only_updates_tracker_history) ... ok\ntest_snapshot_is_read_only_and_keeps_multilabel_source_roles (tests.test_fig9_segment_context_composition.SegmentContextCompositionTests.test_snapshot_is_read_only_and_keeps_multilabel_source_roles) ... ok\n\n----------------------------------------------------------------------\nRan 3 tests in 0.001s\n\nOK"
+    },
+    {
+      "module": "tests.test_fig9_segment_reinforcement",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 4,
+      "elapsed_seconds": 3.3734068000048865,
+      "stdout_log": "test_fig9_segment_reinforcement.stdout.log",
+      "stderr_log": "test_fig9_segment_reinforcement.stderr.log",
+      "tail": "test_analyzer_writes_complete_output_set (tests.test_fig9_segment_reinforcement.SegmentReinforcementDiagnosticTests.test_analyzer_writes_complete_output_set) ... ok\ntest_primary_labels_are_mutually_exclusive (tests.test_fig9_segment_reinforcement.SegmentReinforcementDiagnosticTests.test_primary_labels_are_mutually_exclusive) ... ok\ntest_reference_unavailable_is_never_wrong (tests.test_fig9_segment_reinforcement.SegmentReinforcementDiagnosticTests.test_reference_unavailable_is_never_wrong) ... ok\ntest_runner_trace_is_noninterfering_and_checkpoint_safe (tests.test_fig9_segment_reinforcement.SegmentReinforcementDiagnosticTests.test_runner_trace_is_noninterfering_and_checkpoint_safe) ... ok\n\n----------------------------------------------------------------------\nRan 4 tests in 3.045s\n\nOK"
+    },
+    {
+      "module": "tests.test_fig9_strict_reproduction",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 29,
+      "elapsed_seconds": 78.96355210000183,
+      "stdout_log": "test_fig9_strict_reproduction.stdout.log",
+      "stderr_log": "test_fig9_strict_reproduction.stderr.log",
+      "tail": "test_optimized_v2_memo_reuses_only_identical_arrivals (tests.test_fig9_strict_reproduction.Fig9StrictReproductionTests.test_optimized_v2_memo_reuses_only_identical_arrivals) ... ok\ntest_perturbation_only_affects_paper_windows (tests.test_fig9_strict_reproduction.Fig9StrictReproductionTests.test_perturbation_only_affects_paper_windows) ... ok\ntest_perturbed_file_matches_original_before_april_first (tests.test_fig9_strict_reproduction.Fig9StrictReproductionTests.test_perturbed_file_matches_original_before_april_first) ... ok\ntest_pre_change_comparison_detects_identical_rows (tests.test_fig9_strict_reproduction.Fig9StrictReproductionTests.test_pre_change_comparison_detects_identical_rows) ... ok\ntest_prediction_candidates_match_reference_path (tests.test_fig9_strict_reproduction.Fig9StrictReproductionTests.test_prediction_candidates_match_reference_path) ... ok\ntest_protocol_fingerprint_matches_config (tests.test_fig9_strict_reproduction.Fig9StrictReproductionTests.test_protocol_fingerprint_matches_config) ... ok\ntest_rollout_does_not_learn_or_reencode (tests.test_fig9_strict_reproduction.Fig9StrictReproductionTests.test_rollout_does_not_learn_or_reencode) ... ok\ntest_run_predicts_before_observe (tests.test_fig9_strict_reproduction.Fig9StrictReproductionTests.test_run_predicts_before_observe) ... ok\ntest_step_level_density_summary (tests.test_fig9_strict_reproduction.Fig9StrictReproductionTests.test_step_level_density_summary) ... ok\ntest_strict_defaults_are_all_cell_burst_and_raw (tests.test_fig9_strict_reproduction.Fig9StrictReproductionTests.test_strict_defaults_are_all_cell_burst_and_raw) ... ok\ntest_strict_fingerprint_unchanged_by_phase2_options (tests.test_fig9_strict_reproduction.Fig9StrictReproductionTests.test_strict_fingerprint_unchanged_by_phase2_options) ... ok\ntest_strict_summary_fingerprints_are_stable (tests.test_fig9_strict_reproduction.Fig9StrictReproductionTests.test_strict_summary_fingerprints_are_stable) ... ok\ntest_ten_and_fifty_record_streams_match_reference_path (tests.test_fig9_strict_reproduction.Fig9StrictReproductionTests.test_ten_and_fifty_record_streams_match_reference_path) ... ok\ntest_timestamp_based_april_split (tests.test_fig9_strict_reproduction.Fig9StrictReproductionTests.test_timestamp_based_april_split) ... ok\ntest_validate_strict_rejects_compensation (tests.test_fig9_strict_reproduction.Fig9StrictReproductionTests.test_validate_strict_rejects_compensation) ... ok\n\n----------------------------------------------------------------------\nRan 29 tests in 78.631s\n\nOK"
+    },
+    {
+      "module": "tests.test_fig9_teacher_forced_identity",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 40,
+      "elapsed_seconds": 33.41075239999918,
+      "stdout_log": "test_fig9_teacher_forced_identity.stdout.log",
+      "stderr_log": "test_fig9_teacher_forced_identity.stderr.log",
+      "tail": "test_ranking_observation_recognizes_same_neuron_different_segment (tests.test_fig9_teacher_forced_identity.TeacherForcedIdentityUnitTests.test_ranking_observation_recognizes_same_neuron_different_segment) ... ok\ntest_reference_candidate_suppressed_classification (tests.test_fig9_teacher_forced_identity.TeacherForcedIdentityUnitTests.test_reference_candidate_suppressed_classification) ... ok\ntest_reference_id_is_stable_and_uses_column (tests.test_fig9_teacher_forced_identity.TeacherForcedIdentityUnitTests.test_reference_id_is_stable_and_uses_column) ... ok\ntest_reference_present_but_not_candidate_classification (tests.test_fig9_teacher_forced_identity.TeacherForcedIdentityUnitTests.test_reference_present_but_not_candidate_classification) ... ok\ntest_reference_replacement_trace_uses_captured_comparison (tests.test_fig9_teacher_forced_identity.TeacherForcedIdentityUnitTests.test_reference_replacement_trace_uses_captured_comparison) ... ok\ntest_reference_selection_trace_keeps_real_stage_fields (tests.test_fig9_teacher_forced_identity.TeacherForcedIdentityUnitTests.test_reference_selection_trace_keeps_real_stage_fields) ... ok\ntest_reference_wrong_winner_pair_uses_same_column_neurons (tests.test_fig9_teacher_forced_identity.TeacherForcedIdentityUnitTests.test_reference_wrong_winner_pair_uses_same_column_neurons) ... ok\ntest_rollout_bootstrap_is_repeatable (tests.test_fig9_teacher_forced_identity.TeacherForcedIdentityUnitTests.test_rollout_bootstrap_is_repeatable) ... ok\ntest_same_reference_is_reused_by_multiple_rollouts (tests.test_fig9_teacher_forced_identity.TeacherForcedIdentityUnitTests.test_same_reference_is_reused_by_multiple_rollouts) ... ok\ntest_scenario1_reference_is_preexisting_predicted (tests.test_fig9_teacher_forced_identity.TeacherForcedIdentityUnitTests.test_scenario1_reference_is_preexisting_predicted) ... ok\ntest_scenario2_reference_is_preexisting_matching_segment (tests.test_fig9_teacher_forced_identity.TeacherForcedIdentityUnitTests.test_scenario2_reference_is_preexisting_matching_segment) ... ok\ntest_scenario3_created_segment_is_operational_only (tests.test_fig9_teacher_forced_identity.TeacherForcedIdentityUnitTests.test_scenario3_created_segment_is_operational_only) ... ok\ntest_scoped_metrics_exclude_post_observation_references (tests.test_fig9_teacher_forced_identity.TeacherForcedIdentityUnitTests.test_scoped_metrics_exclude_post_observation_references) ... ok\ntest_timestamp_join_and_target_index_validation (tests.test_fig9_teacher_forced_identity.TeacherForcedIdentityUnitTests.test_timestamp_join_and_target_index_validation) ... ok\ntest_winner_set_supports_single_multiple_and_missing (tests.test_fig9_teacher_forced_identity.TeacherForcedIdentityUnitTests.test_winner_set_supports_single_multiple_and_missing) ... ok\n\n----------------------------------------------------------------------\nRan 40 tests in 33.073s\n\nOK"
+    },
+    {
+      "module": "tests.test_fig9_temporal_context",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 50,
+      "elapsed_seconds": 0.19401020000805147,
+      "stdout_log": "test_fig9_temporal_context.stdout.log",
+      "stderr_log": "test_fig9_temporal_context.stderr.log",
+      "tail": "test_36_response_peak_is_preserved (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_36_response_peak_is_preserved) ... ok\ntest_37_delay_mean_is_preserved (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_37_delay_mean_is_preserved) ... ok\ntest_38_delay_span_is_preserved (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_38_delay_span_is_preserved) ... ok\ntest_39_order_template_is_explicitly_unavailable (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_39_order_template_is_explicitly_unavailable) ... ok\ntest_40_source_age_monotonicity_not_invented (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_40_source_age_monotonicity_not_invented) ... ok\ntest_41_reinforcement_time_not_invented (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_41_reinforcement_time_not_invented) ... ok\ntest_42_reinforcement_count_preserved (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_42_reinforcement_count_preserved) ... ok\ntest_43_recurrent_flag_is_step_sensitive (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_43_recurrent_flag_is_step_sensitive) ... ok\ntest_44_checkpoint_round_trip (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_44_checkpoint_round_trip) ... ok\ntest_45_begin_record_resets_autonomous_history (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_45_begin_record_resets_autonomous_history) ... ok\ntest_46_record_actual_updates_only_actual_history (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_46_record_actual_updates_only_actual_history) ... ok\ntest_47_record_autonomous_updates_only_autonomous_history (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_47_record_autonomous_updates_only_autonomous_history) ... ok\ntest_48_actual_source_summary_is_bounded (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_48_actual_source_summary_is_bounded) ... ok\ntest_49_actual_source_false_rows_are_ignored (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_49_actual_source_false_rows_are_ignored) ... ok\ntest_50_streaming_trace_reaches_gzip_eof (tests.test_fig9_temporal_context.TemporalContextSummaryTests.test_50_streaming_trace_reaches_gzip_eof) ... ok\n\n----------------------------------------------------------------------\nRan 50 tests in 0.022s\n\nOK"
+    },
+    {
+      "module": "tests.test_multivariate_fig9_transfer",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 4,
+      "elapsed_seconds": 0.17258199999923818,
+      "stdout_log": "test_multivariate_fig9_transfer.stdout.log",
+      "stderr_log": "test_multivariate_fig9_transfer.stderr.log",
+      "tail": "test_eight_numeric_fields_use_976_columns (tests.test_multivariate_fig9_transfer.MultivariateFig9TransferTests.test_eight_numeric_fields_use_976_columns) ... ok\ntest_etth1_record_contains_time_and_selected_fields (tests.test_multivariate_fig9_transfer.MultivariateFig9TransferTests.test_etth1_record_contains_time_and_selected_fields) ... ok\ntest_multihorizon_parser_sorts_and_deduplicates (tests.test_multivariate_fig9_transfer.MultivariateFig9TransferTests.test_multihorizon_parser_sorts_and_deduplicates) ... ok\ntest_selection_keeps_target_last (tests.test_multivariate_fig9_transfer.MultivariateFig9TransferTests.test_selection_keeps_target_last) ... ok\n\n----------------------------------------------------------------------\nRan 4 tests in 0.000s\n\nOK"
+    },
+    {
+      "module": "tests.test_paper_alignment",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 41,
+      "elapsed_seconds": 0.3455424999992829,
+      "stdout_log": "test_paper_alignment.stdout.log",
+      "stderr_log": "test_paper_alignment.stderr.log",
+      "tail": "test_real_value_likelihood_decode_round_trip (tests.test_paper_alignment.PaperEncodingTests.test_real_value_likelihood_decode_round_trip) ... ok\ntest_real_value_likelihood_search_handles_range_boundaries (tests.test_paper_alignment.PaperEncodingTests.test_real_value_likelihood_search_handles_range_boundaries) ... ok\ntest_real_value_likelihood_search_is_global_for_noisy_codes (tests.test_paper_alignment.PaperEncodingTests.test_real_value_likelihood_search_is_global_for_noisy_codes) ... ok\ntest_symbol_decode_distinguishes_firing_order (tests.test_paper_alignment.PaperEncodingTests.test_symbol_decode_distinguishes_firing_order) ... ok\ntest_burst_cells_can_drive_a_learned_prediction (tests.test_paper_alignment.PlasticityTests.test_burst_cells_can_drive_a_learned_prediction) ... ok\ntest_first_spike_inhibits_later_predictions_in_same_column (tests.test_paper_alignment.PlasticityTests.test_first_spike_inhibits_later_predictions_in_same_column) ... ok\ntest_learning_tie_break_is_seeded (tests.test_paper_alignment.PlasticityTests.test_learning_tie_break_is_seeded) ... ok\ntest_new_delay_targets_dendrite_half_cycle_before_soma (tests.test_paper_alignment.PlasticityTests.test_new_delay_targets_dendrite_half_cycle_before_soma) ... ok\ntest_new_segment_connects_to_winner_not_all_burst_cells (tests.test_paper_alignment.PlasticityTests.test_new_segment_connects_to_winner_not_all_burst_cells) ... ok\ntest_new_segment_leaves_existing_synapses_unchanged (tests.test_paper_alignment.PlasticityTests.test_new_segment_leaves_existing_synapses_unchanged) ... ok\ntest_prediction_keeps_each_columns_own_neuron_winner (tests.test_paper_alignment.PlasticityTests.test_prediction_keeps_each_columns_own_neuron_winner) ... ok\ntest_pruning_lazily_compacts_the_incoming_index (tests.test_paper_alignment.PlasticityTests.test_pruning_lazily_compacts_the_incoming_index) ... ok\ntest_reinforcement_ages_other_context_segments (tests.test_paper_alignment.PlasticityTests.test_reinforcement_ages_other_context_segments) ... ok\ntest_unpredicted_column_selects_one_winner (tests.test_paper_alignment.PlasticityTests.test_unpredicted_column_selects_one_winner) ... ok\ntest_wrong_prediction_only_punishes_triggering_segment (tests.test_paper_alignment.PlasticityTests.test_wrong_prediction_only_punishes_triggering_segment) ... ok\n\n----------------------------------------------------------------------\nRan 41 tests in 0.152s\n\nOK"
+    },
+    {
+      "module": "tests.test_paper_core_inhibition_audit",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 11,
+      "elapsed_seconds": 0.2302440000057686,
+      "stdout_log": "test_paper_core_inhibition_audit.stdout.log",
+      "stderr_log": "test_paper_core_inhibition_audit.stderr.log",
+      "tail": "test_advance_prediction_is_transient_and_does_not_learn (tests.test_paper_core_inhibition_audit.PaperCoreInhibitionAuditTests.test_advance_prediction_is_transient_and_does_not_learn) ... ok\ntest_candidate_score_is_not_claimed_as_soma_potential (tests.test_paper_core_inhibition_audit.PaperCoreInhibitionAuditTests.test_candidate_score_is_not_claimed_as_soma_potential) ... ok\ntest_encoding_k_is_independent_of_retrieval_state (tests.test_paper_core_inhibition_audit.PaperCoreInhibitionAuditTests.test_encoding_k_is_independent_of_retrieval_state) ... ok\ntest_ground_truth_is_not_an_argument_to_prediction (tests.test_paper_core_inhibition_audit.PaperCoreInhibitionAuditTests.test_ground_truth_is_not_an_argument_to_prediction) ... ok\ntest_prediction_advance_propagates_only_selected_cell (tests.test_paper_core_inhibition_audit.PaperCoreInhibitionAuditTests.test_prediction_advance_propagates_only_selected_cell) ... ok\ntest_prediction_time_tolerance_does_not_create_an_external_burst (tests.test_paper_core_inhibition_audit.PaperCoreInhibitionAuditTests.test_prediction_time_tolerance_does_not_create_an_external_burst) ... ok\ntest_predictive_candidate_is_not_implicitly_a_burst (tests.test_paper_core_inhibition_audit.PaperCoreInhibitionAuditTests.test_predictive_candidate_is_not_implicitly_a_burst) ... ok\ntest_refractory_blocks_same_cycle_refire (tests.test_paper_core_inhibition_audit.PaperCoreInhibitionAuditTests.test_refractory_blocks_same_cycle_refire) ... ok\ntest_refractory_resets_after_cycle (tests.test_paper_core_inhibition_audit.PaperCoreInhibitionAuditTests.test_refractory_resets_after_cycle) ... ok\ntest_same_column_prediction_resolves_to_one_selected_cell (tests.test_paper_core_inhibition_audit.PaperCoreInhibitionAuditTests.test_same_column_prediction_resolves_to_one_selected_cell) ... ok\ntest_unpredicted_external_column_preserves_paper_burst (tests.test_paper_core_inhibition_audit.PaperCoreInhibitionAuditTests.test_unpredicted_external_column_preserves_paper_burst) ... ok\n\n----------------------------------------------------------------------\nRan 11 tests in 0.001s\n\nOK"
+    },
+    {
+      "module": "tests.test_phase01_baseline_manifest",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 4,
+      "elapsed_seconds": 0.40875210001831874,
+      "stdout_log": "test_phase01_baseline_manifest.stdout.log",
+      "stderr_log": "test_phase01_baseline_manifest.stderr.log",
+      "tail": "test_all_fixtures_are_present_and_explicitly_nonpaper (tests.test_phase01_baseline_manifest.Phase01BaselineManifestTests.test_all_fixtures_are_present_and_explicitly_nonpaper) ... ok\ntest_canonical_hash_is_independent_of_dictionary_order (tests.test_phase01_baseline_manifest.Phase01BaselineManifestTests.test_canonical_hash_is_independent_of_dictionary_order) ... ok\ntest_prediction_files_match_recorded_sha256 (tests.test_phase01_baseline_manifest.Phase01BaselineManifestTests.test_prediction_files_match_recorded_sha256) ... ok\ntest_repeat_checks_cover_every_fixture (tests.test_phase01_baseline_manifest.Phase01BaselineManifestTests.test_repeat_checks_cover_every_fixture) ... ok\n\n----------------------------------------------------------------------\nRan 4 tests in 0.008s\n\nOK"
+    },
+    {
+      "module": "tests.test_weather_transfer",
+      "status": "PASS",
+      "exit_code": 0,
+      "test_count": 2,
+      "elapsed_seconds": 0.1909495000145398,
+      "stdout_log": "test_weather_transfer.stdout.log",
+      "stderr_log": "test_weather_transfer.stderr.log",
+      "tail": "test_daily_seasonal_source_never_uses_future_data (tests.test_weather_transfer.WeatherTransferTests.test_daily_seasonal_source_never_uses_future_data) ... ok\ntest_record_values_use_ten_minute_slot (tests.test_weather_transfer.WeatherTransferTests.test_record_values_use_ten_minute_slot) ... ok\n\n----------------------------------------------------------------------\nRan 2 tests in 0.000s\n\nOK"
+    }
+  ]
+}

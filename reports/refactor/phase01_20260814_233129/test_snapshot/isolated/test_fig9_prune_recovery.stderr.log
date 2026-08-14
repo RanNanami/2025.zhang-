@@ -1,0 +1,10 @@
+test_checkpoint_metadata_is_atomic_and_has_boundary (tests.test_fig9_prune_recovery.Fig9PruneRecoveryTests.test_checkpoint_metadata_is_atomic_and_has_boundary) ... ok
+test_gzip_resume_trim_is_eof_valid_and_semantic_deduplicated (tests.test_fig9_prune_recovery.Fig9PruneRecoveryTests.test_gzip_resume_trim_is_eof_valid_and_semantic_deduplicated) ... ok
+test_progress_is_not_reported_as_completed_checkpoint (tests.test_fig9_prune_recovery.Fig9PruneRecoveryTests.test_progress_is_not_reported_as_completed_checkpoint) ... ok
+test_prune_breadcrumb_hook_is_scalar_and_non_interfering (tests.test_fig9_prune_recovery.Fig9PruneRecoveryTests.test_prune_breadcrumb_hook_is_scalar_and_non_interfering) ... ok
+test_supervisor_reads_metadata_without_unpickling (tests.test_fig9_prune_recovery.Fig9PruneRecoveryTests.test_supervisor_reads_metadata_without_unpickling) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 1.283s
+
+OK

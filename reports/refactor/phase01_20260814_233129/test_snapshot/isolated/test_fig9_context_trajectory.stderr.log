@@ -1,0 +1,10 @@
+test_analyzer_writes_required_outputs (tests.test_fig9_context_trajectory.ContextTrajectoryAnalyzerTests.test_analyzer_writes_required_outputs) ... ok
+test_runner_diagnostic_is_noninterfering (tests.test_fig9_context_trajectory.ContextTrajectoryRunnerTests.test_runner_diagnostic_is_noninterfering) ... ok
+test_actual_and_autonomous_histories_remain_separate (tests.test_fig9_context_trajectory.ContextTrajectoryUnitTests.test_actual_and_autonomous_histories_remain_separate) ... ok
+test_loss_stages_are_mutually_exclusive (tests.test_fig9_context_trajectory.ContextTrajectoryUnitTests.test_loss_stages_are_mutually_exclusive) ... ok
+test_only_inactive_source_rows_are_joined (tests.test_fig9_context_trajectory.ContextTrajectoryUnitTests.test_only_inactive_source_rows_are_joined) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 40.072s
+
+OK

@@ -1,0 +1,9 @@
+test_all_fixtures_are_present_and_explicitly_nonpaper (tests.test_phase01_baseline_manifest.Phase01BaselineManifestTests.test_all_fixtures_are_present_and_explicitly_nonpaper) ... ok
+test_canonical_hash_is_independent_of_dictionary_order (tests.test_phase01_baseline_manifest.Phase01BaselineManifestTests.test_canonical_hash_is_independent_of_dictionary_order) ... ok
+test_prediction_files_match_recorded_sha256 (tests.test_phase01_baseline_manifest.Phase01BaselineManifestTests.test_prediction_files_match_recorded_sha256) ... ok
+test_repeat_checks_cover_every_fixture (tests.test_phase01_baseline_manifest.Phase01BaselineManifestTests.test_repeat_checks_cover_every_fixture) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.008s
+
+OK

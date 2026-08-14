@@ -1,0 +1,8 @@
+test_branch_id_is_process_independent (tests.test_fig9_independent_reference.IndependentReferenceTests.test_branch_id_is_process_independent) ... ok
+test_markers_and_statuses_are_explicit (tests.test_fig9_independent_reference.IndependentReferenceTests.test_markers_and_statuses_are_explicit) ... ok
+test_tracker_checkpoint_round_trip_uses_stable_fields (tests.test_fig9_independent_reference.IndependentReferenceTests.test_tracker_checkpoint_round_trip_uses_stable_fields) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.000s
+
+OK

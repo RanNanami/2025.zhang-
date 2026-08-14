@@ -1,0 +1,13 @@
+test_debug_end_index_cannot_advance_more_than_ten (tests.test_fig9_native_crash_logging.Fig9NativeCrashLoggingTests.test_debug_end_index_cannot_advance_more_than_ten) ... ok
+test_dedicated_faulthandler_file_and_breadcrumb (tests.test_fig9_native_crash_logging.Fig9NativeCrashLoggingTests.test_dedicated_faulthandler_file_and_breadcrumb) ... ok
+test_environment_collection_does_not_require_optional_imports (tests.test_fig9_native_crash_logging.Fig9NativeCrashLoggingTests.test_environment_collection_does_not_require_optional_imports) ... ok
+test_module_state_integrity_detects_exp_rebinding (tests.test_fig9_native_crash_logging.Fig9NativeCrashLoggingTests.test_module_state_integrity_detects_exp_rebinding) ... ok
+test_module_state_integrity_records_expected_types (tests.test_fig9_native_crash_logging.Fig9NativeCrashLoggingTests.test_module_state_integrity_records_expected_types) ... ok
+test_native_runtime_debug_is_boundary_only_by_default (tests.test_fig9_native_crash_logging.Fig9NativeCrashLoggingTests.test_native_runtime_debug_is_boundary_only_by_default) ... ok
+test_segment_runtime_trace_requires_runtime_debug (tests.test_fig9_native_crash_logging.Fig9NativeCrashLoggingTests.test_segment_runtime_trace_requires_runtime_debug) ... ok
+test_working_set_measurement_is_positive (tests.test_fig9_native_crash_logging.Fig9NativeCrashLoggingTests.test_working_set_measurement_is_positive) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 6.461s
+
+OK

@@ -1,0 +1,15 @@
+test_alternative_policy_preserves_training_and_rng (tests.test_fig9_intracolumn_selector.IntracolumnSelectorIntegrationTests.test_alternative_policy_preserves_training_and_rng) ... ok
+test_existing_diagnostic_is_read_only (tests.test_fig9_intracolumn_selector.IntracolumnSelectorIntegrationTests.test_existing_diagnostic_is_read_only) ... ok
+test_offline_analyzer_writes_required_outputs (tests.test_fig9_intracolumn_selector.IntracolumnSelectorIntegrationTests.test_offline_analyzer_writes_required_outputs) ... ok
+test_each_policy_uses_declared_key (tests.test_fig9_intracolumn_selector.IntracolumnSelectorUnitTests.test_each_policy_uses_declared_key) ... ok
+test_empty_pool_is_safe (tests.test_fig9_intracolumn_selector.IntracolumnSelectorUnitTests.test_empty_pool_is_safe) ... ok
+test_equal_metrics_keep_original_stable_order (tests.test_fig9_intracolumn_selector.IntracolumnSelectorUnitTests.test_equal_metrics_keep_original_stable_order) ... ok
+test_nonfinite_metric_sorts_after_finite (tests.test_fig9_intracolumn_selector.IntracolumnSelectorUnitTests.test_nonfinite_metric_sorts_after_finite) ... ok
+test_selector_source_does_not_read_ground_truth_or_rng (tests.test_fig9_intracolumn_selector.IntracolumnSelectorUnitTests.test_selector_source_does_not_read_ground_truth_or_rng) ... ok
+test_single_candidate_is_identical_for_every_policy (tests.test_fig9_intracolumn_selector.IntracolumnSelectorUnitTests.test_single_candidate_is_identical_for_every_policy) ... ok
+test_trace_projection_has_no_posthoc_target_label (tests.test_fig9_intracolumn_selector.IntracolumnSelectorUnitTests.test_trace_projection_has_no_posthoc_target_label) ... ok
+
+----------------------------------------------------------------------
+Ran 10 tests in 10.823s
+
+OK

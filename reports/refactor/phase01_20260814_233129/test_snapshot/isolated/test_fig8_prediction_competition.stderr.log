@@ -1,0 +1,12 @@
+test_a_b_c_autonomous_recall_survives_reasonable_modes (tests.test_fig8_prediction_competition.Fig8PredictionCompetitionTests.test_a_b_c_autonomous_recall_survives_reasonable_modes) ... ok
+test_all_rankings_are_read_only (tests.test_fig8_prediction_competition.Fig8PredictionCompetitionTests.test_all_rankings_are_read_only) ... ok
+test_peak_aligned_mode_only_changes_new_synapse_delay (tests.test_fig8_prediction_competition.Fig8PredictionCompetitionTests.test_peak_aligned_mode_only_changes_new_synapse_delay) ... ok
+test_peak_and_crossing_metadata_belong_to_selected_candidate (tests.test_fig8_prediction_competition.Fig8PredictionCompetitionTests.test_peak_and_crossing_metadata_belong_to_selected_candidate) ... ok
+test_ranking_apis_have_no_ground_truth_parameters (tests.test_fig8_prediction_competition.Fig8PredictionCompetitionTests.test_ranking_apis_have_no_ground_truth_parameters) ... ok
+test_strict_defaults_remain_current_score_and_current_delay (tests.test_fig8_prediction_competition.Fig8PredictionCompetitionTests.test_strict_defaults_remain_current_score_and_current_delay) ... ok
+test_trace_switch_preserves_prediction_training_and_rng (tests.test_fig8_prediction_competition.Fig8PredictionCompetitionTests.test_trace_switch_preserves_prediction_training_and_rng) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 0.099s
+
+OK

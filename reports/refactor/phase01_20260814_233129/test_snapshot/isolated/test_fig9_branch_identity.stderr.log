@@ -1,0 +1,9 @@
+test_branch_rows_ignore_anchor_rows_from_legacy_registry (tests.test_fig9_branch_identity.Fig9BranchIdentityTests.test_branch_rows_ignore_anchor_rows_from_legacy_registry) ... ok
+test_explicit_lineage_trace_is_preserved (tests.test_fig9_branch_identity.Fig9BranchIdentityTests.test_explicit_lineage_trace_is_preserved) ... ok
+test_lineage_does_not_claim_parent_without_trace_evidence (tests.test_fig9_branch_identity.Fig9BranchIdentityTests.test_lineage_does_not_claim_parent_without_trace_evidence) ... ok
+test_segment_growth_counts_only_explicit_trace_ids (tests.test_fig9_branch_identity.Fig9BranchIdentityTests.test_segment_growth_counts_only_explicit_trace_ids) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.000s
+
+OK

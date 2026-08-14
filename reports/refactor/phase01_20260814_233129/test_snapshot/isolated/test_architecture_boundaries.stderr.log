@@ -1,0 +1,15 @@
+test_importing_diagnostics_preserves_memory_defaults (tests.test_architecture_boundaries.ArchitectureBoundaryTests.test_importing_diagnostics_preserves_memory_defaults)
+�������ģ�鲻���޸�ȫ�� strict/model Ĭ�ϲ����� ... ok
+test_legacy_fig9_module_reexports_stable_helpers (tests.test_architecture_boundaries.ArchitectureBoundaryTests.test_legacy_fig9_module_reexports_stable_helpers)
+�� import ·������ת�����µ��ȶ�ʵ�֣����ܸ��Ƴ��ڶ����߼��� ... ok
+test_pickle_class_module_paths_remain_stable (tests.test_architecture_boundaries.ArchitectureBoundaryTests.test_pickle_class_module_paths_remain_stable)
+�� pickle checkpoint ������Щ������·���� ... ok
+test_seqmem_does_not_import_experiments_or_diagnostics (tests.test_architecture_boundaries.ArchitectureBoundaryTests.test_seqmem_does_not_import_experiments_or_diagnostics)
+����ģ�Ͳ��ܷ�������ʵ����ڻ����ģ�顣 ... ok
+test_strict_entrypoint_only_uses_stable_fig9_helpers (tests.test_architecture_boundaries.ArchitectureBoundaryTests.test_strict_entrypoint_only_uses_stable_fig9_helpers)
+strict ��ڲ������������ʷģ��� historical ���� ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.124s
+
+OK

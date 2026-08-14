@@ -1,0 +1,21 @@
+test_classification_thresholds_are_explicit (tests.test_fig9_oracle_candidate.Fig9OracleCandidateTests.test_classification_thresholds_are_explicit) ... ok
+test_empty_predictions_and_duplicate_columns_are_safe (tests.test_fig9_oracle_candidate.Fig9OracleCandidateTests.test_empty_predictions_and_duplicate_columns_are_safe) ... ok
+test_ground_truth_is_absent_from_competition_interfaces (tests.test_fig9_oracle_candidate.Fig9OracleCandidateTests.test_ground_truth_is_absent_from_competition_interfaces) ... ok
+test_missing_provenance_is_not_invented (tests.test_fig9_oracle_candidate.Fig9OracleCandidateTests.test_missing_provenance_is_not_invented) ... ok
+test_oracle_off_and_on_predictions_csv_are_identical (tests.test_fig9_oracle_candidate.Fig9OracleCandidateTests.test_oracle_off_and_on_predictions_csv_are_identical) ... ok
+test_oracle_on_preserves_checkpoint_v1 (tests.test_fig9_oracle_candidate.Fig9OracleCandidateTests.test_oracle_on_preserves_checkpoint_v1) ... ok
+test_oracle_on_preserves_competition_trace (tests.test_fig9_oracle_candidate.Fig9OracleCandidateTests.test_oracle_on_preserves_competition_trace) ... ok
+test_oracle_on_preserves_model_and_rng_fingerprints (tests.test_fig9_oracle_candidate.Fig9OracleCandidateTests.test_oracle_on_preserves_model_and_rng_fingerprints) ... ok
+test_oracle_outputs_are_explicitly_analysis_only (tests.test_fig9_oracle_candidate.Fig9OracleCandidateTests.test_oracle_outputs_are_explicitly_analysis_only) ... ok
+test_raw_and_emitted_target_recall_are_correct (tests.test_fig9_oracle_candidate.Fig9OracleCandidateTests.test_raw_and_emitted_target_recall_are_correct) ... ok
+test_strict_protocol_contains_no_oracle_marker (tests.test_fig9_oracle_candidate.Fig9OracleCandidateTests.test_strict_protocol_contains_no_oracle_marker) ... ok
+test_summary_reports_first_target_loss_step (tests.test_fig9_oracle_candidate.Fig9OracleCandidateTests.test_summary_reports_first_target_loss_step) ... ok
+test_suppressed_target_columns_are_reported (tests.test_fig9_oracle_candidate.Fig9OracleCandidateTests.test_suppressed_target_columns_are_reported) ... ok
+test_target_columns_match_composite_encoder_output (tests.test_fig9_oracle_candidate.Fig9OracleCandidateTests.test_target_columns_match_composite_encoder_output) ... ok
+test_target_scores_and_ranks_use_saved_decisions (tests.test_fig9_oracle_candidate.Fig9OracleCandidateTests.test_target_scores_and_ranks_use_saved_decisions) ... ok
+test_three_field_ranges_are_disjoint (tests.test_fig9_oracle_candidate.Fig9OracleCandidateTests.test_three_field_ranges_are_disjoint) ... ok
+
+----------------------------------------------------------------------
+Ran 16 tests in 6.030s
+
+OK

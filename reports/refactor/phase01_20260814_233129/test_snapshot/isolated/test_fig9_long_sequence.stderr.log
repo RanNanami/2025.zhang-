@@ -1,0 +1,9 @@
+test_expected_count_and_requested_ranges (tests.test_fig9_long_sequence.Fig9LongSequenceTests.test_expected_count_and_requested_ranges) ... ok
+test_ledger_writer_preserves_one_row_per_observation (tests.test_fig9_long_sequence.Fig9LongSequenceTests.test_ledger_writer_preserves_one_row_per_observation) ... ok
+test_overall_stepwise_error_uses_all_requested_records (tests.test_fig9_long_sequence.Fig9LongSequenceTests.test_overall_stepwise_error_uses_all_requested_records) ... ok
+test_process_attempt_summary_counts_recovery_and_native_crashes (tests.test_fig9_long_sequence.Fig9LongSequenceTests.test_process_attempt_summary_counts_recovery_and_native_crashes) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.009s
+
+OK

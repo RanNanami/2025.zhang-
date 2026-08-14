@@ -1,0 +1,26 @@
+test_b_anchor_rows_are_labeled_separately (tests.test_fig9_evaluation_metric_audit.EvaluationMetricAuditTests.test_b_anchor_rows_are_labeled_separately) ... ok
+test_bootstrap_and_report_are_deterministic (tests.test_fig9_evaluation_metric_audit.EvaluationMetricAuditTests.test_bootstrap_and_report_are_deterministic) ... ok
+test_comparable_accepts_strict_allowlist (tests.test_fig9_evaluation_metric_audit.EvaluationMetricAuditTests.test_comparable_accepts_strict_allowlist) ... ok
+test_comparable_allowlist_rejects_mixed_family (tests.test_fig9_evaluation_metric_audit.EvaluationMetricAuditTests.test_comparable_allowlist_rejects_mixed_family) ... ok
+test_final_step_only_window_is_fixed (tests.test_fig9_evaluation_metric_audit.EvaluationMetricAuditTests.test_final_step_only_window_is_fixed) ... ok
+test_fixed_windows_are_positional (tests.test_fig9_evaluation_metric_audit.EvaluationMetricAuditTests.test_fixed_windows_are_positional) ... ok
+test_invalid_empty_metric_is_zero (tests.test_fig9_evaluation_metric_audit.EvaluationMetricAuditTests.test_invalid_empty_metric_is_zero) ... ok
+test_learning_curve_has_cumulative_and_rolling_rows (tests.test_fig9_evaluation_metric_audit.EvaluationMetricAuditTests.test_learning_curve_has_cumulative_and_rolling_rows) ... ok
+test_learning_curve_uses_no_future_rows (tests.test_fig9_evaluation_metric_audit.EvaluationMetricAuditTests.test_learning_curve_uses_no_future_rows) ... ok
+test_legacy_repo_metric_is_preserved (tests.test_fig9_evaluation_metric_audit.EvaluationMetricAuditTests.test_legacy_repo_metric_is_preserved) ... ok
+test_median_ape_fixture (tests.test_fig9_evaluation_metric_audit.EvaluationMetricAuditTests.test_median_ape_fixture) ... ok
+test_metric_audit_does_not_change_strict_defaults (tests.test_fig9_evaluation_metric_audit.EvaluationMetricAuditTests.test_metric_audit_does_not_change_strict_defaults) ... ok
+test_metric_audit_does_not_touch_global_rng (tests.test_fig9_evaluation_metric_audit.EvaluationMetricAuditTests.test_metric_audit_does_not_touch_global_rng) ... ok
+test_metric_is_posthoc_only (tests.test_fig9_evaluation_metric_audit.EvaluationMetricAuditTests.test_metric_is_posthoc_only) ... ok
+test_metric_values_include_requested_statistics (tests.test_fig9_evaluation_metric_audit.EvaluationMetricAuditTests.test_metric_values_include_requested_statistics) ... ok
+test_no_compensation_is_required_by_audit (tests.test_fig9_evaluation_metric_audit.EvaluationMetricAuditTests.test_no_compensation_is_required_by_audit) ... ok
+test_prediction_count_is_limit_minus_warmup_minus_horizon (tests.test_fig9_evaluation_metric_audit.EvaluationMetricAuditTests.test_prediction_count_is_limit_minus_warmup_minus_horizon) ... ok
+test_report_contains_required_files (tests.test_fig9_evaluation_metric_audit.EvaluationMetricAuditTests.test_report_contains_required_files) ... ok
+test_standard_mape_fixture (tests.test_fig9_evaluation_metric_audit.EvaluationMetricAuditTests.test_standard_mape_fixture) ... ok
+test_wape_fixture (tests.test_fig9_evaluation_metric_audit.EvaluationMetricAuditTests.test_wape_fixture) ... ok
+test_zero_target_policy_is_explicit (tests.test_fig9_evaluation_metric_audit.EvaluationMetricAuditTests.test_zero_target_policy_is_explicit) ... ok
+
+----------------------------------------------------------------------
+Ran 21 tests in 13.385s
+
+OK

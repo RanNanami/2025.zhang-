@@ -1,0 +1,16 @@
+test_advance_prediction_is_transient_and_does_not_learn (tests.test_paper_core_inhibition_audit.PaperCoreInhibitionAuditTests.test_advance_prediction_is_transient_and_does_not_learn) ... ok
+test_candidate_score_is_not_claimed_as_soma_potential (tests.test_paper_core_inhibition_audit.PaperCoreInhibitionAuditTests.test_candidate_score_is_not_claimed_as_soma_potential) ... ok
+test_encoding_k_is_independent_of_retrieval_state (tests.test_paper_core_inhibition_audit.PaperCoreInhibitionAuditTests.test_encoding_k_is_independent_of_retrieval_state) ... ok
+test_ground_truth_is_not_an_argument_to_prediction (tests.test_paper_core_inhibition_audit.PaperCoreInhibitionAuditTests.test_ground_truth_is_not_an_argument_to_prediction) ... ok
+test_prediction_advance_propagates_only_selected_cell (tests.test_paper_core_inhibition_audit.PaperCoreInhibitionAuditTests.test_prediction_advance_propagates_only_selected_cell) ... ok
+test_prediction_time_tolerance_does_not_create_an_external_burst (tests.test_paper_core_inhibition_audit.PaperCoreInhibitionAuditTests.test_prediction_time_tolerance_does_not_create_an_external_burst) ... ok
+test_predictive_candidate_is_not_implicitly_a_burst (tests.test_paper_core_inhibition_audit.PaperCoreInhibitionAuditTests.test_predictive_candidate_is_not_implicitly_a_burst) ... ok
+test_refractory_blocks_same_cycle_refire (tests.test_paper_core_inhibition_audit.PaperCoreInhibitionAuditTests.test_refractory_blocks_same_cycle_refire) ... ok
+test_refractory_resets_after_cycle (tests.test_paper_core_inhibition_audit.PaperCoreInhibitionAuditTests.test_refractory_resets_after_cycle) ... ok
+test_same_column_prediction_resolves_to_one_selected_cell (tests.test_paper_core_inhibition_audit.PaperCoreInhibitionAuditTests.test_same_column_prediction_resolves_to_one_selected_cell) ... ok
+test_unpredicted_external_column_preserves_paper_burst (tests.test_paper_core_inhibition_audit.PaperCoreInhibitionAuditTests.test_unpredicted_external_column_preserves_paper_burst) ... ok
+
+----------------------------------------------------------------------
+Ran 11 tests in 0.001s
+
+OK

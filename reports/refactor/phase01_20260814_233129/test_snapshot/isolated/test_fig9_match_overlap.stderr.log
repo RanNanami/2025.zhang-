@@ -1,0 +1,39 @@
+test_analyzer_writes_all_required_outputs (tests.test_fig9_match_overlap.MatchOverlapAnalyzerTests.test_analyzer_writes_all_required_outputs) ... ok
+test_fixed_analysis_rejects_unknown_record_range (tests.test_fig9_match_overlap.MatchOverlapAnalyzerTests.test_fixed_analysis_rejects_unknown_record_range) ... ok
+test_fixed_grouping_uses_actual_index_not_legacy_label (tests.test_fig9_match_overlap.MatchOverlapAnalyzerTests.test_fixed_grouping_uses_actual_index_not_legacy_label) ... ok
+test_record_range_boundaries_and_invalid_values (tests.test_fig9_match_overlap.MatchOverlapAnalyzerTests.test_record_range_boundaries_and_invalid_values) ... ok
+test_runner_trace_is_noninterfering (tests.test_fig9_match_overlap.MatchOverlapAnalyzerTests.test_runner_trace_is_noninterfering) ... ok
+test_timing_analyzer_writes_scoped_auditable_outputs (tests.test_fig9_match_overlap.MatchOverlapAnalyzerTests.test_timing_analyzer_writes_scoped_auditable_outputs) ... ok
+test_actual_overlap_matches_segment_formula (tests.test_fig9_match_overlap.MatchOverlapCaptureTests.test_actual_overlap_matches_segment_formula) ... ok
+test_all_cell_context_is_real_matching_context (tests.test_fig9_match_overlap.MatchOverlapCaptureTests.test_all_cell_context_is_real_matching_context) ... ok
+test_burst_only_context_is_separate (tests.test_fig9_match_overlap.MatchOverlapCaptureTests.test_burst_only_context_is_separate) ... ok
+test_capture_does_not_call_matching (tests.test_fig9_match_overlap.MatchOverlapCaptureTests.test_capture_does_not_call_matching) ... ok
+test_capture_does_not_change_rng_or_state (tests.test_fig9_match_overlap.MatchOverlapCaptureTests.test_capture_does_not_change_rng_or_state) ... ok
+test_context_decomposition_reasons_are_distinct (tests.test_fig9_match_overlap.MatchOverlapCaptureTests.test_context_decomposition_reasons_are_distinct) ... ok
+test_empty_column_is_safe (tests.test_fig9_match_overlap.MatchOverlapCaptureTests.test_empty_column_is_safe) ... ok
+test_finalize_uses_existing_observation_identity (tests.test_fig9_match_overlap.MatchOverlapCaptureTests.test_finalize_uses_existing_observation_identity) ... ok
+test_inactive_column_is_distinguished (tests.test_fig9_match_overlap.MatchOverlapCaptureTests.test_inactive_column_is_distinguished) ... ok
+test_levels_are_explicit (tests.test_fig9_match_overlap.MatchOverlapCaptureTests.test_levels_are_explicit) ... ok
+test_lmatch_flags_are_fixed_state_only (tests.test_fig9_match_overlap.MatchOverlapCaptureTests.test_lmatch_flags_are_fixed_state_only) ... ok
+test_markers_are_present_and_true (tests.test_fig9_match_overlap.MatchOverlapCaptureTests.test_markers_are_present_and_true) ... ok
+test_predicted_only_context_is_separate (tests.test_fig9_match_overlap.MatchOverlapCaptureTests.test_predicted_only_context_is_separate) ... ok
+test_remaining_timing_eligibility_paths_are_explicit (tests.test_fig9_match_overlap.MatchOverlapCaptureTests.test_remaining_timing_eligibility_paths_are_explicit) ... ok
+test_same_and_cross_field_partition (tests.test_fig9_match_overlap.MatchOverlapCaptureTests.test_same_and_cross_field_partition) ... ok
+test_segment_level_omits_source_rows (tests.test_fig9_match_overlap.MatchOverlapCaptureTests.test_segment_level_omits_source_rows) ... ok
+test_source_level_maps_fields (tests.test_fig9_match_overlap.MatchOverlapCaptureTests.test_source_level_maps_fields) ... ok
+test_source_level_schema_contains_auditable_identity_fields (tests.test_fig9_match_overlap.MatchOverlapCaptureTests.test_source_level_schema_contains_auditable_identity_fields) ... ok
+test_source_loss_primary_reasons_are_mutually_exclusive (tests.test_fig9_match_overlap.MatchOverlapCaptureTests.test_source_loss_primary_reasons_are_mutually_exclusive) ... ok
+test_source_retention_uses_exact_cell_identity (tests.test_fig9_match_overlap.MatchOverlapCaptureTests.test_source_retention_uses_exact_cell_identity) ... ok
+test_source_trace_filter_is_output_only_and_boundary_exact (tests.test_fig9_match_overlap.MatchOverlapCaptureTests.test_source_trace_filter_is_output_only_and_boundary_exact) ... ok
+test_summary_level_does_not_allocate_segment_or_source_rows (tests.test_fig9_match_overlap.MatchOverlapCaptureTests.test_summary_level_does_not_allocate_segment_or_source_rows) ... ok
+test_timing_decomposition_uses_real_arrival_window (tests.test_fig9_match_overlap.MatchOverlapCaptureTests.test_timing_decomposition_uses_real_arrival_window) ... ok
+test_timing_failure_is_distinguished (tests.test_fig9_match_overlap.MatchOverlapCaptureTests.test_timing_failure_is_distinguished) ... ok
+test_unknown_level_rejected (tests.test_fig9_match_overlap.MatchOverlapCaptureTests.test_unknown_level_rejected) ... ok
+test_winner_only_context_is_separate (tests.test_fig9_match_overlap.MatchOverlapCaptureTests.test_winner_only_context_is_separate) ... ok
+test_without_burst_only_context (tests.test_fig9_match_overlap.MatchOverlapCaptureTests.test_without_burst_only_context) ... ok
+test_wrong_neuron_is_distinguished (tests.test_fig9_match_overlap.MatchOverlapCaptureTests.test_wrong_neuron_is_distinguished) ... ok
+
+----------------------------------------------------------------------
+Ran 34 tests in 3.529s
+
+OK

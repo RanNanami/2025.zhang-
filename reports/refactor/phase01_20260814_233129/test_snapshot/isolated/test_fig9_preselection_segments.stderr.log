@@ -1,0 +1,16 @@
+test_checkpoint_v1_and_stable_sidecar_ids (tests.test_fig9_preselection_segments.Fig9PreselectionIntegrationTests.test_checkpoint_v1_and_stable_sidecar_ids) ... ok
+test_crossing_schema_and_saved_candidate_mapping (tests.test_fig9_preselection_segments.Fig9PreselectionIntegrationTests.test_crossing_schema_and_saved_candidate_mapping) ... ok
+test_funnel_counts_are_monotonic_and_accounted (tests.test_fig9_preselection_segments.Fig9PreselectionIntegrationTests.test_funnel_counts_are_monotonic_and_accounted) ... ok
+test_on_off_preserves_all_outputs_and_fingerprints (tests.test_fig9_preselection_segments.Fig9PreselectionIntegrationTests.test_on_off_preserves_all_outputs_and_fingerprints) ... ok
+test_protocol_and_analysis_outputs (tests.test_fig9_preselection_segments.Fig9PreselectionIntegrationTests.test_protocol_and_analysis_outputs) ... ok
+test_summary_full_and_gzip_levels (tests.test_fig9_preselection_segments.Fig9PreselectionIntegrationTests.test_summary_full_and_gzip_levels) ... ok
+test_empty_analysis_is_safe (tests.test_fig9_preselection_segments.Fig9PreselectionUnitTests.test_empty_analysis_is_safe) ... ok
+test_ground_truth_is_absent_from_prediction_signature (tests.test_fig9_preselection_segments.Fig9PreselectionUnitTests.test_ground_truth_is_absent_from_prediction_signature) ... ok
+test_internal_replacement_cannot_change_column_label (tests.test_fig9_preselection_segments.Fig9PreselectionUnitTests.test_internal_replacement_cannot_change_column_label) ... ok
+test_offline_mapping_does_not_predict_observe_or_learn (tests.test_fig9_preselection_segments.Fig9PreselectionUnitTests.test_offline_mapping_does_not_predict_observe_or_learn) ... ok
+test_stable_group_id_uses_every_fingerprint_input (tests.test_fig9_preselection_segments.Fig9PreselectionUnitTests.test_stable_group_id_uses_every_fingerprint_input) ... ok
+
+----------------------------------------------------------------------
+Ran 11 tests in 34.854s
+
+OK
