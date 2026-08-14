@@ -113,3 +113,24 @@ def load_segment_reinforcement() -> ModuleType:
     """Load Scenario reinforcement trace formatting."""
 
     return _load("fig9_segment_reinforcement")
+
+
+@lru_cache(maxsize=None)
+def load_ambiguity() -> ModuleType:
+    """Load ambiguity reuse state and trace formatting."""
+
+    return _load("fig9_ambiguity")
+
+
+@lru_cache(maxsize=None)
+def load_independent_reference() -> ModuleType:
+    """Load the teacher-referenced provenance diagnostic."""
+
+    return _load("fig9_independent_reference")
+
+
+@lru_cache(maxsize=None)
+def load_actual_branch_provenance() -> ModuleType:
+    """Load actual-observation branch provenance tracking."""
+
+    return _load("fig9_actual_branch_provenance")

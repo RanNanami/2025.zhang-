@@ -54,12 +54,15 @@ from experiments.fig9 import (  # noqa: E402
     write_predictions,
 )
 from experiments.fig9.diagnostic_loader import (  # noqa: E402
+    load_actual_branch_provenance,
+    load_ambiguity,
     load_autonomous_context_provenance,
     load_branch_provenance,
     load_candidate_context_oracle,
     load_candidate_score_trace,
     load_context_trajectory,
     load_intracolumn_selector,
+    load_independent_reference,
     load_match_overlap,
     load_oracle_candidate,
     load_preselection_segments,
@@ -88,30 +91,6 @@ from experiments.diagnostics.fig9_competitive_inhibition import (  # noqa: E402
     emitted_prediction_code,
     summarize_competition,
 )
-from experiments.diagnostics.fig9_ambiguity import (  # noqa: E402
-    AmbiguityReuseState,
-    build_actual_observation_rows,
-    build_autonomous_rollout_rows,
-    protocol as ambiguity_protocol,
-)
-from experiments.diagnostics.fig9_independent_reference import (  # noqa: E402
-    IndependentReferenceTracker,
-    capture_before_matching,
-    join_after_observation,
-    protocol as independent_reference_protocol,
-    record_actual_history,
-    write_trace as write_independent_reference_trace,
-)
-from experiments.diagnostics.fig9_actual_branch_provenance import (  # noqa: E402
-    ActualBranchProvenanceTracker,
-    capture_prematch as capture_actual_branch_prematch,
-    join_after_observation as join_actual_branch_after_observation,
-    record_actual_transition,
-    write_lineage_registry,
-    write_registry as write_actual_branch_registry,
-    write_rows as write_actual_branch_rows,
-    MARKERS as ACTUAL_BRANCH_MARKERS,
-)
 from seqmem.encoding import (  # noqa: E402
     SSTDCompositeEncoder,
     SSTDPeriodicEncoder,
@@ -136,6 +115,18 @@ CONTINUOUS_IMPL_VERSIONS = {
     "reference": "reference-v1",
     "optimized_v1": "optimized-v1-local-bindings-local-response-memo",
     "optimized_v2": "optimized-v2-exact-arrivals-memo",
+}
+INDEPENDENT_REFERENCE_EMPTY_PAYLOAD = {
+    "version": "fig9-independent-reference-v1",
+    "by_column": {},
+}
+ACTUAL_BRANCH_EMPTY_PAYLOAD = {
+    "version": "fig9-actual-branch-provenance-v2",
+    "segments": {},
+    "anchors": {},
+    "branches": {},
+    "lineages": {},
+    "lineage_events": [],
 }
 
 _NATIVE_CRASH_HANDLE: io.TextIOWrapper | None = None
@@ -2977,8 +2968,12 @@ def run_strict_stream(
     readout_dynamics_rows: list[dict[str, object]] = []
     ambiguity_trace_rows: list[dict[str, object]] = []
     ambiguity_trace_row_count = 0
-    ambiguity_reuse_state = AmbiguityReuseState.from_checkpoint_payload(
-        checkpoint_diagnostic_state.get("ambiguity_reuse_state")
+    ambiguity_reuse_state = (
+        load_ambiguity().AmbiguityReuseState.from_checkpoint_payload(
+            checkpoint_diagnostic_state.get("ambiguity_reuse_state")
+        )
+        if ambiguity_diagnostic
+        else None
     )
     teacher_forced_observation_rows: list[dict[str, object]] = list(
         checkpoint_diagnostic_state.get(
@@ -2999,11 +2994,19 @@ def run_strict_stream(
     independent_reference_segment_rows: list[dict[str, object]] = list(
         checkpoint_diagnostic_state.get("independent_reference_segment_rows", [])
     )
-    independent_reference_tracker = IndependentReferenceTracker.from_checkpoint_payload(
-        checkpoint_diagnostic_state.get("independent_reference_tracker")
+    independent_reference_tracker = (
+        load_independent_reference().IndependentReferenceTracker.from_checkpoint_payload(
+            checkpoint_diagnostic_state.get("independent_reference_tracker")
+        )
+        if independent_reference_diagnostic
+        else None
     )
-    actual_branch_tracker = ActualBranchProvenanceTracker.from_checkpoint_payload(
-        checkpoint_diagnostic_state.get("actual_branch_tracker")
+    actual_branch_tracker = (
+        load_actual_branch_provenance().ActualBranchProvenanceTracker.from_checkpoint_payload(
+            checkpoint_diagnostic_state.get("actual_branch_tracker")
+        )
+        if actual_branch_provenance_diagnostic
+        else None
     )
     actual_branch_event_rows: list[dict[str, object]] = list(
         checkpoint_diagnostic_state.get("actual_branch_event_rows", [])
@@ -3382,7 +3385,7 @@ def run_strict_stream(
                 )
             if ambiguity_diagnostic:
                 ambiguity_trace_rows.extend(
-                    build_autonomous_rollout_rows(
+                    load_ambiguity().build_autonomous_rollout_rows(
                         selection_rows=rollout.intracolumn_selection_diagnostics,
                         actual_record_index=index,
                         input_timestamp=record.timestamp.isoformat(sep=" "),
@@ -3589,7 +3592,7 @@ def run_strict_stream(
                     independent_event_batch,
                     independent_segment_batch,
                     independent_private,
-                ) = capture_before_matching(
+                ) = load_independent_reference().capture_before_matching(
                     model=model,
                     registry=branch_registry,
                     tracker=independent_reference_tracker,
@@ -3604,7 +3607,7 @@ def run_strict_stream(
                     actual_branch_event_batch,
                     actual_branch_segment_batch,
                     actual_branch_preexisting_ids,
-                ) = capture_actual_branch_prematch(
+                ) = load_actual_branch_provenance().capture_prematch(
                     model=model,
                     registry=branch_registry,
                     tracker=actual_branch_tracker,
@@ -3795,7 +3798,7 @@ def run_strict_stream(
             if independent_reference_diagnostic:
                 if teacher_forced_trace is None:
                     raise RuntimeError("independent reference trace unavailable")
-                join_after_observation(
+                load_independent_reference().join_after_observation(
                     independent_event_batch,
                     independent_segment_batch,
                     trace=teacher_forced_trace,
@@ -3805,7 +3808,7 @@ def run_strict_stream(
                 )
                 independent_reference_event_rows.extend(independent_event_batch)
                 independent_reference_segment_rows.extend(independent_segment_batch)
-                record_actual_history(
+                load_independent_reference().record_actual_history(
                     independent_reference_tracker,
                     trace=teacher_forced_trace,
                     registry=branch_registry,
@@ -3815,7 +3818,7 @@ def run_strict_stream(
             if actual_branch_provenance_diagnostic:
                 if teacher_forced_trace is None:
                     raise RuntimeError("actual branch provenance trace unavailable")
-                join_actual_branch_after_observation(
+                load_actual_branch_provenance().join_after_observation(
                     event_rows=actual_branch_event_batch,
                     segment_rows=actual_branch_segment_batch,
                     trace=teacher_forced_trace,
@@ -3827,7 +3830,7 @@ def run_strict_stream(
                 )
                 actual_branch_event_rows.extend(actual_branch_event_batch)
                 actual_branch_segment_rows.extend(actual_branch_segment_batch)
-                record_actual_transition(
+                load_actual_branch_provenance().record_actual_transition(
                     actual_branch_tracker,
                     trace=teacher_forced_trace,
                     registry=branch_registry,
@@ -3839,7 +3842,7 @@ def run_strict_stream(
             if ambiguity_diagnostic:
                 if teacher_forced_trace is None or teacher_forced_ranges is None:
                     raise RuntimeError("ambiguity diagnostic trace unavailable")
-                actual_ambiguity_rows = build_actual_observation_rows(
+                actual_ambiguity_rows = load_ambiguity().build_actual_observation_rows(
                     observation_trace=teacher_forced_trace,
                     registry=branch_registry,
                     active_sources=teacher_forced_trace.pre_observe_active_sources,
@@ -3847,6 +3850,7 @@ def run_strict_stream(
                     input_timestamp=record.timestamp.isoformat(sep=" "),
                     ranges=teacher_forced_ranges,
                 )
+                assert ambiguity_reuse_state is not None
                 ambiguity_reuse_state.annotate(actual_ambiguity_rows)
                 ambiguity_trace_rows.extend(actual_ambiguity_rows)
             branch_registry.update_source_labels(model, code)
@@ -4088,8 +4092,16 @@ def run_strict_stream(
                         ),
                         "independent_reference_event_rows": independent_reference_event_rows,
                         "independent_reference_segment_rows": independent_reference_segment_rows,
-                        "independent_reference_tracker": independent_reference_tracker.checkpoint_payload(),
-                        "actual_branch_tracker": actual_branch_tracker.checkpoint_payload(),
+                        "independent_reference_tracker": (
+                            independent_reference_tracker.checkpoint_payload()
+                            if independent_reference_tracker is not None
+                            else INDEPENDENT_REFERENCE_EMPTY_PAYLOAD
+                        ),
+                        "actual_branch_tracker": (
+                            actual_branch_tracker.checkpoint_payload()
+                            if actual_branch_tracker is not None
+                            else ACTUAL_BRANCH_EMPTY_PAYLOAD
+                        ),
                         "actual_branch_event_rows": actual_branch_event_rows,
                         "actual_branch_segment_rows": actual_branch_segment_rows,
                         "temporal_context_tracker": (
@@ -4174,8 +4186,16 @@ def run_strict_stream(
                     "segment_reinforcement_rows": segment_reinforcement_rows,
                     "independent_reference_event_rows": independent_reference_event_rows,
                     "independent_reference_segment_rows": independent_reference_segment_rows,
-                    "independent_reference_tracker": independent_reference_tracker.checkpoint_payload(),
-                    "actual_branch_tracker": actual_branch_tracker.checkpoint_payload(),
+                    "independent_reference_tracker": (
+                        independent_reference_tracker.checkpoint_payload()
+                        if independent_reference_tracker is not None
+                        else INDEPENDENT_REFERENCE_EMPTY_PAYLOAD
+                    ),
+                    "actual_branch_tracker": (
+                        actual_branch_tracker.checkpoint_payload()
+                        if actual_branch_tracker is not None
+                        else ACTUAL_BRANCH_EMPTY_PAYLOAD
+                    ),
                     "actual_branch_event_rows": actual_branch_event_rows,
                     "actual_branch_segment_rows": actual_branch_segment_rows,
                     "temporal_context_tracker": (
@@ -4296,7 +4316,7 @@ def run_strict_stream(
             "enabled": True,
             "trace_path": str(ambiguity_trace_path.with_suffix(".csv.gz")),
             "rows": ambiguity_trace_row_count,
-            "protocol_version": ambiguity_protocol(fingerprint)["version"],
+            "protocol_version": load_ambiguity().protocol(fingerprint)["version"],
             "read_only": True,
             "strict_default_unchanged": True,
         }
@@ -4524,7 +4544,7 @@ def run_strict_stream(
     if ambiguity_diagnostic:
         write_json(
             output_dir / "ambiguity_protocol.json",
-            ambiguity_protocol(fingerprint),
+            load_ambiguity().protocol(fingerprint),
         )
     if oracle_candidate_diagnostic:
         write_predictions(
@@ -4836,12 +4856,12 @@ def run_strict_stream(
             },
         )
     if independent_reference_diagnostic:
-        event_path = write_independent_reference_trace(
+        event_path = load_independent_reference().write_trace(
             output_dir / "independent_reference_event_trace.csv",
             independent_reference_event_rows,
             compress=independent_reference_compress,
         )
-        segment_path = write_independent_reference_trace(
+        segment_path = load_independent_reference().write_trace(
             output_dir / "independent_reference_segment_trace.csv",
             independent_reference_segment_rows,
             compress=independent_reference_compress,
@@ -4849,7 +4869,11 @@ def run_strict_stream(
         write_json(
             output_dir / "independent_reference_protocol.json",
             {
-                **independent_reference_protocol(fingerprint, independent_reference_level, independent_reference_compress),
+                **load_independent_reference().protocol(
+                    fingerprint,
+                    independent_reference_level,
+                    independent_reference_compress,
+                ),
                 "event_trace_path": str(event_path),
                 "segment_trace_path": str(segment_path),
                 "event_rows": len(independent_reference_event_rows),
@@ -4858,35 +4882,37 @@ def run_strict_stream(
             },
         )
     if actual_branch_provenance_diagnostic:
-        branch_event_path = write_actual_branch_rows(
+        branch_event_path = load_actual_branch_provenance().write_rows(
             output_dir / "actual_branch_event_trace.csv",
             actual_branch_event_rows,
             compress=actual_branch_provenance_compress,
         )
-        branch_segment_path = write_actual_branch_rows(
+        branch_segment_path = load_actual_branch_provenance().write_rows(
             output_dir / "actual_branch_segment_trace.csv",
             actual_branch_segment_rows,
             compress=actual_branch_provenance_compress,
         )
-        registry_path = write_actual_branch_registry(
+        registry_path = load_actual_branch_provenance().write_registry(
             output_dir / "actual_branch_registry.csv",
             actual_branch_tracker,
             compress=actual_branch_provenance_compress,
         )
-        lineage_event_path = write_actual_branch_rows(
+        lineage_event_path = load_actual_branch_provenance().write_rows(
             output_dir / "actual_lineage_event_trace.csv",
             actual_branch_tracker.lineage_events,
             compress=actual_branch_provenance_compress,
         )
-        lineage_registry_path = write_lineage_registry(
+        lineage_registry_path = (
+            load_actual_branch_provenance().write_lineage_registry(
             output_dir / "actual_lineage_registry.csv",
             actual_branch_tracker,
             compress=actual_branch_provenance_compress,
+            )
         )
         write_json(
             output_dir / "actual_branch_provenance_protocol.json",
             {
-                **ACTUAL_BRANCH_MARKERS,
+                **load_actual_branch_provenance().MARKERS,
                 "version": "fig9-actual-branch-provenance-v2",
                 "level": actual_branch_provenance_level,
                 "compressed": actual_branch_provenance_compress,
