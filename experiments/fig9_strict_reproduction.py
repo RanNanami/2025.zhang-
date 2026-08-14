@@ -50,7 +50,31 @@ from experiments.fig9 import (  # noqa: E402
     write_predictions,
 )
 from experiments.fig9.diagnostic_loader import (  # noqa: E402
+    load_autonomous_context_provenance,
+    load_branch_provenance,
+    load_candidate_context_oracle,
+    load_candidate_score_trace,
+    load_context_trajectory,
+    load_intracolumn_selector,
+    load_match_overlap,
+    load_oracle_candidate,
+    load_preselection_segments,
     load_readout_dynamics,
+    load_segment_context_composition,
+    load_segment_reinforcement,
+    load_teacher_forced_identity,
+    load_temporal_context,
+)
+from experiments.fig9.diagnostic_options import (  # noqa: E402
+    BRANCH_LEVELS,
+    CONTEXT_TRAJECTORY_LEVELS,
+    MATCH_OVERLAP_LEVELS,
+    OBSERVE_SCENARIO_LEVELS,
+    PRESELECTION_LEVELS,
+    REFERENCE_NEURON_SELECTION_LEVELS,
+    SEGMENT_CONTEXT_COMPOSITION_LEVELS,
+    SEGMENT_REINFORCEMENT_LEVELS,
+    TEACHER_FORCED_LEVELS,
 )
 from experiments.diagnostics.fig9_competitive_inhibition import (  # noqa: E402
     CompetitionResult,
@@ -59,82 +83,6 @@ from experiments.diagnostics.fig9_competitive_inhibition import (  # noqa: E402
     compete_prediction_candidates,
     emitted_prediction_code,
     summarize_competition,
-)
-from experiments.diagnostics.fig9_oracle_candidate import (  # noqa: E402
-    FieldColumnRanges,
-    analyze_oracle_step,
-    summarize_oracle_rows,
-)
-from experiments.diagnostics.fig9_candidate_score_trace import (  # noqa: E402
-    candidate_score_trace_rows,
-    field_for_column,
-)
-from experiments.diagnostics.fig9_candidate_context_oracle import (  # noqa: E402
-    ContextCompositionIndex,
-    project_actual_composition_rows,
-    write_join_outputs,
-)
-from experiments.diagnostics.fig9_branch_provenance import (  # noqa: E402
-    BRANCH_LEVELS,
-    DIAGNOSTIC_MARKERS as BRANCH_DIAGNOSTIC_MARKERS,
-    BranchProvenanceRegistry,
-    branch_trace_rows,
-    summarize_branch_steps,
-)
-from experiments.diagnostics.fig9_preselection_segments import (  # noqa: E402
-    DIAGNOSTIC_MARKERS as PRESELECTION_DIAGNOSTIC_MARKERS,
-    PRESELECTION_LEVELS,
-    build_preselection_rows,
-)
-from experiments.diagnostics.fig9_teacher_forced_identity import (  # noqa: E402
-    DIAGNOSTIC_MARKERS as TEACHER_FORCED_DIAGNOSTIC_MARKERS,
-    OBSERVE_SCENARIO_LEVELS,
-    REFERENCE_NEURON_SELECTION_LEVELS,
-    TEACHER_FORCED_LEVELS,
-    build_teacher_forced_observation_rows,
-    legacy_teacher_forced_rows,
-    observe_scenario_rows,
-)
-from experiments.diagnostics.fig9_intracolumn_selector import (  # noqa: E402
-    DIAGNOSTIC_MARKERS as INTRACOLUMN_DIAGNOSTIC_MARKERS,
-    SELECTOR_VERSION as INTRACOLUMN_SELECTOR_VERSION,
-    mark_competition_outcomes,
-    selection_trace_rows,
-    summarize_selection_rows,
-    write_selection_trace,
-)
-from experiments.diagnostics.fig9_match_overlap import (  # noqa: E402
-    DIAGNOSTIC_MARKERS as MATCH_OVERLAP_DIAGNOSTIC_MARKERS,
-    MATCH_OVERLAP_LEVELS,
-    SourceTraceFilter,
-    capture_match_overlap,
-    filter_source_trace_rows,
-    finalize_match_overlap,
-)
-from experiments.diagnostics.fig9_segment_context_composition import (  # noqa: E402
-    LEVELS as SEGMENT_CONTEXT_COMPOSITION_LEVELS,
-    MARKERS as SEGMENT_CONTEXT_COMPOSITION_MARKERS,
-    SegmentContextCompositionTracker,
-    protocol as segment_context_composition_protocol,
-)
-from experiments.diagnostics.fig9_context_trajectory import (  # noqa: E402
-    CONTEXT_TRAJECTORY_LEVELS,
-    CONTEXT_TRAJECTORY_MARKERS,
-    ContextTrajectoryTracker,
-)
-from experiments.diagnostics.fig9_temporal_context import (  # noqa: E402
-    TemporalContextTracker,
-    protocol as temporal_context_protocol,
-)
-from experiments.diagnostics.fig9_autonomous_context_provenance import (  # noqa: E402
-    AutonomousContextProvenanceTracker,
-    protocol as autonomous_context_provenance_protocol,
-)
-from experiments.diagnostics.fig9_segment_reinforcement import (  # noqa: E402
-    DIAGNOSTIC_MARKERS as SEGMENT_REINFORCEMENT_MARKERS,
-    SEGMENT_REINFORCEMENT_LEVELS,
-    build_segment_reinforcement_rows,
-    enrich_segment_reinforcement_rows,
 )
 from experiments.diagnostics.fig9_ambiguity import (  # noqa: E402
     AmbiguityReuseState,
@@ -1065,9 +1013,9 @@ class PruneBreadcrumbRecorder:
         self.sequence += 1
         column = payload.get("encoded_column")
         field = (
-            field_for_column(
+            load_candidate_score_trace().field_for_column(
                 int(column),
-                FieldColumnRanges.from_sizes(
+                load_oracle_candidate().FieldColumnRanges.from_sizes(
                     self.config.weekday_columns,
                     self.config.time_columns,
                     self.config.passenger_columns,
@@ -1704,7 +1652,7 @@ def rollout_raw_autonomous(
     branch_provenance_diagnostic: bool = False,
     branch_provenance_level: str = "candidate",
     branch_source_top_n: int | None = None,
-    branch_registry: BranchProvenanceRegistry | None = None,
+    branch_registry: object | None = None,
     preselection_segment_diagnostic: bool = False,
     preselection_segment_level: str = "crossing",
     oracle_encoder: SSTDCompositeEncoder | None = None,
@@ -1716,10 +1664,10 @@ def rollout_raw_autonomous(
     intracolumn_selection_policy: str = "existing",
     intracolumn_selection_diagnostic: bool = False,
     readout_dynamics_trace: bool = False,
-    context_trajectory_tracker: ContextTrajectoryTracker | None = None,
+    context_trajectory_tracker: object | None = None,
     context_oracle_unified_trace: bool = False,
-    temporal_context_tracker: TemporalContextTracker | None = None,
-    autonomous_context_provenance_tracker: AutonomousContextProvenanceTracker | None = None,
+    temporal_context_tracker: object | None = None,
+    autonomous_context_provenance_tracker: object | None = None,
     native_phase_hook: Callable[[int, str], None] | None = None,
 ) -> RolloutResult:
     """Roll out future SSTD codes using only raw predictive neurons.
@@ -1786,7 +1734,7 @@ def rollout_raw_autonomous(
             "intracolumn selection diagnostics require the strict config"
         )
     oracle_ranges = (
-        FieldColumnRanges.from_sizes(
+        load_oracle_candidate().FieldColumnRanges.from_sizes(
             config.weekday_columns,
             config.time_columns,
             config.passenger_columns,
@@ -1934,7 +1882,10 @@ def rollout_raw_autonomous(
                     int(event.column) for event in provenance_target.events
                 )
                 provenance_target_by_field = {
-                    field_for_column(event.column, oracle_ranges): int(event.column)
+                    load_candidate_score_trace().field_for_column(
+                        event.column,
+                        oracle_ranges,
+                    ): int(event.column)
                     for event in provenance_target.events
                 }
                 provenance_target_timestamp = future_records[
@@ -1946,7 +1897,9 @@ def rollout_raw_autonomous(
                 and branch_registry is not None
                 and oracle_ranges is not None
             ):
-                autonomous_context_index = ContextCompositionIndex.from_model(
+                autonomous_context_index = (
+                    load_candidate_context_oracle()
+                    .ContextCompositionIndex.from_model(
                     model=model,
                     registry=branch_registry,
                     ranges=oracle_ranges,
@@ -1954,6 +1907,7 @@ def rollout_raw_autonomous(
                         record_index if record_index is not None else 0
                     ),
                     active_sources=branch_active_sources,
+                    )
                 )
             predict_runtime = time.perf_counter() - predict_started
             if (
@@ -1961,7 +1915,7 @@ def rollout_raw_autonomous(
                 and config is not None
                 and oracle_ranges is not None
             ):
-                step_intracolumn_rows = selection_trace_rows(
+                step_intracolumn_rows = load_intracolumn_selector().selection_trace_rows(
                     trace=intracolumn_trace,
                     policy=intracolumn_selection_policy,
                     input_index=(
@@ -1992,7 +1946,10 @@ def rollout_raw_autonomous(
                         ),
                         horizon_step=_step_index + 1,
                         field_for_column=(
-                            lambda column: field_for_column(column, oracle_ranges)
+                            lambda column: load_candidate_score_trace().field_for_column(
+                                column,
+                                oracle_ranges,
+                            )
                         ),
                         target_columns=provenance_target_columns,
                         target_column_by_field=provenance_target_by_field,
@@ -2034,7 +1991,7 @@ def rollout_raw_autonomous(
                 ):
                     target_record = future_records[_step_index]
                     oracle_diagnostics.append(
-                        analyze_oracle_step(
+                        load_oracle_candidate().analyze_oracle_step(
                             prediction_input_index=(
                                 record_index + 1
                                 if record_index is not None
@@ -2076,7 +2033,7 @@ def rollout_raw_autonomous(
                         segment_rows,
                         group_rows,
                         replacement_rows,
-                    ) = build_preselection_rows(
+                    ) = load_preselection_segments().build_preselection_rows(
                         model=model,
                         registry=branch_registry,
                         trace=preselection_trace,
@@ -2242,10 +2199,11 @@ def rollout_raw_autonomous(
                 if competition_result is not None
                 else {event.column for event in raw.events}
             )
-            mark_competition_outcomes(
-                step_intracolumn_rows,
-                emitted_columns=emitted_column_ids,
-            )
+            if step_intracolumn_rows:
+                load_intracolumn_selector().mark_competition_outcomes(
+                    step_intracolumn_rows,
+                    emitted_columns=emitted_column_ids,
+                )
             intracolumn_selection_diagnostics.extend(
                 step_intracolumn_rows
             )
@@ -2275,7 +2233,10 @@ def rollout_raw_autonomous(
                     ),
                     horizon_step=_step_index + 1,
                     field_for_column=(
-                        lambda column: field_for_column(column, oracle_ranges)
+                            lambda column: load_candidate_score_trace().field_for_column(
+                                column,
+                                oracle_ranges,
+                            )
                     ),
                     target_columns=provenance_target_columns,
                     target_column_by_field=provenance_target_by_field,
@@ -2537,8 +2498,11 @@ def rollout_raw_autonomous(
                                 record_index + 1 if record_index is not None else 0
                             ),
                             horizon_step=_step_index + 1,
-                            field_for_column=lambda column: field_for_column(
-                                int(column), oracle_ranges
+                            field_for_column=lambda column: (
+                                load_candidate_score_trace().field_for_column(
+                                    int(column),
+                                    oracle_ranges,
+                                )
                             ),
                             selection_rows=step_intracolumn_rows,
                             raw_code=raw,
@@ -2550,7 +2514,10 @@ def rollout_raw_autonomous(
                     target_columns_by_field: dict[str, int] = {}
                     for target_column in sorted(target_code.columns):
                         target_columns_by_field.setdefault(
-                            field_for_column(target_column, oracle_ranges),
+                            load_candidate_score_trace().field_for_column(
+                                target_column,
+                                oracle_ranges,
+                            ),
                             int(target_column),
                         )
                     temporal_context_tracker.record_autonomous_candidates(
@@ -2560,8 +2527,11 @@ def rollout_raw_autonomous(
                             record_index if record_index is not None else 0
                         ),
                         horizon_step=_step_index + 1,
-                        field_for_column=lambda column: field_for_column(
-                            int(column), oracle_ranges
+                        field_for_column=lambda column: (
+                            load_candidate_score_trace().field_for_column(
+                                int(column),
+                                oracle_ranges,
+                            )
                         ),
                         target_columns=target_code.columns,
                         target_column_by_field=target_columns_by_field,
@@ -2584,7 +2554,7 @@ def rollout_raw_autonomous(
                         ),
                     )
                 oracle_diagnostics.append(
-                    analyze_oracle_step(
+                    load_oracle_candidate().analyze_oracle_step(
                         prediction_input_index=(
                             record_index + 1
                             if record_index is not None
@@ -2614,7 +2584,7 @@ def rollout_raw_autonomous(
                     and competition_result is not None
                 ):
                     candidate_score_diagnostics.extend(
-                        candidate_score_trace_rows(
+                        load_candidate_score_trace().candidate_score_trace_rows(
                             policy=competition.simultaneous_policy,
                             input_index=(
                                 record_index + 1
@@ -2640,7 +2610,7 @@ def rollout_raw_autonomous(
                             _step_index + 1, "branch_provenance_enter"
                         )
                     candidate_rows, segment_rows, source_rows = (
-                        branch_trace_rows(
+                        load_branch_provenance().branch_trace_rows(
                             model=model,
                             registry=branch_registry,
                             stream_label=stream_label,
@@ -2683,7 +2653,7 @@ def rollout_raw_autonomous(
                         segment_rows,
                         group_rows,
                         replacement_rows,
-                    ) = build_preselection_rows(
+                    ) = load_preselection_segments().build_preselection_rows(
                         model=model,
                         registry=branch_registry,
                         trace=preselection_trace,
@@ -2839,7 +2809,7 @@ def run_strict_stream(
     match_overlap_level: str = "summary",
     match_overlap_compress: bool = False,
     timing_eligibility_decomposition: bool = False,
-    source_trace_filter: SourceTraceFilter | None = None,
+    source_trace_filter: object | None = None,
     context_trajectory_diagnostic: bool = False,
     context_trajectory_level: str = "summary",
     ambiguity_diagnostic: bool = False,
@@ -3025,7 +2995,7 @@ def run_strict_stream(
             )
         )
         branch_registry = (
-            BranchProvenanceRegistry.from_checkpoint_payload(
+            load_branch_provenance().BranchProvenanceRegistry.from_checkpoint_payload(
                 model, provenance_payload
             )
             if (
@@ -3098,7 +3068,7 @@ def run_strict_stream(
         long_sequence_rows = []
         checkpoint_diagnostic_state = {}
         branch_registry = (
-            BranchProvenanceRegistry()
+            load_branch_provenance().BranchProvenanceRegistry()
             if (
                 branch_provenance_diagnostic
                 or preselection_segment_diagnostic
@@ -3230,21 +3200,21 @@ def run_strict_stream(
             append_diagnostic_csv(path, batch, compress=compress)
             batch.clear()
     context_trajectory_tracker = (
-        ContextTrajectoryTracker()
+        load_context_trajectory().ContextTrajectoryTracker()
         if context_trajectory_diagnostic
         else None
     )
     temporal_context_tracker = (
-        TemporalContextTracker.from_checkpoint_payload(
+        load_temporal_context().TemporalContextTracker.from_checkpoint_payload(
             checkpoint_diagnostic_state.get("temporal_context_tracker")
         )
         if temporal_context_diagnostic and checkpoint_diagnostic_state
-        else TemporalContextTracker()
+        else load_temporal_context().TemporalContextTracker()
         if temporal_context_diagnostic
         else None
     )
     autonomous_context_provenance_tracker = (
-        AutonomousContextProvenanceTracker.from_checkpoint_payload(
+        load_autonomous_context_provenance().AutonomousContextProvenanceTracker.from_checkpoint_payload(
             checkpoint_diagnostic_state.get(
                 "autonomous_context_provenance_tracker"
             ),
@@ -3262,7 +3232,7 @@ def run_strict_stream(
         for pending_row in temporal_context_tracker.pending_rows():
             temporal_context_tracker._emit(pending_row)
     segment_context_composition_tracker = (
-        SegmentContextCompositionTracker(
+        load_segment_context_composition().SegmentContextCompositionTracker(
             registry=branch_registry,
             level=segment_context_composition_level,
         )
@@ -3275,7 +3245,7 @@ def run_strict_stream(
             compress=segment_context_composition_compress,
         )
     teacher_forced_ranges = (
-        FieldColumnRanges.from_sizes(
+        load_oracle_candidate().FieldColumnRanges.from_sizes(
             config.weekday_columns,
             config.time_columns,
             config.passenger_columns,
@@ -3290,7 +3260,7 @@ def run_strict_stream(
         else None
     )
     match_overlap_ranges = (
-        FieldColumnRanges.from_sizes(
+        load_oracle_candidate().FieldColumnRanges.from_sizes(
             config.weekday_columns,
             config.time_columns,
             config.passenger_columns,
@@ -3730,7 +3700,7 @@ def run_strict_stream(
             ):
                 if match_overlap_ranges is None:
                     raise RuntimeError("match-overlap ranges unavailable")
-                match_overlap_capture = capture_match_overlap(
+                match_overlap_capture = load_match_overlap().capture_match_overlap(
                     model=model,
                     code=code,
                     registry=branch_registry,
@@ -3833,7 +3803,7 @@ def run_strict_stream(
                 match_overlap_capture is not None
                 and teacher_forced_trace is not None
             ):
-                completed_overlap = finalize_match_overlap(
+                completed_overlap = load_match_overlap().finalize_match_overlap(
                     match_overlap_capture,
                     teacher_forced_trace,
                     branch_registry,
@@ -3847,7 +3817,7 @@ def run_strict_stream(
                     )
                     if context_oracle_unified_trace:
                         unified_actual_candidate_rows.extend(
-                            project_actual_composition_rows(
+                            load_candidate_context_oracle().project_actual_composition_rows(
                                 composition_transition_rows
                             )
                         )
@@ -3856,13 +3826,16 @@ def run_strict_stream(
                     temporal_context_tracker.record_actual_source_rows(
                         source_rows=completed_overlap.source_rows,
                         actual_record_index=index,
-                        target_field_by_column=lambda column: field_for_column(
-                            int(column), match_overlap_ranges
+                        target_field_by_column=lambda column: (
+                            load_candidate_score_trace().field_for_column(
+                                int(column),
+                                match_overlap_ranges,
+                            )
                         ),
                         l_match=config.l_match,
                     )
                 if source_trace_filter is not None:
-                    source_rows = filter_source_trace_rows(
+                    source_rows = load_match_overlap().filter_source_trace_rows(
                         source_rows,
                         source_trace_filter,
                     )
@@ -3916,7 +3889,7 @@ def run_strict_stream(
                 and teacher_forced_ranges is not None
             ):
                 teacher_forced_observation_rows.extend(
-                    build_teacher_forced_observation_rows(
+                    load_teacher_forced_identity().build_teacher_forced_observation_rows(
                         model=model,
                         registry=branch_registry,
                         trace=teacher_forced_trace,
@@ -3945,7 +3918,7 @@ def run_strict_stream(
                         "segment reinforcement diagnostic state unavailable"
                     )
                 segment_reinforcement_rows.extend(
-                    build_segment_reinforcement_rows(
+                    load_segment_reinforcement().build_segment_reinforcement_rows(
                         model=model,
                         registry=branch_registry,
                         observation_trace=teacher_forced_trace,
@@ -4437,7 +4410,7 @@ def run_strict_stream(
         write_json(
             output_dir / "segment_context_composition_protocol.json",
             {
-                **segment_context_composition_protocol(
+                **load_segment_context_composition().protocol(
                     level=segment_context_composition_level,
                     compressed=segment_context_composition_compress,
                 ),
@@ -4471,7 +4444,7 @@ def run_strict_stream(
             "candidate_rows": temporal_context_tracker.candidate_row_count,
             "actual_rows": temporal_context_tracker.actual_row_count,
             "trace_path": str(output_dir / "temporal_candidate_trace.csv.gz"),
-            "protocol_version": temporal_context_protocol()["version"],
+            "protocol_version": load_temporal_context().protocol()["version"],
             "strict_default_unchanged": True,
         }
     if autonomous_context_provenance_tracker is not None:
@@ -4483,7 +4456,7 @@ def run_strict_stream(
             "candidate_trace_path": str(
                 output_dir / "autonomous_candidate_provenance_trace.csv.gz"
             ),
-            "protocol_version": autonomous_context_provenance_protocol(
+            "protocol_version": load_autonomous_context_provenance().protocol(
                 autonomous_context_provenance_level
             )["version"],
             "strict_default_unchanged": True,
@@ -4623,11 +4596,11 @@ def run_strict_stream(
             },
         )
     if intracolumn_selection_diagnostic:
-        write_selection_trace(
+        load_intracolumn_selector().write_selection_trace(
             output_dir / "intracolumn_selection_trace.csv",
             intracolumn_selection_rows,
         )
-        selection_summary = summarize_selection_rows(
+        selection_summary = load_intracolumn_selector().summarize_selection_rows(
             intracolumn_selection_rows,
             policy=intracolumn_selection_policy,
         )
@@ -4638,9 +4611,9 @@ def run_strict_stream(
         write_json(
             output_dir / "intracolumn_selection_protocol.json",
             {
-                **INTRACOLUMN_DIAGNOSTIC_MARKERS,
+                **load_intracolumn_selector().DIAGNOSTIC_MARKERS,
                 "policy": intracolumn_selection_policy,
-                "selector_version": INTRACOLUMN_SELECTOR_VERSION,
+                "selector_version": load_intracolumn_selector().SELECTOR_VERSION,
                 "contributor_metric": "contributor_count",
                 "missing_metric_order": "after finite values",
                 "stable_tie_break": "original event-winner insertion order",
@@ -4697,7 +4670,10 @@ def run_strict_stream(
         )
         write_json(
             output_dir / "oracle_candidate_summary.json",
-            summarize_oracle_rows(oracle_rows, horizon=config.horizon),
+            load_oracle_candidate().summarize_oracle_rows(
+                oracle_rows,
+                horizon=config.horizon,
+            ),
         )
     if candidate_separability_trace:
         write_predictions(
@@ -4722,12 +4698,14 @@ def run_strict_stream(
             )
         write_json(
             output_dir / "branch_step_summary.json",
-            summarize_branch_steps(branch_candidate_rows),
+            load_branch_provenance().summarize_branch_steps(
+                branch_candidate_rows
+            ),
         )
         write_json(
             output_dir / "branch_provenance_protocol.json",
             {
-                **BRANCH_DIAGNOSTIC_MARKERS,
+                **load_branch_provenance().DIAGNOSTIC_MARKERS,
                 "version": "fig9-branch-provenance-v1",
                 "level": branch_provenance_level,
                 "source_top_n": branch_source_top_n,
@@ -4765,7 +4743,10 @@ def run_strict_stream(
             *branch_candidate_rows,
         ]
         join_dir = output_dir / "context_oracle_join"
-        join_consistency = write_join_outputs(join_dir, rows=unified_rows)
+        join_consistency = load_candidate_context_oracle().write_join_outputs(
+            join_dir,
+            rows=unified_rows,
+        )
         summary["context_oracle_unified_trace"] = {
             "version": "fig9-candidate-context-oracle-v1",
             "trajectory_kinds": [
@@ -4864,7 +4845,7 @@ def run_strict_stream(
         write_json(
             output_dir / "preselection_summary.json",
             {
-                **PRESELECTION_DIAGNOSTIC_MARKERS,
+                **load_preselection_segments().DIAGNOSTIC_MARKERS,
                 "steps": len(preselection_funnel_rows),
                 "inspected_segment_count": total_inspected,
                 "threshold_crossing_count": total_crossed,
@@ -4907,7 +4888,7 @@ def run_strict_stream(
         write_json(
             output_dir / "preselection_protocol.json",
             {
-                **PRESELECTION_DIAGNOSTIC_MARKERS,
+                **load_preselection_segments().DIAGNOSTIC_MARKERS,
                 "version": "fig9-preselection-segments-v1",
                 "level": preselection_segment_level,
                 "compressed": preselection_segment_compress,
@@ -4963,11 +4944,13 @@ def run_strict_stream(
             for segment in neuron.segments
             if (origin := branch_registry.provenance_for(segment)) is not None
         }
-        completed_reinforcement_rows = enrich_segment_reinforcement_rows(
+        completed_reinforcement_rows = (
+            load_segment_reinforcement().enrich_segment_reinforcement_rows(
             segment_reinforcement_rows,
             observation_rows=teacher_forced_observation_rows,
             density_rows=density_rows,
             final_segment_ids=final_segment_ids,
+            )
         )
         write_diagnostic_csv(
             output_dir / "segment_reinforcement_event_trace.csv",
@@ -4977,7 +4960,7 @@ def run_strict_stream(
         write_json(
             output_dir / "segment_reinforcement_protocol.json",
             {
-                **SEGMENT_REINFORCEMENT_MARKERS,
+                **load_segment_reinforcement().DIAGNOSTIC_MARKERS,
                 "version": "fig9-segment-reinforcement-v1",
                 "level": segment_reinforcement_level,
                 "rows": len(completed_reinforcement_rows),
@@ -5062,7 +5045,9 @@ def run_strict_stream(
     if teacher_forced_winner_diagnostic:
         write_diagnostic_csv(
             output_dir / "teacher_forced_observation_trace.csv",
-            legacy_teacher_forced_rows(teacher_forced_observation_rows),
+            load_teacher_forced_identity().legacy_teacher_forced_rows(
+                teacher_forced_observation_rows
+            ),
         )
         available = sum(
             bool(row["observed_winner_available"])
@@ -5071,7 +5056,7 @@ def run_strict_stream(
         write_json(
             output_dir / "teacher_forced_winner_protocol.json",
             {
-                **TEACHER_FORCED_DIAGNOSTIC_MARKERS,
+                **load_teacher_forced_identity().DIAGNOSTIC_MARKERS,
                 "version": "fig9-teacher-forced-winner-v1",
                 "level": teacher_forced_winner_level,
                 "reference_definition": (
@@ -5091,7 +5076,7 @@ def run_strict_stream(
         if observe_scenario_diagnostic:
             write_diagnostic_csv(
                 output_dir / "observe_scenario_trace.csv",
-                observe_scenario_rows(
+                load_teacher_forced_identity().observe_scenario_rows(
                     teacher_forced_observation_rows,
                     level=observe_scenario_level,
                 ),
@@ -5099,7 +5084,7 @@ def run_strict_stream(
             write_json(
                 output_dir / "observe_scenario_protocol.json",
                 {
-                    **TEACHER_FORCED_DIAGNOSTIC_MARKERS,
+                    **load_teacher_forced_identity().DIAGNOSTIC_MARKERS,
                     "observe_scenario_diagnostic": True,
                     "reference_neuron_selection_diagnostic": True,
                     "level": observe_scenario_level,
@@ -5114,7 +5099,7 @@ def run_strict_stream(
         write_json(
             output_dir / "reference_neuron_selection_protocol.json",
             {
-                **TEACHER_FORCED_DIAGNOSTIC_MARKERS,
+                **load_teacher_forced_identity().DIAGNOSTIC_MARKERS,
                 "reference_neuron_selection_diagnostic": True,
                 "target_column_is_oracle_conditioned_for_analysis": True,
                 "not_a_deployable_prediction_result": True,
@@ -5143,7 +5128,7 @@ def run_strict_stream(
         write_json(
             output_dir / "match_overlap_protocol.json",
             {
-                **MATCH_OVERLAP_DIAGNOSTIC_MARKERS,
+                **load_match_overlap().DIAGNOSTIC_MARKERS,
                 "version": "fig9-match-overlap-v1",
                 "level": match_overlap_level,
                 "compressed": match_overlap_compress,
@@ -5209,7 +5194,7 @@ def run_strict_stream(
         write_json(
             output_dir / "context_trajectory_protocol.json",
             {
-                **CONTEXT_TRAJECTORY_MARKERS,
+                **load_context_trajectory().CONTEXT_TRAJECTORY_MARKERS,
                 "version": "fig9-context-trajectory-v1",
                 "level": context_trajectory_level,
                 "compressed": context_trajectory_compress,
@@ -5239,7 +5224,7 @@ def run_strict_stream(
         write_json(
             output_dir / "temporal_context_protocol.json",
             {
-                **temporal_context_protocol(),
+                **load_temporal_context().protocol(),
                 "level": temporal_context_level,
                 "trace_path": str(output_dir / "temporal_candidate_trace.csv.gz"),
                 "candidate_rows": temporal_context_tracker.candidate_row_count,
@@ -5251,7 +5236,7 @@ def run_strict_stream(
         write_json(
             output_dir / "autonomous_context_provenance_protocol.json",
             {
-                **autonomous_context_provenance_protocol(
+                **load_autonomous_context_provenance().protocol(
                     autonomous_context_provenance_level
                 ),
                 "candidate_trace_path": str(
@@ -5958,7 +5943,7 @@ def run_main(args: argparse.Namespace) -> None:
                 args.timing_eligibility_decomposition
             ),
             source_trace_filter=(
-                SourceTraceFilter(
+                load_match_overlap().SourceTraceFilter(
                     field=args.source_trace_filter_field or None,
                     scenario=args.source_trace_filter_scenario or None,
                     record_start=args.source_trace_filter_record_start,
