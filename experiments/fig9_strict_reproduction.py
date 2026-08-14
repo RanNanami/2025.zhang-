@@ -49,6 +49,9 @@ from experiments.fig9 import (  # noqa: E402
     reference_rolling_mape,
     write_predictions,
 )
+from experiments.fig9.diagnostic_loader import (  # noqa: E402
+    load_readout_dynamics,
+)
 from experiments.diagnostics.fig9_competitive_inhibition import (  # noqa: E402
     CompetitionResult,
     CompetitionSettings,
@@ -99,11 +102,6 @@ from experiments.diagnostics.fig9_intracolumn_selector import (  # noqa: E402
     selection_trace_rows,
     summarize_selection_rows,
     write_selection_trace,
-)
-from experiments.diagnostics.fig9_readout_dynamics import (  # noqa: E402
-    READOUT_TRACE_FIELDS,
-    build_readout_column_rows,
-    write_readout_trace,
 )
 from experiments.diagnostics.fig9_match_overlap import (  # noqa: E402
     DIAGNOSTIC_MARKERS as MATCH_OVERLAP_DIAGNOSTIC_MARKERS,
@@ -2528,8 +2526,9 @@ def rollout_raw_autonomous(
                 if readout_dynamics_trace:
                     if oracle_ranges is None:
                         raise RuntimeError("readout dynamics ranges unavailable")
+                    readout_dynamics = load_readout_dynamics()
                     readout_dynamics_diagnostics.extend(
-                        build_readout_column_rows(
+                        readout_dynamics.build_readout_column_rows(
                             run_id=stream_label,
                             record_index=(
                                 record_index if record_index is not None else 0
@@ -4653,9 +4652,13 @@ def run_strict_stream(
             },
         )
     if readout_dynamics_trace:
+        readout_dynamics = load_readout_dynamics()
         readout_path = output_dir / "readout_dynamics_column_trace.csv.gz"
         if not stream_diagnostic_traces:
-            write_readout_trace(readout_path, readout_dynamics_rows)
+            readout_dynamics.write_readout_trace(
+                readout_path,
+                readout_dynamics_rows,
+            )
         summary["readout_dynamics_trace"] = {
             "enabled": True,
             "path": str(readout_path),
@@ -4676,7 +4679,7 @@ def run_strict_stream(
                 "read_only": True,
                 "model_protocol_unchanged": True,
                 "row_unit": "candidate_column_per_rollout_step",
-                "fields": READOUT_TRACE_FIELDS,
+                "fields": readout_dynamics.READOUT_TRACE_FIELDS,
                 "target_labels": "posthoc_future_code_only",
                 "column_event_id": "record_index/anchor_index/horizon_step/field/column_id/trajectory_kind",
                 "strict_protocol_sha256": stable_object_sha256(fingerprint),
