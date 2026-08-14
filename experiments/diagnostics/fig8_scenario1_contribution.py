@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import csv
 import sys
 from pathlib import Path
 
@@ -9,6 +8,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 
+from experiments.common.csvio import write_csv_rows  # noqa: E402
 from experiments.diagnostics.fig8_diagnostic_common import (  # noqa: E402
     build_model,
     evaluate_diagnostic,
@@ -26,14 +26,7 @@ MODES = (
 
 
 def write_csv(path: Path, rows: list[dict[str, object]]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    if not rows:
-        return
-    fields = list(dict.fromkeys(key for row in rows for key in row))
-    with path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fields)
-        writer.writeheader()
-        writer.writerows(rows)
+    write_csv_rows(path, rows, skip_empty=True)
 
 
 def main() -> None:
