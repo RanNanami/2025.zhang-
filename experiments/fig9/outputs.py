@@ -29,6 +29,14 @@ class StrictStreamOutputPaths:
     def protocol(self) -> Path:
         return self.output_dir / f"{self.stream_label}_protocol.json"
 
+    @property
+    def interval_summary(self) -> Path:
+        return self.output_dir / f"{self.stream_label}_interval_summary.csv"
+
+    @property
+    def debug_record(self) -> Path:
+        return self.output_dir / f"{self.stream_label}_debug_record.json"
+
     def ensure_directory(self) -> None:
         """Create the shared artifact directory without touching model state."""
 
@@ -58,6 +66,19 @@ def write_stream_metadata(
     write_json(paths.protocol, protocol)
 
 
+def write_initial_stream_artifacts(
+    paths: StrictStreamOutputPaths,
+    prediction_rows: list[dict[str, object]],
+    summary: dict[str, object],
+    protocol: dict[str, object],
+) -> None:
+    """Publish ordinary artifacts available before diagnostic finalization."""
+
+    paths.ensure_directory()
+    write_predictions(paths.predictions, prediction_rows)
+    write_stream_metadata(paths, summary, protocol)
+
+
 def write_stream_summary(
     paths: StrictStreamOutputPaths,
     summary: dict[str, object],
@@ -65,6 +86,21 @@ def write_stream_summary(
     """Republish a completed summary after optional diagnostics enrich it."""
 
     write_json(paths.summary, summary)
+
+
+def write_optional_stream_results(
+    paths: StrictStreamOutputPaths,
+    *,
+    interval_rows: list[dict[str, object]],
+    debug_payload: dict[str, object] | None,
+    debug_output_path: Path | None,
+) -> None:
+    """Write completed interval/debug results without deriving their content."""
+
+    if interval_rows:
+        write_predictions(paths.interval_summary, interval_rows)
+    if debug_payload is not None:
+        write_json(debug_output_path or paths.debug_record, debug_payload)
 
 
 def write_runtime_artifacts(

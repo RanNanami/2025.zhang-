@@ -53,9 +53,10 @@ from experiments.fig9 import (  # noqa: E402
     record_values,
     reference_rolling_mape,
     strict_summary_paths,
+    write_initial_stream_artifacts,
+    write_optional_stream_results,
     write_predictions,
     write_runtime_artifacts,
-    write_stream_metadata,
     write_stream_summary,
 )
 from experiments.fig9.diagnostic_loader import (  # noqa: E402
@@ -915,22 +916,6 @@ class PruneBreadcrumbRecorder:
 
 
 atexit.register(close_native_crash_logging)
-
-
-def write_density_trace(path: Path, rows: list[dict[str, object]]) -> None:
-    if not rows:
-        return
-    write_predictions(path, rows)
-
-
-def write_long_sequence_activity_trace(
-    path: Path, rows: list[dict[str, object]]
-) -> None:
-    """Write one bounded, read-only activity row per actual observation."""
-
-    if not rows:
-        return
-    write_predictions(path, rows)
 
 
 def save_strict_checkpoint(
@@ -4414,11 +4399,14 @@ def run_strict_stream(
         }
 
     artifact_paths = StrictStreamOutputPaths(output_dir, stream_label)
-    artifact_paths.ensure_directory()
-    write_predictions(artifact_paths.predictions, rows)
-    write_stream_metadata(artifact_paths, summary, fingerprint)
+    write_initial_stream_artifacts(
+        artifact_paths,
+        rows,
+        summary,
+        fingerprint,
+    )
     if long_sequence_ledger:
-        write_long_sequence_activity_trace(
+        write_predictions(
             ledger_path,
             long_sequence_rows,
         )
@@ -4436,7 +4424,7 @@ def run_strict_stream(
             },
         )
     if density_rows:
-        write_density_trace(
+        write_predictions(
             density_trace_path or output_dir / f"{stream_label}_density_trace.csv",
             density_rows,
         )
@@ -5126,16 +5114,12 @@ def run_strict_stream(
                 "strict_protocol_sha256": stable_object_sha256(fingerprint),
             },
         )
-    if interval_rows:
-        write_predictions(
-            output_dir / f"{stream_label}_interval_summary.csv",
-            interval_rows,
-        )
-    if debug_payload is not None:
-        write_json(
-            debug_output_json or output_dir / f"{stream_label}_debug_record.json",
-            debug_payload,
-        )
+    write_optional_stream_results(
+        artifact_paths,
+        interval_rows=interval_rows,
+        debug_payload=debug_payload,
+        debug_output_path=debug_output_json,
+    )
     # Several diagnostic sections enrich ``summary`` after the core outputs
     # are written.  Publish it again only after those read-only sections have
     # recorded their final row counts and output paths.
