@@ -135,6 +135,23 @@ def write_predictions(path: Path, rows: list[dict[str, object]]) -> None:
         writer.writerows(rows)
 
 
+def write_density_trace(path: Path, rows: list[dict[str, object]]) -> None:
+    """Preserve the historical strict-runner density writer API."""
+
+    if rows:
+        write_predictions(path, rows)
+
+
+def write_long_sequence_activity_trace(
+    path: Path,
+    rows: list[dict[str, object]],
+) -> None:
+    """Preserve the historical read-only activity-ledger writer API."""
+
+    if rows:
+        write_predictions(path, rows)
+
+
 def plot_adaptation(
     path: Path,
     rows: list[dict[str, object]],
