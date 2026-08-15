@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import unittest
 
+from experiments.fig8_sentence_memory import evaluate, train_sentence
 from seqmem.encoding import SSTDDiscreteEncoder, SpikeEvent, SymbolCode
 from seqmem.model import (
     MemoryParams,
@@ -55,6 +56,29 @@ class TransientStateBoundaryTests(unittest.TestCase):
             snapshot.previous_burst_only_sources,
             snapshot.decode_rng_state,
             snapshot.learning_rng_state,
+        )
+
+    @staticmethod
+    def _persistent_identity_signature(model: SequentialMemory) -> tuple:
+        return tuple(
+            (
+                id(segment),
+                segment.active,
+                segment.target_time,
+                tuple(
+                    (
+                        source,
+                        id(synapse),
+                        synapse.delay,
+                        synapse.weight,
+                        synapse.age,
+                    )
+                    for source, synapse in segment.synapses.items()
+                ),
+            )
+            for column in model.columns
+            for neuron in column.neurons
+            for segment in neuron.segments
         )
 
     def test_snapshot_is_exact_field_by_field_and_shallow(self) -> None:
@@ -174,6 +198,38 @@ class TransientStateBoundaryTests(unittest.TestCase):
         self.assertEqual(model._learning_rng.getstate(), learning_state)
         self.assertIs(model.columns[0].neurons[1].segments[0], segment)
         self.assertIs(segment.synapses[2], synapse)
+
+    def test_no_learning_evaluation_restores_science_and_transient_state(self) -> None:
+        model = SequentialMemory(
+            SSTDDiscreteEncoder(num_columns=16, k=3, seed=5),
+            num_neurons_per_column=3,
+            params=MemoryParams(continuous_dynamics=False),
+            tie_break_seed=19,
+        )
+        sentences = [["A", "B", "C"]]
+        for _ in range(4):
+            train_sentence(model, sentences[0])
+        model.predict_code()
+        before_transient = model.snapshot_transient_state()
+        before_persistent = self._persistent_identity_signature(model)
+
+        evaluate(
+            model,
+            sentences,
+            prefix_length=1,
+            eval_samples=1,
+            seed=23,
+            retrieval_mode="neural",
+        )
+
+        self.assertEqual(
+            self._snapshot_signature(model.snapshot_transient_state()),
+            self._snapshot_signature(before_transient),
+        )
+        self.assertEqual(
+            self._persistent_identity_signature(model),
+            before_persistent,
+        )
 
     def test_pickle_class_module_paths_are_unchanged(self) -> None:
         expected = "seqmem.model"
