@@ -41,6 +41,14 @@ from ._learning_helpers import (
     classify_observation_learning_branch,
     depress_other_segment_updates,
 )
+from ._prediction_helpers import (
+    build_emitted_spike_events,
+    build_prediction_candidate,
+    build_prediction_stats,
+    prediction_event_key,
+    prediction_time_is_outside_window,
+    segment_upper_bound_is_below_threshold,
+)
 
 
 @dataclass
@@ -1074,14 +1082,14 @@ class SequentialMemory:
             )
         active_sources = self._active_sources()
         if not active_sources:
-            self.last_prediction_stats = {
-                "active_source_count": 0,
-                "candidate_segment_count": 0,
-                "threshold_crossing_segment_count": 0,
-                "accepted_candidate_count": 0,
-                "raw_event_count": 0,
-                "raw_predicted_column_count": 0,
-            }
+            self.last_prediction_stats = build_prediction_stats(
+                active_source_count=0,
+                candidate_segment_count=0,
+                threshold_crossing_segment_count=0,
+                accepted_candidate_count=0,
+                raw_event_count=0,
+                raw_predicted_column_count=0,
+            )
             return None
 
         candidates: dict[int, tuple[int, int, Segment, float, list[float]]] = {}
@@ -1208,7 +1216,11 @@ class SequentialMemory:
             # The normalized response kernel never exceeds one. Segments whose
             # active weights cannot reach threshold need no timed evaluation.
             preselection_item = preselection_by_segment.get(id(segment))
-            if self._dynamics.v_rest + upper_bound < self.params.dendrite_threshold:
+            if segment_upper_bound_is_below_threshold(
+                self._dynamics.v_rest,
+                upper_bound,
+                self.params.dendrite_threshold,
+            ):
                 if preselection_item is not None:
                     preselection_item.elimination_stage = (
                         "UPPER_BOUND_ELIGIBILITY"
@@ -1394,12 +1406,10 @@ class SequentialMemory:
                             "predictive_soma_cannot_fire"
                         )
                     continue
-                if (
-                    target_time < self.params.cycle_period
-                    or target_time
-                    > self.params.cycle_period
-                    + self.params.cycle_period / 2.0
-                    + self.params.timing_tolerance
+                if prediction_time_is_outside_window(
+                    target_time,
+                    self.params.cycle_period,
+                    self.params.timing_tolerance,
                 ):
                     if preselection_item is not None:
                         preselection_item.elimination_stage = (
@@ -1410,7 +1420,7 @@ class SequentialMemory:
                         )
                     continue
                 raw_eligible_segments.add(id(segment))
-                event_key = (column_id, round(target_time, 12))
+                event_key = prediction_event_key(column_id, target_time)
                 if preselection_item is not None:
                     preselection_item.valid_firing_time = True
                     preselection_item.event_time_key = event_key[1]
@@ -1485,14 +1495,14 @@ class SequentialMemory:
                     preselection_item.tie_break_used = score == previous[1]
 
         if not best_by_event:
-            self.last_prediction_stats = {
-                "active_source_count": len(active_sources),
-                "candidate_segment_count": len(candidates),
-                "threshold_crossing_segment_count": 0,
-                "accepted_candidate_count": 0,
-                "raw_event_count": 0,
-                "raw_predicted_column_count": 0,
-            }
+            self.last_prediction_stats = build_prediction_stats(
+                active_source_count=len(active_sources),
+                candidate_segment_count=len(candidates),
+                threshold_crossing_segment_count=0,
+                accepted_candidate_count=0,
+                raw_event_count=0,
+                raw_predicted_column_count=0,
+            )
             return None
 
         if preselection_trace is not None:
@@ -1679,40 +1689,19 @@ class SequentialMemory:
         for column_id, values in selected_events:
             neuron_index, score, target_time, segment = values
             metadata = prediction_metadata.get(id(segment), {})
-            crossing_time = metadata.get("first_threshold_crossing_time")
-            peak_potential = metadata.get("peak_dendritic_potential")
-            soma_time = metadata.get("predicted_soma_firing_time")
             self.last_prediction_candidates.setdefault(column_id, []).append(
                 # DEBUG WATCH: 这里保存“同一次 predict_code”的 crossing metadata。
                 # 后续 decode/advance/Scenario 1 都应复用它，不能重新预测。
-                PredictionCandidate(
+                build_prediction_candidate(
+                    candidate_factory=PredictionCandidate,
+                    contribution_type=SynapsePSPContribution,
                     neuron_index=neuron_index,
                     score=score,
-                    time=target_time - self.params.cycle_period,
+                    target_time=target_time,
+                    cycle_period=self.params.cycle_period,
                     segment=segment,
-                    dendritic_crossing_time=(
-                        crossing_time if isinstance(crossing_time, float) else None
-                    ),
-                    crossing_synapse_contributions=tuple(
-                        item
-                        for item in metadata.get(
-                            "crossing_synapse_contributions", ()
-                        )
-                        if isinstance(item, SynapsePSPContribution)
-                    ),
-                    peak_dendritic_potential=(
-                        peak_potential
-                        if isinstance(peak_potential, float)
-                        else None
-                    ),
-                    threshold_margin=(
-                        peak_potential - self.params.dendrite_threshold
-                        if isinstance(peak_potential, float)
-                        else None
-                    ),
-                    predicted_soma_firing_time=(
-                        soma_time if isinstance(soma_time, float) else None
-                    ),
+                    metadata=metadata,
+                    dendrite_threshold=self.params.dendrite_threshold,
                 )
             )
         if trace is not None:
@@ -1727,27 +1716,24 @@ class SequentialMemory:
                     item.segment_identity in raw_eligible_segments
                     and item.segment_identity not in selected_segment_ids
                 )
-        self.last_prediction_stats = {
-            "active_source_count": len(active_sources),
-            "candidate_segment_count": len(candidates),
-            "threshold_crossing_segment_count": len(raw_eligible_segments),
-            "accepted_candidate_count": sum(
+        self.last_prediction_stats = build_prediction_stats(
+            active_source_count=len(active_sources),
+            candidate_segment_count=len(candidates),
+            threshold_crossing_segment_count=len(raw_eligible_segments),
+            accepted_candidate_count=sum(
                 len(candidates)
                 for candidates in self.last_prediction_candidates.values()
             ),
-            "raw_event_count": len(selected_events),
-            "raw_predicted_column_count": len(
+            raw_event_count=len(selected_events),
+            raw_predicted_column_count=len(
                 {column_id for column_id, _values in selected_events}
             ),
-        }
+        )
         return SymbolCode(
-            events=tuple(
-                SpikeEvent(
-                    column=column_id,
-                    time=target_time - self.params.cycle_period,
-                )
-                for column_id,
-                (_neuron_index, _score, target_time, _segment) in selected_events
+            events=build_emitted_spike_events(
+                selected_events,
+                cycle_period=self.params.cycle_period,
+                event_factory=SpikeEvent,
             )
         )
 
