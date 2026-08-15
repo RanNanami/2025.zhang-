@@ -1,0 +1,22 @@
+owner,lines,artifact_or_symbol,class,input_dependencies,model_or_rng_access,phase04_action,rationale
+strict_summary_paths,2614-2620,summary path discovery,PURE_OUTPUT,output_dir,none,MOVE_AND_REEXPORT,Path filtering only
+write_density_trace,915-918,density CSV,PURE_OUTPUT,path and completed rows,none,REMOVE_WRAPPER,Identical forwarding to write_predictions
+write_long_sequence_activity_trace,921-928,long-sequence CSV,PURE_OUTPUT,path and completed rows,none,REMOVE_WRAPPER,Identical forwarding to write_predictions
+run_strict_stream,4233-4270,strict summary payload,PURE_FORMATTING,completed counters metrics and fingerprints,reads completed model fingerprints only,KEEP,Payload schema is protocol-visible
+run_strict_stream,4293-4419,diagnostic summary enrichment,PROTOCOL_SEMANTIC,tracker summaries and completed diagnostic rows,read-only completed tracker state,KEEP,Diagnostic content construction is not ordinary IO
+run_strict_stream,4420-4425,predictions and initial summary,PURE_OUTPUT,output_dir stream_label completed rows and summary,none,MOVE,Low-level CSV and JSON lifecycle
+run_strict_stream,4426-4443,long-sequence artifacts,RUNTIME_INFRASTRUCTURE,completed rows and protocol payload,none,KEEP_PAYLOAD_MOVE_WRITES,Preserve optional diagnostic conditions and schema
+run_strict_stream,4444-4447,stream protocol JSON,PURE_OUTPUT,output_dir stream_label completed fingerprint,none,MOVE,Serialization only
+run_strict_stream,4448-5148,optional diagnostic outputs,RUNTIME_INFRASTRUCTURE,completed diagnostic rows summaries and protocol payloads,none,KEEP,Calls diagnostic summarizers and owns sensitive flush/compression order
+run_strict_stream,5149-5152,final summary republish,PURE_OUTPUT,output_dir stream_label completed summary,none,MOVE,Serialization only
+run_strict_stream,5153-5164,adaptation plots,PURE_OUTPUT,output_dir stream_label completed rows and fixed plot start,none,MOVE,Formatting only through existing plot_adaptation
+run_strict_stream,5165,diagnostic writer close,NATIVE_CRASH_SENSITIVE,global diagnostic writer registry,none,KEEP,Output lifetime and historical native investigation boundary
+compare_pre_change_predictions,5169-5198,pre-change comparison,PROTOCOL_SEMANTIC,original and perturbed prediction CSVs,none,KEEP,Computes protocol validation content
+run_april_branch,5608-5618,April branch summary,PURE_OUTPUT,completed branch summaries and split metadata,none,OPTIONAL_MOVE,Writing can move but orchestration and payload stay
+run_main,5668-5900,runtime payload construction,PROTOCOL_SEMANTIC,CLI values summaries timestamps and comparison,none,KEEP,Field schema and execution order remain runner-owned
+run_main,5901-5905,runtime.json,PURE_OUTPUT,completed runtime payload,none,MOVE,Serialization only
+run_main,5906-5912,canonical protocol.json copy,PURE_OUTPUT,completed original_protocol.json bytes,none,MOVE,Byte-preserving copy only
+main,5915-5939,profile output,RUNTIME_INFRASTRUCTURE,profiler stats and path,none,KEEP,Profiling lifecycle is outside ordinary Fig9 artifacts
+save_strict_checkpoint,931-1008,checkpoint.pkl,CHECKPOINT_SENSITIVE,encoder model RNG rows diagnostics,full model state,KEEP,Explicitly forbidden this phase
+write_checkpoint_metadata,1019-1059,checkpoint metadata,CHECKPOINT_SENSITIVE,checkpoint hashes model and provenance,model fingerprint,KEEP,Explicitly forbidden this phase
+install_native_crash_logging,637-710,native crash logs,NATIVE_CRASH_SENSITIVE,process environment handles and threads,module integrity only,KEEP,Must remain on native crash investigation path
