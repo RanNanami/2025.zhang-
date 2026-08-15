@@ -3,6 +3,20 @@
 from __future__ import annotations
 
 from types import MappingProxyType
+from typing import Iterable, Protocol
+
+
+class MutableSynapse(Protocol):
+    """Structural type for the two fields changed by learning rules."""
+
+    weight: float
+    age: int
+
+
+class MutableSegment(Protocol):
+    """Structural type for a segment passed explicitly by its model owner."""
+
+    synapses: dict[int, MutableSynapse]
 
 
 NO_LEARNING_BRANCH = ""
@@ -46,3 +60,53 @@ def classify_observation_learning_branch(
     if matching_segment_eligible:
         return SCENARIO2_BRANCH
     return SCENARIO3_BRANCH
+
+
+def apply_selected_segment_updates(
+    synapses: dict[int, MutableSynapse],
+    contributed_sources: set[int],
+    *,
+    delta_w: float,
+    depress_noncontributing: bool,
+) -> None:
+    """Mutate one already-selected segment in existing dictionary order."""
+
+    for source, synapse in synapses.items():
+        if source in contributed_sources:
+            synapse.weight = min(1.0, synapse.weight + delta_w)
+            synapse.age = 0
+        elif depress_noncontributing:
+            synapse.weight = max(0.0, synapse.weight - delta_w)
+            synapse.age += 1
+
+
+def depress_other_segment_updates(
+    segments: Iterable[MutableSegment],
+    selected_segment: MutableSegment,
+    *,
+    delta_w: float,
+    enabled: bool,
+) -> None:
+    """Depress other segments after the selected-segment update."""
+
+    for segment in segments:
+        if segment is selected_segment:
+            continue
+        for synapse in segment.synapses.values():
+            if enabled:
+                synapse.weight = max(0.0, synapse.weight - delta_w)
+                synapse.age += 1
+
+
+def apply_failed_prediction_updates(
+    synapses: dict[int, MutableSynapse],
+    contributed_sources: set[int],
+    *,
+    delta_w_bad: float,
+) -> None:
+    """Punish already-resolved contributing sources in set iteration order."""
+
+    for source in contributed_sources:
+        synapse = synapses[source]
+        synapse.weight = max(0.0, synapse.weight - delta_w_bad)
+        synapse.age += 1

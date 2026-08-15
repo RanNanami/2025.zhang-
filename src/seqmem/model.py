@@ -31,7 +31,12 @@ from .dynamics import (
     spike_response,
 )
 from .encoding import SSTDDiscreteEncoder, SpikeEvent, SymbolCode
-from ._learning_helpers import classify_observation_learning_branch
+from ._learning_helpers import (
+    apply_failed_prediction_updates,
+    apply_selected_segment_updates,
+    classify_observation_learning_branch,
+    depress_other_segment_updates,
+)
 
 
 @dataclass
@@ -3770,26 +3775,20 @@ class SequentialMemory:
                     (column_id, neuron_index, segment)
                 )
 
-        for source, synapse in segment.synapses.items():
-            if source in contributed:
-                synapse.weight = min(1.0, synapse.weight + self.params.delta_w)
-                synapse.age = 0
-            else:
-                if depress_noncontributing:
-                    # STATE MUTATION: 非贡献突触被减弱并老化；这是排查
-                    # “正确预测后被误减弱”的断点。
-                    synapse.weight = max(0.0, synapse.weight - self.params.delta_w)
-                    synapse.age += 1
-
-        for other_segment in neuron.segments:
-            if other_segment is segment:
-                continue
-            for synapse in other_segment.synapses.values():
-                if depress_noncontributing:
-                    synapse.weight = max(
-                        0.0, synapse.weight - self.params.delta_w
-                    )
-                    synapse.age += 1
+        # The helper receives already-resolved objects and contributors. It
+        # preserves selected-segment then other-segment mutation order.
+        apply_selected_segment_updates(
+            segment.synapses,
+            contributed,
+            delta_w=self.params.delta_w,
+            depress_noncontributing=depress_noncontributing,
+        )
+        depress_other_segment_updates(
+            neuron.segments,
+            segment,
+            delta_w=self.params.delta_w,
+            enabled=depress_noncontributing,
+        )
 
         if capture_scope:
             weights_after_by_source = {
@@ -4047,12 +4046,11 @@ class SequentialMemory:
                         ),
                     },
                 )
-                for source in contributed:
-                    synapse = segment.synapses[source]
-                    synapse.weight = max(
-                        0.0, synapse.weight - self.params.delta_w_bad
-                    )
-                    synapse.age += 1
+                apply_failed_prediction_updates(
+                    segment.synapses,
+                    contributed,
+                    delta_w_bad=self.params.delta_w_bad,
+                )
                 self._emit_prune_diagnostic(
                     "PUNISH_WRONG_PREDICTIONS_BEFORE_PRUNE",
                     target_column=column_id,
