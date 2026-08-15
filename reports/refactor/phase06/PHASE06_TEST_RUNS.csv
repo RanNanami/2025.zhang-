@@ -1,0 +1,14 @@
+run_id,scope,status,exit_code,test_count,module_count,elapsed_seconds,evidence,notes
+golden_before,Fig8/Fig9 10/20/50,EXACT,0,6,,,results/refactor/phase06/golden_before/comparison.json,all fixtures passed first attempt
+learning_related,"learning helper; temporal confirmation; paper alignment; L_match",PASS,0,68,,5.471,,truth table and mutation order included
+golden_learning_helper,Fig8/Fig9 10/20/50,EXACT,0,6,,,results/refactor/phase06/golden_learning_helper/comparison.json,all fixtures passed first attempt
+branch_sequence,"Fig8 20/50; Fig9 20/50",EXACT,0,4,,,reports/refactor/phase06/PHASE06_BRANCH_SEQUENCE_PARITY.csv,event and punishment rows exact
+checkpoint_compatibility,old load and fresh-process roundtrip,PASS,0,2,,0.362,,pickle paths and fingerprints exact
+diagnostic_on_off,"segment reinforcement; actual branch provenance; match overlap",EXACT,0,3,,,reports/refactor/phase06/diagnostic_regression/diagnostic_regression.json,science/state exact; gzip content exact
+final_related,"architecture; learning decision; diagnostics; checkpoint; temporal confirmation",PASS,0,31,,0.873,,final focused verification
+compileall_final,"src experiments tests",PASS,0,,,,,exit 0
+git_diff_check,repository patch,PASS,0,,,,,no whitespace errors
+single_process_1,unittest discover,NATIVE_CRASH,-1073741819,,,29.745,results/refactor/phase06/single_process_tests/run_1/result.json,Windows 0xC0000005; no Python traceback
+single_process_2,unittest discover,PASS,0,737,,287.993,results/refactor/phase06/single_process_tests/run_2/result.json,
+single_process_3,unittest discover,PASS,0,737,,285.332,results/refactor/phase06/single_process_tests/run_3/result.json,
+isolated_modules,per-module unittest runner,PASS,0,737,56,,results/refactor/phase06/isolated_tests/summary.json,56/56 modules; zero isolated native crashes

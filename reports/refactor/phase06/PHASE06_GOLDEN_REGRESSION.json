@@ -1,0 +1,53 @@
+{
+  "phase": "PHASE06",
+  "classification": "REFACTOR_REGRESSION_ONLY_NOT_A_PAPER_RESULT",
+  "reference_manifest": "reports/refactor/phase01_20260814_233129/baselines/pre_refactor/baseline_manifest.json",
+  "phase06_start_commit": "6cc5e05a31965fc47e416a1b03d738fc3d762e3e",
+  "extraction_commit": "537dc2235bfb76b4859a22d7e42bbfaa38688a82",
+  "fixtures": [
+    "fig8_10",
+    "fig8_20",
+    "fig8_50",
+    "fig9_10",
+    "fig9_20",
+    "fig9_50"
+  ],
+  "behavior_fields": [
+    "prediction_sha256",
+    "metric",
+    "scenario_summary",
+    "SCIENCE_MODEL_SHA256",
+    "FULL_STATE_SHA256",
+    "RNG_SHA256",
+    "LEARNING_RNG_SHA256",
+    "DECODE_RNG_SHA256",
+    "PREVIOUS_ACTIVE_SHA256",
+    "PREVIOUS_WINNER_SHA256",
+    "CANDIDATE_SHA256",
+    "structure"
+  ],
+  "stages": [
+    {
+      "stage": "before_phase06_extraction",
+      "comparison": "results/refactor/phase06/golden_before/comparison.json",
+      "all_six_exact_match": true,
+      "native_failure_attempts": 0
+    },
+    {
+      "stage": "pure_learning_branch_helper",
+      "comparison": "results/refactor/phase06/golden_learning_helper/comparison.json",
+      "all_six_exact_match": true,
+      "native_failure_attempts": 0
+    }
+  ],
+  "all_stages_exact": true,
+  "scenario_ledger_exact": true,
+  "science_model_sha_exact": true,
+  "full_state_sha_exact": true,
+  "learning_rng_sha_exact": true,
+  "decode_rng_sha_exact": true,
+  "candidate_sha_exact": true,
+  "segment_synapse_structure_exact": true,
+  "native_crash_reproduced_in_golden_runs": false,
+  "native_crash_fixed": false
+}

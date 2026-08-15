@@ -1,0 +1,4 @@
+fixture,classification,records,scientific_exact,different_fields,prediction_sha_equal,science_state_equal,rng_equal,scenario_ledger_equal,segment_synapse_equal
+segment_reinforcement,READ_ONLY_TRACE,20,True,,True,True,True,True,True
+actual_branch_provenance,READ_ONLY_TRACE_PROVENANCE,20,True,,True,True,True,True,True
+match_overlap,READ_ONLY_TRACE_COMPLEX,20,True,,True,True,True,True,True

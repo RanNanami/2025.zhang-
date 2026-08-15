@@ -1,0 +1,7 @@
+stage,commit,source_function,extracted_helper,target_module,input_evidence,output,model_ownership,rng,mutation,float_recalculation,behavior_change
+paper-name-map,537dc22,none,CANONICAL_PAPER_BRANCH_BY_INTERNAL,seqmem._learning_helpers,historical branch label,canonical documentation label,SequentialMemory,NO,NO,NO,NO
+branch-classification,537dc22,SequentialMemory.observe_code,classify_observation_learning_branch,seqmem._learning_helpers,"learning_enabled; has_matching_segment; was_predicted; matching_segment_eligible",historical branch label,SequentialMemory,NO,NO,NO,NO
+retained-readonly-search,537dc22,SequentialMemory.observe_code,_best_matching_neuron,seqmem.model,"previous active cells; event; segment graph",matched neuron and exact segment,SequentialMemory,YES,NO,YES,NO
+retained-rng-decision,537dc22,SequentialMemory.observe_code,_least_used_neuron_index,seqmem.model,"column segment counts; learning RNG",winner neuron index,SequentialMemory,YES,NO,NO,NO
+retained-mutation,537dc22,SequentialMemory.observe_code,"_reinforce_segment; _grow_new_segment; _punish_wrong_predictions; _forget",seqmem.model,"resolved branch; exact candidate/segment/context",persistent memory mutation,SequentialMemory,YES,YES,YES,NO
+retained-publish,537dc22,SequentialMemory.observe_code,"previous_active_cells/winners publication",seqmem.model,completed observation state,transient context,SequentialMemory,NO,TRANSIENT_ONLY,NO,NO
