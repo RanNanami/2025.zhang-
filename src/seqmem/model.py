@@ -31,6 +31,7 @@ from .dynamics import (
     spike_response,
 )
 from .encoding import SSTDDiscreteEncoder, SpikeEvent, SymbolCode
+from ._learning_helpers import classify_observation_learning_branch
 
 
 @dataclass
@@ -2295,11 +2296,27 @@ class SequentialMemory:
                     else None
                 )
             was_predicted = predicted is not None and matched is not None
+            matching_segment_eligible = False
+            if matched is not None and learn and not was_predicted:
+                _matched_neuron, matched_segment = matched
+                matching_segment_eligible = matched_segment.timed_overlap(
+                    previous_active,
+                    self._dendritic_time(
+                        self.params.cycle_period + event.time
+                    ),
+                    self.params.timing_tolerance,
+                ) >= self.params.l_match
+            learning_branch = classify_observation_learning_branch(
+                learning_enabled=learn,
+                has_matching_segment=matched is not None,
+                was_predicted=was_predicted,
+                matching_segment_eligible=matching_segment_eligible,
+            )
             if matched is None:
                 # PAPER-EXPLICIT: Scenario 3。既没有预测，也没有足够匹配的
                 # segment，就在 least-used neuron 上长一个新 segment。
-                scenario_counts["scenario3"] += 1
-                observe_scenario = "scenario3"
+                scenario_counts[learning_branch] += 1
+                observe_scenario = learning_branch
                 if matching_predictions:
                     scenario_assignment_reason = (
                         "MATCHING_SEGMENT_NOT_ELIGIBLE"
@@ -2334,9 +2351,9 @@ class SequentialMemory:
             else:
                 neuron_index, segment = matched
                 selected_segment = segment
-                if not learn:
+                if not learning_branch:
                     pass
-                elif was_predicted:
+                elif learning_branch == "scenario1":
                     # Paper scenario 1: a predictive neuron that subsequently
                     # receives its proximal input triggers learning directly.
                     # DEBUG WATCH: Scenario 1 branch。这里应复用 predicted
@@ -2359,11 +2376,7 @@ class SequentialMemory:
                         scenario="scenario1",
                         prediction_candidate=predicted,
                     )
-                elif segment.timed_overlap(
-                    previous_active,
-                    self._dendritic_time(self.params.cycle_period + event.time),
-                    self.params.timing_tolerance,
-                ) >= self.params.l_match:
+                elif learning_branch == "scenario2":
                     # PAPER-EXPLICIT: Scenario 2。没有提前预测成功，但存在
                     # 与当前输入匹配的旧 segment；会强化并补长缺失突触。
                     scenario_counts["scenario2"] += 1
