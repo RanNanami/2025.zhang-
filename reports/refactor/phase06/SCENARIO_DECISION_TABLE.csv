@@ -1,0 +1,10 @@
+decision_stage,active_column,has_prediction_candidate,has_timing_confirmed_prediction,confirmed_candidate_count,has_matching_segment,best_matching_overlap,l_match,current_internal_branch,canonical_paper_branch,winner_source,segment_source,uses_rng,persistent_mutation_after_decision
+confirmation,YES,NO,NO,0,UNKNOWN,UNKNOWN,current,NONE,NONE,not-yet-selected,not-yet-selected,NO,NO
+confirmation,YES,YES,YES,1+,YES,not-recomputed,current,scenario1,PAPER_S1,predicted-neuron,same-prediction-candidate-segment,NO,YES-if-learning
+fallback-search,YES,YES,NO,0,YES,at-least-l_match,current,scenario2,PAPER_S2A,best-matching-neuron,best-matching-segment,POSSIBLE_ON_EXACT_TIE,YES-if-learning
+fallback-search,YES,NO,NO,0,YES,at-least-l_match,current,scenario2,PAPER_S2A,best-matching-neuron,best-matching-segment,POSSIBLE_ON_EXACT_TIE,YES-if-learning
+fallback-search,YES,ANY,NO,0,NO,below-l_match-or-no-candidate,current,scenario3,PAPER_S2B,least-used-neuron,new-segment,POSSIBLE,YES-if-learning-and-context
+post-search,YES,ANY,NO,0,YES,below-l_match,current,scenario3,PAPER_S2B,least-used-neuron,new-segment,POSSIBLE,YES
+learning-disabled,YES,ANY,ANY,ANY,YES,ANY,current,NONE,NONE,matched-neuron,existing-segment,SEARCH_MAY_HAVE_USED_RNG,NO
+learning-disabled-no-match,YES,ANY,NO,0,NO,ANY,current,scenario3,PAPER_S2B,least-used-neuron,none,POSSIBLE,NO
+failed-prediction-punishment,ANY,YES,NO,0,ANY,ANY,current,none,PAPER_S3,saved-predicted-neuron,saved-prediction-candidate-segment,NO,YES
