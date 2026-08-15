@@ -7,10 +7,16 @@ strict 入口只应从这个包读取数据、指标、输出和学习 helper。
 from .data import TaxiRecord, read_records, record_values
 from .learning import learn_actual_code
 from .metrics import error_ratio, mape, reference_rolling_mape
-from .outputs import plot_adaptation, write_predictions
+from .outputs import (
+    StrictStreamOutputPaths,
+    plot_adaptation,
+    strict_summary_paths,
+    write_predictions,
+)
 
 __all__ = [
     "TaxiRecord",
+    "StrictStreamOutputPaths",
     "error_ratio",
     "learn_actual_code",
     "mape",
@@ -18,5 +24,6 @@ __all__ = [
     "read_records",
     "record_values",
     "reference_rolling_mape",
+    "strict_summary_paths",
     "write_predictions",
 ]

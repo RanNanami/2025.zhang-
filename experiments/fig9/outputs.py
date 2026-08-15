@@ -3,8 +3,45 @@
 from __future__ import annotations
 
 import csv
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+
+
+@dataclass(frozen=True)
+class StrictStreamOutputPaths:
+    """Ordinary artifact paths for one strict Fig.9 stream."""
+
+    output_dir: Path
+    stream_label: str
+
+    @property
+    def predictions(self) -> Path:
+        return self.output_dir / f"{self.stream_label}_predictions.csv"
+
+    @property
+    def summary(self) -> Path:
+        return self.output_dir / f"{self.stream_label}_summary.json"
+
+    @property
+    def protocol(self) -> Path:
+        return self.output_dir / f"{self.stream_label}_protocol.json"
+
+    def ensure_directory(self) -> None:
+        """Create the shared artifact directory without touching model state."""
+
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+
+
+def strict_summary_paths(output_dir: Path) -> list[Path]:
+    """Return strict summaries while excluding historical compensated output."""
+
+    historical = output_dir / "fig9_historical_compensated"
+    return [
+        path
+        for path in (output_dir / "fig9_strict").glob("*summary.json")
+        if historical not in path.parents
+    ]
 
 
 def write_predictions(path: Path, rows: list[dict[str, object]]) -> None:

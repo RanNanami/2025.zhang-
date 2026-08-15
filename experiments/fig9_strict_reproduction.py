@@ -44,6 +44,7 @@ from experiments.common.diagnostic_io import (  # noqa: E402
 )
 from experiments.common.jsonio import write_json, write_json_atomic  # noqa: E402
 from experiments.fig9 import (  # noqa: E402
+    StrictStreamOutputPaths,
     TaxiRecord,
     learn_actual_code,
     mape,
@@ -51,6 +52,7 @@ from experiments.fig9 import (  # noqa: E402
     read_records,
     record_values,
     reference_rolling_mape,
+    strict_summary_paths,
     write_predictions,
 )
 from experiments.fig9.diagnostic_loader import (  # noqa: E402
@@ -2611,15 +2613,6 @@ def rollout_raw_autonomous(
             branch_registry.current_burst_sources = registry_burst_before
 
 
-def strict_summary_paths(output_dir: Path) -> list[Path]:
-    historical = output_dir / "fig9_historical_compensated"
-    return [
-        path
-        for path in (output_dir / "fig9_strict").glob("*summary.json")
-        if historical not in path.parents
-    ]
-
-
 def run_strict_stream(
     *,
     records: list[TaxiRecord],
@@ -4417,9 +4410,10 @@ def run_strict_stream(
             "model_protocol_unchanged": True,
         }
 
-    output_dir.mkdir(parents=True, exist_ok=True)
-    write_predictions(output_dir / f"{stream_label}_predictions.csv", rows)
-    (output_dir / f"{stream_label}_summary.json").write_text(
+    artifact_paths = StrictStreamOutputPaths(output_dir, stream_label)
+    artifact_paths.ensure_directory()
+    write_predictions(artifact_paths.predictions, rows)
+    artifact_paths.summary.write_text(
         json.dumps(summary, indent=2, sort_keys=True),
         encoding="utf-8",
     )
@@ -4441,7 +4435,7 @@ def run_strict_stream(
                 "rows": len(long_sequence_rows),
             },
         )
-    (output_dir / f"{stream_label}_protocol.json").write_text(
+    artifact_paths.protocol.write_text(
         json.dumps(fingerprint, indent=2, sort_keys=True),
         encoding="utf-8",
     )
