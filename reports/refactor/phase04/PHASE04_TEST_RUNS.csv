@@ -1,0 +1,19 @@
+run_id,scope,status,exit_code,test_count,module_count,elapsed_seconds,evidence,notes
+compileall_final,"src experiments tests",PASS,0,,,,,"python -m compileall -q"
+p4_1_related,tests.test_fig9_strict_reproduction,PASS,0,29,,57.145,,
+p4_1_golden,Fig8/Fig9 10/20/50,EXACT,0,6,,,results/refactor/phase04/golden_p4_1_paths/comparison.json,
+p4_2_related,tests.test_fig9_strict_reproduction,PASS,0,29,,57.376,,
+p4_2_golden,Fig8/Fig9 10/20/50,EXACT,0,6,,,results/refactor/phase04/golden_p4_2_metadata/comparison.json,
+p4_3_related,tests.test_fig9_strict_reproduction,PASS,0,29,,58.260,,
+p4_3_golden_first,fig9_50,NATIVE_CRASH,3221225477,,,,results/refactor/phase04/golden_p4_3_results/shards/fig9_50.stderr.log,0xC0000005 nested child failure
+p4_3_golden_retry,Fig8/Fig9 10/20/50,EXACT,0,6,,,results/refactor/phase04/golden_p4_3_results_retry/comparison.json,
+p4_4_related,tests.test_fig9_strict_reproduction,PASS,0,29,,58.544,,
+p4_4_golden_audited,Fig8/Fig9 10/20/50,EXACT,0,6,,,results/refactor/phase04/golden_p4_4_audited/comparison.json,"two Fig8 50 and one Fig9 50 native attempts retained"
+compatibility_related,"long sequence and candidate separability",PASS,0,24,,10.130,,
+compatibility_golden_final,Fig8/Fig9 10/20/50,EXACT,0,6,,,results/refactor/phase04/golden_compatibility_fix/comparison.json,all fixtures passed first attempt
+phase04_architecture,tests.test_phase04_output_architecture,PASS,0,9,,0.427,,
+single_process_preliminary,unittest discover,FAIL,1,711,,214.594,results/refactor/phase04/single_process_tests/run_1.stderr.log,"one removed compatibility export fixed; one pre-existing long-process dynamics type corruption"
+single_process_final_1,unittest discover,NATIVE_CRASH,3221225477,,,80.761,results/refactor/phase04/single_process_tests_final/run_1.stderr.log,"0xC0000005 in model.py potential during intracolumn selector"
+single_process_final_2,unittest discover,NATIVE_CRASH,3221225477,,,102.146,results/refactor/phase04/single_process_tests_final/run_2.stderr.log,"terminated during paper parity roundtrip; no Python traceback"
+single_process_final_3,unittest discover,NATIVE_CRASH,3221225477,,,28.646,results/refactor/phase04/single_process_tests_final/run_3.stderr.log,"0xC0000005 during competitive-inhibition test"
+isolated_modules_final,per-module unittest runner,PASS,0,720,52,218.872,results/refactor/phase04/isolated_tests/summary.json,52/52 modules passed with zero isolated native crashes

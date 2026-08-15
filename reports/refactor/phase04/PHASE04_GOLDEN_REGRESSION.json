@@ -1,0 +1,67 @@
+{
+  "phase": "PHASE04",
+  "classification": "REFACTOR_REGRESSION_ONLY_NOT_A_PAPER_RESULT",
+  "reference_manifest": "reports/refactor/phase01_20260814_233129/baselines/pre_refactor/baseline_manifest.json",
+  "phase04_start_commit": "88dfbd897f30869ada3e8d4a8452005feaf71ee3",
+  "final_implementation_commit": "ac2e630f903870989d621e61581f12af6053513d",
+  "behavior_fields": [
+    "prediction_sha256",
+    "metric",
+    "scenario_summary",
+    "SCIENCE_MODEL_SHA256",
+    "FULL_STATE_SHA256",
+    "RNG_SHA256",
+    "LEARNING_RNG_SHA256",
+    "DECODE_RNG_SHA256",
+    "PREVIOUS_ACTIVE_SHA256",
+    "PREVIOUS_WINNER_SHA256",
+    "CANDIDATE_SHA256",
+    "structure"
+  ],
+  "fixtures": [
+    "fig8_10",
+    "fig8_20",
+    "fig8_50",
+    "fig9_10",
+    "fig9_20",
+    "fig9_50"
+  ],
+  "stages": [
+    {
+      "stage": "before_phase04",
+      "result_path": "results/refactor/phase04/golden_before/comparison.json",
+      "all_six_exact_match": true
+    },
+    {
+      "stage": "artifact_paths",
+      "result_path": "results/refactor/phase04/golden_p4_1_paths/comparison.json",
+      "all_six_exact_match": true
+    },
+    {
+      "stage": "metadata_writers",
+      "result_path": "results/refactor/phase04/golden_p4_2_metadata/comparison.json",
+      "all_six_exact_match": true
+    },
+    {
+      "stage": "result_writers",
+      "result_path": "results/refactor/phase04/golden_p4_3_results_retry/comparison.json",
+      "all_six_exact_match": true,
+      "native_failures_before_success": 1
+    },
+    {
+      "stage": "plot_finalization",
+      "result_path": "results/refactor/phase04/golden_p4_4_audited/comparison.json",
+      "all_six_exact_match": true,
+      "native_failures_before_success": 3
+    },
+    {
+      "stage": "compatibility_exports_final",
+      "result_path": "results/refactor/phase04/golden_compatibility_fix/comparison.json",
+      "all_six_exact_match": true,
+      "native_failures_before_success": 0
+    }
+  ],
+  "final_all_six_exact_match": true,
+  "native_crash_reproduced_during_golden_runs": true,
+  "native_crash_fixed": false
+}
