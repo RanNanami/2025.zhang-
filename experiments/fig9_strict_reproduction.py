@@ -54,6 +54,9 @@ from experiments.fig9 import (  # noqa: E402
     reference_rolling_mape,
     strict_summary_paths,
     write_predictions,
+    write_runtime_artifacts,
+    write_stream_metadata,
+    write_stream_summary,
 )
 from experiments.fig9.diagnostic_loader import (  # noqa: E402
     load_actual_branch_provenance,
@@ -4413,10 +4416,7 @@ def run_strict_stream(
     artifact_paths = StrictStreamOutputPaths(output_dir, stream_label)
     artifact_paths.ensure_directory()
     write_predictions(artifact_paths.predictions, rows)
-    artifact_paths.summary.write_text(
-        json.dumps(summary, indent=2, sort_keys=True),
-        encoding="utf-8",
-    )
+    write_stream_metadata(artifact_paths, summary, fingerprint)
     if long_sequence_ledger:
         write_long_sequence_activity_trace(
             ledger_path,
@@ -4435,10 +4435,6 @@ def run_strict_stream(
                 "rows": len(long_sequence_rows),
             },
         )
-    artifact_paths.protocol.write_text(
-        json.dumps(fingerprint, indent=2, sort_keys=True),
-        encoding="utf-8",
-    )
     if density_rows:
         write_density_trace(
             density_trace_path or output_dir / f"{stream_label}_density_trace.csv",
@@ -5143,7 +5139,7 @@ def run_strict_stream(
     # Several diagnostic sections enrich ``summary`` after the core outputs
     # are written.  Publish it again only after those read-only sections have
     # recorded their final row counts and output paths.
-    write_json(output_dir / f"{stream_label}_summary.json", summary)
+    write_stream_summary(artifact_paths, summary)
     plot_name = (
         "fig9_b_original_mape.png"
         if stream_label == "original"
@@ -5892,18 +5888,11 @@ def run_main(args: argparse.Namespace) -> None:
         )
     runtime["summaries"] = summaries
     runtime["finished_at"] = datetime.now().isoformat(sep=" ", timespec="seconds")
-    output_dir.mkdir(parents=True, exist_ok=True)
-    (output_dir / "runtime.json").write_text(
-        json.dumps(runtime, indent=2, sort_keys=True),
-        encoding="utf-8",
+    write_runtime_artifacts(
+        output_dir,
+        runtime,
+        canonical_stream="original" if "original" in args.streams else None,
     )
-    if "original" in args.streams:
-        source = output_dir / "original_protocol.json"
-        if source.exists():
-            (output_dir / "protocol.json").write_text(
-                source.read_text(encoding="utf-8"),
-                encoding="utf-8",
-            )
 
 
 def main() -> None:

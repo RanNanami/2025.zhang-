@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+from experiments.common.jsonio import write_json
+
 
 @dataclass(frozen=True)
 class StrictStreamOutputPaths:
@@ -42,6 +44,47 @@ def strict_summary_paths(output_dir: Path) -> list[Path]:
         for path in (output_dir / "fig9_strict").glob("*summary.json")
         if historical not in path.parents
     ]
+
+
+def write_stream_metadata(
+    paths: StrictStreamOutputPaths,
+    summary: dict[str, object],
+    protocol: dict[str, object],
+) -> None:
+    """Write completed stream metadata without constructing protocol content."""
+
+    paths.ensure_directory()
+    write_json(paths.summary, summary)
+    write_json(paths.protocol, protocol)
+
+
+def write_stream_summary(
+    paths: StrictStreamOutputPaths,
+    summary: dict[str, object],
+) -> None:
+    """Republish a completed summary after optional diagnostics enrich it."""
+
+    write_json(paths.summary, summary)
+
+
+def write_runtime_artifacts(
+    output_dir: Path,
+    runtime: dict[str, object],
+    *,
+    canonical_stream: str | None = "original",
+) -> None:
+    """Write run metadata and preserve the canonical protocol byte copy."""
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    write_json(output_dir / "runtime.json", runtime)
+    if canonical_stream is None:
+        return
+    source = output_dir / f"{canonical_stream}_protocol.json"
+    if source.exists():
+        (output_dir / "protocol.json").write_text(
+            source.read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
 
 
 def write_predictions(path: Path, rows: list[dict[str, object]]) -> None:
