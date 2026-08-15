@@ -15,6 +15,7 @@ import random
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
+from ._state_helpers import build_transient_snapshot
 from .dynamics import (
     DSDynamicsParams,
     DSNeuronState,
@@ -699,20 +700,18 @@ class SequentialMemory:
         report_every 导致最终模型不同，通常是某个临时字段或 RNG 没恢复。
         """
 
-        return TransientStateSnapshot(
-            previous_active_cells=self.previous_active_cells.copy(),
-            previous_winners=self.previous_winners.copy(),
-            last_prediction_candidates={
-                column: candidates.copy()
-                for column, candidates in self.last_prediction_candidates.items()
-            },
-            last_prediction_stats=self.last_prediction_stats.copy(),
-            last_observe_stats=self.last_observe_stats.copy(),
-            last_symbol_ranking=self.last_symbol_ranking.copy(),
-            previous_predicted_sources=self.previous_predicted_sources.copy(),
-            previous_burst_only_sources=self.previous_burst_only_sources.copy(),
-            decode_rng_state=self._decode_rng.getstate(),
-            learning_rng_state=self._learning_rng.getstate(),
+        return build_transient_snapshot(
+            TransientStateSnapshot,
+            previous_active_cells=self.previous_active_cells,
+            previous_winners=self.previous_winners,
+            last_prediction_candidates=self.last_prediction_candidates,
+            last_prediction_stats=self.last_prediction_stats,
+            last_observe_stats=self.last_observe_stats,
+            last_symbol_ranking=self.last_symbol_ranking,
+            previous_predicted_sources=self.previous_predicted_sources,
+            previous_burst_only_sources=self.previous_burst_only_sources,
+            decode_rng=self._decode_rng,
+            learning_rng=self._learning_rng,
         )
 
     def restore_transient_state(self, snapshot: TransientStateSnapshot) -> None:
