@@ -1,0 +1,16 @@
+run_id,scope,status,exit_code,test_count,module_count,elapsed_seconds,evidence,notes
+prediction_helpers,pure helper boundaries and object identity,PASS,0,6,,0.001,tests/test_prediction_helpers.py,exact expressions and no RNG/model/scientific engine access
+focused_command_correction,initial focused command,COMMAND_CORRECTED,1,88,,,terminal output,one requested module name did not exist; all 88 discovered tests passed
+focused_prediction_temporal,"paper alignment; Fig8/Fig9 competition; temporal and Scenario semantics",PASS,0,141,,0.321,,corrected real module set
+golden_prediction_helpers,Fig8/Fig9 10/20/50,EXACT,0,6,,,reports/refactor/phase08/PHASE08_GOLDEN_REGRESSION.json,all first attempt
+prediction_sequence,"Fig8 20/50; Fig9 20/50",EXACT,0,4,,,reports/refactor/phase08/PHASE08_PREDICTION_SEQUENCE_PARITY.csv,120321278-byte trace byte exact
+branch_sequence,"Fig8 20/50; Fig9 20/50",EXACT,0,4,,,results/refactor/phase08/branch_after/branch_sequences.json,12690305 bytes SHA256 b49bcaaa225932696ddb68cab2578c89b64dc07ee1ddcc1b6c638fc2a685e0fb
+mutation_sequence,"Fig8 20/50; Fig9 20/50",EXACT,0,4,,,results/refactor/phase08/mutation_after/mutation_sequences.json,177246335 bytes SHA256 d783af223879090556fc573f216fc131434aad373c47c571dd29d6be3cab0c5a
+checkpoint,old load and fresh-process round trip,PASS,0,2,,,reports/refactor/phase08/PHASE08_CHECKPOINT_COMPATIBILITY.md,pickle paths and fingerprints exact
+diagnostic_on_off,"segment reinforcement; actual branch provenance; match overlap",EXACT,0,3,,,reports/refactor/phase08/diagnostic_regression/diagnostic_regression.json,science and decompressed artifact content exact
+compileall_final,src experiments tests scripts,PASS,0,,,,,exit 0
+git_diff_check,repository patch,PASS,0,,,,,no whitespace errors
+single_process_1,unittest discover,PASS,0,752,,297.5716003,results/refactor/phase08/single_process_tests/run_1/result.json,no native crash
+single_process_2,unittest discover,PASS,0,752,,293.4709604,results/refactor/phase08/single_process_tests/run_2/result.json,no native crash
+single_process_3,unittest discover,PASS,0,752,,292.2387190,results/refactor/phase08/single_process_tests/run_3/result.json,no native crash
+isolated_modules,per-module unittest runner,PASS,0,752,59,,results/refactor/phase08/isolated_tests/summary.json,59/59 modules and zero native crashes

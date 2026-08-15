@@ -1,0 +1,11 @@
+commit,legacy_location,new_helper,classification,iteration_order,float_order,identity_semantics,result
+761a74d,model.py:1208 predicate,_prediction_helpers.py:13 segment_upper_bound_is_below_threshold,pure eligibility predicate,unchanged,exact expression,not applicable,EXACT
+761a74d,model.py:1394 firing-window condition,_prediction_helpers.py:23 prediction_time_is_outside_window,pure eligibility predicate,unchanged,exact short-circuit expression,not applicable,EXACT
+761a74d,model.py:1412 event-key tuple,_prediction_helpers.py:37 prediction_event_key,deterministic key packaging,unchanged,round target_time 12 unchanged,not applicable,EXACT
+761a74d,model.py:1679-1717 candidate construction,_prediction_helpers.py:46 build_prediction_candidate,deterministic object packaging,metadata order unchanged,subtractions unchanged,exact Segment and contribution objects retained,EXACT
+761a74d,model.py:1074-1082 and 1485-1493 and 1718-1730 stats dictionaries,_prediction_helpers.py:90 build_prediction_stats,deterministic mapping packaging,key order unchanged,no float calculation,not applicable,EXACT
+761a74d,model.py:1731-1740 emitted event construction,_prediction_helpers.py:111 build_emitted_spike_events,deterministic result packaging,selected-event order unchanged,time subtraction unchanged,not applicable,EXACT
+retained,model.py:_active_sources and _live_incoming,,context and incoming traversal,unchanged,accumulation order retained,exact Segment lookup retained,RETAINED_BY_DESIGN
+retained,model.py:_continuous_segment_prediction and reference/optimized paths,,PSP crossing and soma calculation,unchanged,all loops retained,exact Segment and synapse objects retained,RETAINED_BY_DESIGN
+retained,model.py:best_by_event and intracolumn selection,,candidate selection and competition,unchanged,comparison/sort keys retained,exact winner Segment retained,RETAINED_BY_DESIGN
+excluded,model.py:advance_prediction,,autonomous transient propagation,unchanged,unchanged,exact published candidates consumed,NOT_TOUCHED
