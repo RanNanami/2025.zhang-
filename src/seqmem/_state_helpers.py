@@ -36,6 +36,24 @@ def shallow_copy_set(values: set[ItemT]) -> set[ItemT]:
     return values.copy()
 
 
+def new_empty_dict() -> dict[object, object]:
+    """Return a fresh built-in dict for one reset-state assignment."""
+
+    return {}
+
+
+def new_empty_list() -> list[object]:
+    """Return a fresh built-in list for one reset-state assignment."""
+
+    return []
+
+
+def new_empty_set() -> set[object]:
+    """Return a fresh built-in set for one reset-state assignment."""
+
+    return set()
+
+
 def shallow_copy_candidate_map(
     values: dict[int, list[ItemT]],
 ) -> dict[int, list[ItemT]]:

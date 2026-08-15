@@ -15,7 +15,16 @@ import random
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from ._state_helpers import build_transient_snapshot
+from ._state_helpers import (
+    build_transient_snapshot,
+    new_empty_dict,
+    new_empty_list,
+    new_empty_set,
+    shallow_copy_candidate_map,
+    shallow_copy_dict,
+    shallow_copy_list,
+    shallow_copy_set,
+)
 from .dynamics import (
     DSDynamicsParams,
     DSNeuronState,
@@ -684,14 +693,14 @@ class SequentialMemory:
 
     def reset_state(self) -> None:
         # STATE MUTATION: 只清空当前序列上下文，不删除任何已学 segment/synapse。
-        self.previous_active_cells = {}
-        self.previous_winners = {}
-        self.last_prediction_candidates = {}
-        self.last_prediction_stats = {}
-        self.last_observe_stats = {}
-        self.last_symbol_ranking = []
-        self.previous_predicted_sources = set()
-        self.previous_burst_only_sources = set()
+        self.previous_active_cells = new_empty_dict()
+        self.previous_winners = new_empty_dict()
+        self.last_prediction_candidates = new_empty_dict()
+        self.last_prediction_stats = new_empty_dict()
+        self.last_observe_stats = new_empty_dict()
+        self.last_symbol_ranking = new_empty_list()
+        self.previous_predicted_sources = new_empty_set()
+        self.previous_burst_only_sources = new_empty_set()
 
     def snapshot_transient_state(self) -> TransientStateSnapshot:
         """Capture retrieval state without copying long-term synaptic memory.
@@ -721,20 +730,23 @@ class SequentialMemory:
         因此调用方必须保证 snapshot 期间没有 learn=True。
         """
 
-        self.previous_active_cells = snapshot.previous_active_cells.copy()
-        self.previous_winners = snapshot.previous_winners.copy()
-        self.last_prediction_candidates = {
-            column: candidates.copy()
-            for column, candidates in snapshot.last_prediction_candidates.items()
-        }
-        self.last_prediction_stats = snapshot.last_prediction_stats.copy()
-        self.last_observe_stats = snapshot.last_observe_stats.copy()
-        self.last_symbol_ranking = snapshot.last_symbol_ranking.copy()
-        self.previous_predicted_sources = (
-            snapshot.previous_predicted_sources.copy()
+        self.previous_active_cells = shallow_copy_dict(
+            snapshot.previous_active_cells
         )
-        self.previous_burst_only_sources = (
-            snapshot.previous_burst_only_sources.copy()
+        self.previous_winners = shallow_copy_dict(snapshot.previous_winners)
+        self.last_prediction_candidates = shallow_copy_candidate_map(
+            snapshot.last_prediction_candidates
+        )
+        self.last_prediction_stats = shallow_copy_dict(
+            snapshot.last_prediction_stats
+        )
+        self.last_observe_stats = shallow_copy_dict(snapshot.last_observe_stats)
+        self.last_symbol_ranking = shallow_copy_list(snapshot.last_symbol_ranking)
+        self.previous_predicted_sources = shallow_copy_set(
+            snapshot.previous_predicted_sources
+        )
+        self.previous_burst_only_sources = shallow_copy_set(
+            snapshot.previous_burst_only_sources
         )
         self._decode_rng.setstate(snapshot.decode_rng_state)
         self._learning_rng.setstate(snapshot.learning_rng_state)
