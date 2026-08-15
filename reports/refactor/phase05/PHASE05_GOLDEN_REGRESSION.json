@@ -1,0 +1,75 @@
+{
+  "phase": "PHASE05",
+  "classification": "REFACTOR_REGRESSION_ONLY_NOT_A_PAPER_RESULT",
+  "reference_manifest": "reports/refactor/phase01_20260814_233129/baselines/pre_refactor/baseline_manifest.json",
+  "phase05_start_commit": "3d0076768a2e9e697133b5feb64bd458ff5ee096",
+  "final_implementation_commit": "aaf932a2d493f67686649006f1c7e8df34a42444",
+  "fixtures": [
+    "fig8_10",
+    "fig8_20",
+    "fig8_50",
+    "fig9_10",
+    "fig9_20",
+    "fig9_50"
+  ],
+  "behavior_fields": [
+    "prediction_sha256",
+    "metric",
+    "scenario_summary",
+    "SCIENCE_MODEL_SHA256",
+    "FULL_STATE_SHA256",
+    "RNG_SHA256",
+    "LEARNING_RNG_SHA256",
+    "DECODE_RNG_SHA256",
+    "PREVIOUS_ACTIVE_SHA256",
+    "PREVIOUS_WINNER_SHA256",
+    "CANDIDATE_SHA256",
+    "structure"
+  ],
+  "transient_component_sha_fields": [
+    "PREVIOUS_ACTIVE_SHA256",
+    "PREVIOUS_WINNER_SHA256",
+    "CANDIDATE_SHA256",
+    "RNG_SHA256",
+    "LEARNING_RNG_SHA256",
+    "DECODE_RNG_SHA256"
+  ],
+  "stages": [
+    {
+      "stage": "before_phase05",
+      "comparison": "results/refactor/phase05/golden_before/comparison.json",
+      "all_six_exact_match": true,
+      "native_failure_attempts": 0
+    },
+    {
+      "stage": "pure_copy_helpers",
+      "comparison": "results/refactor/phase05/golden_p5_1_copy_helpers/comparison.json",
+      "all_six_exact_match": true,
+      "native_failure_attempts": 0
+    },
+    {
+      "stage": "snapshot_construction",
+      "comparison": "results/refactor/phase05/golden_p5_2_snapshot/comparison.json",
+      "all_six_exact_match": true,
+      "native_failure_attempts": 0
+    },
+    {
+      "stage": "restore_reset",
+      "comparison": "results/refactor/phase05/golden_p5_3_restore_reset/comparison.json",
+      "all_six_exact_match": true,
+      "native_failure_attempts": 0
+    },
+    {
+      "stage": "final",
+      "comparison": "results/refactor/phase05/golden_final/comparison.json",
+      "all_six_exact_match": true,
+      "native_failure_attempts": 0
+    }
+  ],
+  "all_stages_exact": true,
+  "full_state_sha_exact": true,
+  "transient_component_sha_exact": true,
+  "rng_sha_exact": true,
+  "native_crash_reproduced_in_golden_runs": false,
+  "native_crash_fixed": false
+}

@@ -1,0 +1,17 @@
+run_id,scope,status,exit_code,test_count,module_count,elapsed_seconds,evidence,notes
+golden_before,Fig8/Fig9 10/20/50,EXACT,0,6,,,results/refactor/phase05/golden_before/comparison.json,all fixtures passed first attempt
+copy_helpers_targeted,tests.test_transient_state_helpers,PASS,0,2,,0.000,,before model adoption
+golden_copy_helpers,Fig8/Fig9 10/20/50,EXACT,0,6,,,results/refactor/phase05/golden_p5_1_copy_helpers/comparison.json,all fixtures passed first attempt
+snapshot_related,"transient helpers and strict reproduction",PASS,0,32,,52.940,,candidate identity and checkpoint tests included
+golden_snapshot,Fig8/Fig9 10/20/50,EXACT,0,6,,,results/refactor/phase05/golden_p5_2_snapshot/comparison.json,all fixtures passed first attempt
+restore_reset_targeted,"transient helper and boundary suites",PASS,0,9,,0.001,,future RNG sequence and identity exact
+golden_restore_reset,Fig8/Fig9 10/20/50,EXACT,0,6,,,results/refactor/phase05/golden_p5_3_restore_reset/comparison.json,all fixtures passed first attempt
+checkpoint_evaluation_targeted,"transient boundary and checkpoint compatibility",PASS,0,9,,0.300,,old checkpoint and fresh process current roundtrip
+diagnostic_on_off,"segment reinforcement; actual branch provenance; match overlap",EXACT,0,3,,,reports/refactor/phase05/diagnostic_regression/diagnostic_regression.json,science and state exact; gzip content exact
+compileall_final,"src experiments tests",PASS,0,,,0.134,results/refactor/phase05/compileall/result.json,
+single_process_1,unittest discover,PASS,0,732,,198.332,results/refactor/phase05/single_process_tests/run_1/result.json,
+single_process_2,unittest discover,PASS,0,732,,197.245,results/refactor/phase05/single_process_tests/run_2/result.json,
+single_process_3,unittest discover,PASS,0,732,,197.282,results/refactor/phase05/single_process_tests/run_3/result.json,
+isolated_modules,per-module unittest runner,PASS,0,732,55,208.108,results/refactor/phase05/isolated_tests/summary.json,55/55 modules; zero isolated native crashes
+golden_final,Fig8/Fig9 10/20/50,EXACT,0,6,,,results/refactor/phase05/golden_final/comparison.json,all fixtures passed first attempt
+git_diff_check,repository patch,PASS,0,,,,,no whitespace errors

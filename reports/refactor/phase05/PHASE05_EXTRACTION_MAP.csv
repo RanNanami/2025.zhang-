@@ -1,0 +1,10 @@
+stage,commit,source_function,extracted_helper,target_module,fields,copy_or_reset_semantics,model_ownership,behavior_change
+copy-primitives,35d7382,none,shallow_copy_dict,seqmem._state_helpers,"active/winner maps; prediction/observe stats",dict.copy,SequentialMemory,NO
+copy-primitives,35d7382,none,shallow_copy_list,seqmem._state_helpers,last_symbol_ranking,list.copy,SequentialMemory,NO
+copy-primitives,35d7382,none,shallow_copy_set,seqmem._state_helpers,"previous predicted/burst-only sources",set.copy,SequentialMemory,NO
+copy-primitives,35d7382,none,shallow_copy_candidate_map,seqmem._state_helpers,last_prediction_candidates,"new dict plus list.copy per column; candidate objects retained",SequentialMemory,NO
+snapshot,368115e,SequentialMemory.snapshot_transient_state,build_transient_snapshot,seqmem._state_helpers,"eight containers and two RNG states","original field order; decode getstate before learning getstate",SequentialMemory,NO
+restore,79c6157,SequentialMemory.restore_transient_state,shallow_copy_dict,seqmem._state_helpers,"active/winners/stats","original assignment order",SequentialMemory,NO
+restore,79c6157,SequentialMemory.restore_transient_state,shallow_copy_candidate_map,seqmem._state_helpers,last_prediction_candidates,"container-only shallow copy; candidate and segment identity retained",SequentialMemory,NO
+restore,79c6157,SequentialMemory.restore_transient_state,"shallow_copy_list; shallow_copy_set",seqmem._state_helpers,"ranking and source labels","original assignment order; decode setstate before learning setstate",SequentialMemory,NO
+reset,79c6157,SequentialMemory.reset_state,"new_empty_dict; new_empty_list; new_empty_set",seqmem._state_helpers,eight transient containers,"fresh built-in empty container per field; RNG untouched",SequentialMemory,NO
