@@ -174,3 +174,24 @@ def plot_adaptation(
     figure.savefig(path, dpi=180)
     plt.close(figure)
     return True
+
+
+def write_stream_adaptation_plots(
+    paths: StrictStreamOutputPaths,
+    rows: list[dict[str, object]],
+    plot_start: datetime,
+) -> None:
+    """Write the ordinary adaptation plots for a completed strict stream."""
+
+    plot_name = (
+        "fig9_b_original_mape.png"
+        if paths.stream_label == "original"
+        else "fig9_c_perturbed_mape.png"
+    )
+    plot_adaptation(paths.output_dir / plot_name, rows, plot_start)
+    if paths.stream_label == "perturbed":
+        plot_adaptation(
+            paths.output_dir / "fig9_d_adaptation_curve.png",
+            rows,
+            plot_start,
+        )

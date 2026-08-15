@@ -48,7 +48,6 @@ from experiments.fig9 import (  # noqa: E402
     TaxiRecord,
     learn_actual_code,
     mape,
-    plot_adaptation,
     read_records,
     record_values,
     reference_rolling_mape,
@@ -57,6 +56,7 @@ from experiments.fig9 import (  # noqa: E402
     write_optional_stream_results,
     write_predictions,
     write_runtime_artifacts,
+    write_stream_adaptation_plots,
     write_stream_summary,
 )
 from experiments.fig9.diagnostic_loader import (  # noqa: E402
@@ -5124,18 +5124,11 @@ def run_strict_stream(
     # are written.  Publish it again only after those read-only sections have
     # recorded their final row counts and output paths.
     write_stream_summary(artifact_paths, summary)
-    plot_name = (
-        "fig9_b_original_mape.png"
-        if stream_label == "original"
-        else "fig9_c_perturbed_mape.png"
+    write_stream_adaptation_plots(
+        artifact_paths,
+        rows,
+        datetime(2015, 3, 25),
     )
-    plot_adaptation(output_dir / plot_name, rows, datetime(2015, 3, 25))
-    if stream_label == "perturbed":
-        plot_adaptation(
-            output_dir / "fig9_d_adaptation_curve.png",
-            rows,
-            datetime(2015, 3, 25),
-        )
     close_diagnostic_writers()
     return summary
 

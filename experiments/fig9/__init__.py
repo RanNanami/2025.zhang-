@@ -15,6 +15,7 @@ from .outputs import (
     write_optional_stream_results,
     write_predictions,
     write_runtime_artifacts,
+    write_stream_adaptation_plots,
     write_stream_metadata,
     write_stream_summary,
 )
@@ -34,6 +35,7 @@ __all__ = [
     "write_optional_stream_results",
     "write_predictions",
     "write_runtime_artifacts",
+    "write_stream_adaptation_plots",
     "write_stream_metadata",
     "write_stream_summary",
 ]
