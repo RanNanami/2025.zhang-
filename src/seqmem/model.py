@@ -31,6 +31,10 @@ from .dynamics import (
     spike_response,
 )
 from .encoding import SSTDDiscreteEncoder, SpikeEvent, SymbolCode
+from ._forgetting_helpers import (
+    forgetting_score as calculate_forgetting_score,
+    synapse_is_retained,
+)
 from ._learning_helpers import (
     apply_failed_prediction_updates,
     apply_selected_segment_updates,
@@ -53,7 +57,12 @@ class Synapse:
     age: int = 0
 
     def forgetting_score(self, l_weight: float, l_age: float) -> float:
-        return l_weight * (1.0 - self.weight) + l_age * self.age
+        return calculate_forgetting_score(
+            self.weight,
+            self.age,
+            l_weight,
+            l_age,
+        )
 
 
 @dataclass
@@ -4155,10 +4164,13 @@ class SequentialMemory:
             segment.synapses = {
                 source: synapse
                 for source, synapse in segment.synapses.items()
-                if synapse.forgetting_score(
-                    self.params.l_weight, self.params.l_age
+                if synapse_is_retained(
+                    synapse.weight,
+                    synapse.age,
+                    self.params.l_weight,
+                    self.params.l_age,
+                    self.params.forgetting_threshold,
                 )
-                < self.params.forgetting_threshold
             }
             self._dirty_incoming_sources.update(
                 previous_sources.difference(segment.synapses)
