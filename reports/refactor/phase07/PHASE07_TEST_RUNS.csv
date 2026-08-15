@@ -1,0 +1,16 @@
+run_id,scope,status,exit_code,test_count,module_count,elapsed_seconds,evidence,notes
+golden_before,Fig8/Fig9 10/20/50,EXACT,0,6,,,results/refactor/phase07/golden_before/comparison.json,all first attempt
+mutation_related,"learning mutation/decision; intralayer; temporal credit; paper alignment",PASS,0,110,,0.578,,after mutation extraction
+golden_learning_mutation,Fig8/Fig9 10/20/50,EXACT,0,6,,,results/refactor/phase07/golden_learning_mutation/comparison.json,all first attempt
+forgetting_related,"forgetting; mutation; intralayer; temporal credit; paper alignment",PASS,0,110,,0.535,,after forgetting extraction
+golden_forgetting,Fig8/Fig9 10/20/50,EXACT,0,6,,,results/refactor/phase07/golden_forgetting/comparison.json,all first attempt
+branch_sequence,"Fig8 20/50; Fig9 20/50",EXACT,0,4,,,reports/refactor/phase07/PHASE07_BRANCH_SEQUENCE_PARITY.csv,full 12.7 MB JSON byte exact
+mutation_sequence,"Fig8 20/50; Fig9 20/50",EXACT,0,4,,,reports/refactor/phase07/PHASE07_MUTATION_SEQUENCE_PARITY.csv,full 177 MB JSON byte exact
+checkpoint_temporal_related,"architecture; decision/mutation/forgetting; checkpoint; temporal confirmation",PASS,0,91,,1.097,,old/fresh checkpoint both pass
+diagnostic_on_off,"segment reinforcement; actual branch provenance; match overlap",EXACT,0,3,,,reports/refactor/phase07/diagnostic_regression/diagnostic_regression.json,science/state exact; gzip content exact
+compileall_final,"src experiments tests",PASS,0,,,,,exit 0
+git_diff_check,repository patch,PASS,0,,,,,no whitespace errors
+single_process_1,unittest discover,PASS,0,746,,245.268,results/refactor/phase07/single_process_tests/run_1/result.json,
+single_process_2,unittest discover,PASS,0,746,,249.239,results/refactor/phase07/single_process_tests/run_2/result.json,
+single_process_3,unittest discover,PASS,0,746,,263.688,results/refactor/phase07/single_process_tests/run_3/result.json,
+isolated_modules,per-module unittest runner,PASS,0,746,58,,results/refactor/phase07/isolated_tests/summary.json,58/58 modules; zero native crashes

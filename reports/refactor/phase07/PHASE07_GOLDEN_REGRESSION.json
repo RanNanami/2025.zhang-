@@ -1,0 +1,56 @@
+{
+  "phase": "PHASE07",
+  "classification": "BEHAVIOR_PRESERVING_REFACTOR_NOT_A_PAPER_RESULT",
+  "reference_manifest": "reports/refactor/phase01_20260814_233129/baselines/pre_refactor/baseline_manifest.json",
+  "phase07_start_commit": "a34046157d53060e98de4f36c96a5dd1d2d7669f",
+  "final_implementation_commit": "67a4c43",
+  "fixtures": ["fig8_10", "fig8_20", "fig8_50", "fig9_10", "fig9_20", "fig9_50"],
+  "behavior_fields": [
+    "prediction_sha256",
+    "metric",
+    "scenario_summary",
+    "SCIENCE_MODEL_SHA256",
+    "FULL_STATE_SHA256",
+    "RNG_SHA256",
+    "LEARNING_RNG_SHA256",
+    "DECODE_RNG_SHA256",
+    "PREVIOUS_ACTIVE_SHA256",
+    "PREVIOUS_WINNER_SHA256",
+    "CANDIDATE_SHA256",
+    "structure"
+  ],
+  "stages": [
+    {
+      "stage": "before_phase07",
+      "comparison": "results/refactor/phase07/golden_before/comparison.json",
+      "all_six_exact_match": true,
+      "native_failure_attempts": 0
+    },
+    {
+      "stage": "learning_mutation_helpers",
+      "commit": "6649749",
+      "comparison": "results/refactor/phase07/golden_learning_mutation/comparison.json",
+      "all_six_exact_match": true,
+      "native_failure_attempts": 0
+    },
+    {
+      "stage": "forgetting_scalar_helpers",
+      "commit": "67a4c43",
+      "comparison": "results/refactor/phase07/golden_forgetting/comparison.json",
+      "all_six_exact_match": true,
+      "native_failure_attempts": 0
+    }
+  ],
+  "all_stages_exact": true,
+  "scenario_ledger_exact": true,
+  "science_model_sha_exact": true,
+  "full_state_sha_exact": true,
+  "learning_rng_sha_exact": true,
+  "decode_rng_sha_exact": true,
+  "candidate_sha_exact": true,
+  "segment_synapse_structure_exact": true,
+  "branch_trace_file_byte_exact": true,
+  "mutation_trace_file_byte_exact": true,
+  "native_crash_reproduced_in_golden_runs": false,
+  "native_crash_fixed": false
+}
