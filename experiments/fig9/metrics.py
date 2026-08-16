@@ -16,7 +16,12 @@ def error_ratio(errors: Iterable[float], targets: Iterable[float]) -> float:
 
 
 def mape(predictions: list[float], targets: list[float]) -> float:
-    """返回参考实现 [58] 使用的全局目标归一化误差。"""
+    """Return the legacy Fig.9 ratio-of-sums percentage error.
+
+    PAPER STATUS: REFERENCE-SUPPORTED.  Zhang names MAPE and cites [58] without
+    restating the equation; [58] uses this same ratio of sums.  It differs from
+    pointwise standard MAPE, which remains available below for metric audits.
+    """
 
     absolute_error = sum(
         abs(prediction - target)

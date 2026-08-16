@@ -65,8 +65,15 @@ def minimum_synchronous_synapses(
 class DSDynamicsParams:
     """Normalized DS-neuron parameters based on Eqs. (1)-(3) and Table I."""
 
+    # PAPER GAP: LOCAL IMPLEMENTATION
+    # Paper Eq.(1) names layer-specific tau_m/tau_s but publishes no numeric
+    # values.  The normalized strict implementation uses 0.10 and 0.02.
     tau_m: float = 0.10
     tau_s: float = 0.02
+    # PAPER GAP: LOCAL IMPLEMENTATION
+    # Paper Eq.(1) exposes V0.  The public paper does not state unit-peak
+    # normalization.  None means 1/unscaled_peak, not "no scale"; with current
+    # taus effective V0 is about 1.87 and the PSP peak is exactly 1.
     response_scale: float | None = None
     v_rest: float = 0.0
     v_dep: float = 0.5
@@ -91,6 +98,10 @@ class DSDynamicsParams:
 
     @property
     def kernel_scale(self) -> float:
+        # PAPER GAP: LOCAL IMPLEMENTATION
+        # Paper Eq.(1) exposes V0.  The public paper does not state unit-peak
+        # normalization.  Strict response_scale=None means 1/unscaled_peak,
+        # not "no scale"; current taus imply V0 about 1.87 and peak exactly 1.
         if self.response_scale is not None:
             return self.response_scale
         _peak_time, peak = unscaled_kernel_peak(self.tau_m, self.tau_s)
@@ -99,10 +110,18 @@ class DSDynamicsParams:
 
 @lru_cache(maxsize=4096)
 def spike_response(elapsed: float, params: DSDynamicsParams) -> float:
-    """Double-exponential spike response kernel from paper Eq. (1)."""
+    """Evaluate the double-exponential PSP term in paper Eq. (1).
+
+    Inputs/outputs: elapsed time and dynamics parameters -> PSP voltage.
+    State mutation: none.  Paper uncertainty: V0 normalization and both time
+    constants are local strict choices, not published Zhang values.
+    """
 
     if elapsed < 0:
         return 0.0
+    # PAPER GAP: LOCAL IMPLEMENTATION
+    # params.kernel_scale is V0 in Eq.(1); None has already become unit-peak
+    # normalization rather than an omitted or paper-specified amplitude.
     return params.kernel_scale * (
         _EXP(-elapsed / params.tau_m) - _EXP(-elapsed / params.tau_s)
     )
@@ -124,6 +143,13 @@ def dendritic_potential(
     time: float,
     params: DSDynamicsParams,
 ) -> float:
+    """Sum delayed distal PSPs into the dendritic voltage of paper Eq. (1).
+
+    Inputs/outputs: delayed spikes and time -> voltage.  State mutation: none.
+    Paper uncertainty: amplitude, time constants, and numerical crossing search
+    are supplied by the local implementation.
+    """
+
     return params.v_rest + sum(
         spike.weight * spike_response(time - spike.arrival_time, params)
         for spike in spikes
@@ -161,8 +187,9 @@ class DSNeuronState:
                 + params.initial_phase
             )
         elapsed = max(0.0, time - self.depolarized_at)
-        # Phase precession resets the oscillation to its trough; half a cycle
-        # later it reaches the peak and joins v_dep to cross the soma threshold.
+        # PAPER STATUS: PARTIAL
+        # Paper describes phase precession and return to phi0, but not this
+        # exact crossing-anchored -cos trajectory.  It is a local realization.
         return -params.oscillation_amplitude * math.cos(
             2.0 * math.pi * params.oscillation_frequency * elapsed
         )
@@ -175,9 +202,24 @@ class DSNeuronState:
         apical: float = 0.0,
         inhibition: float = 0.0,
     ) -> float:
+        """Evaluate the local soma approximation corresponding to paper Eq. (3).
+
+        Inputs/outputs: time and zone voltages -> soma voltage.  State mutation:
+        none.  Paper uncertainty: strict callers do not supply a continuous
+        V_inh(t), and refractory suppression is stronger than the printed eta.
+        """
+
         if self.is_refractory(time, params):
+            # PAPER STATUS: PARTIAL
+            # Paper uses eta=-theta for the rest of the current cycle.  Returning
+            # -inf enforces suppression but is not the same voltage trajectory.
             return -math.inf
         distal = params.v_dep if self.is_depolarized(time, params) else 0.0
+        # PAPER GAP: IMPLEMENTATION INCOMPLETE / EQUIVALENCE UNPROVEN
+        # Eq.(3) explicitly contains V_inh(t).  This helper accepts inhibition,
+        # but strict prediction currently calls it with the zero default.  The
+        # complete trajectory is not reproduced, while its numerical form is
+        # also absent from the public paper; exact author equivalence is unknown.
         return proximal + apical + distal + inhibition + self.oscillation(time, params)
 
     def try_fire(

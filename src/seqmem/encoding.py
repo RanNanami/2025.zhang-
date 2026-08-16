@@ -60,6 +60,16 @@ class SSTDDiscreteEncoder:
         self._symbols_by_event: dict[tuple[int, float], set[str]] = {}
 
     def encode(self, symbol: str) -> SymbolCode:
+        """Assign one paper SSTD mini-column/time code to a discrete symbol.
+
+        Inputs/outputs: symbol -> cached ``SymbolCode``.  State mutation: first
+        encounter consumes encoder RNG and stores the code.  Paper status: the
+        random K-column ordered representation matches Section II-C3.
+        """
+
+        # PAPER STATUS: MATCH
+        # The paper specifies a fixed random ordered K-column code per symbol;
+        # the seed and first-encounter order are reproducibility choices.
         # DEBUG WATCH: 若复现实验不稳定，检查这里是否在不同顺序下首次遇到
         # 新 symbol；首次编码顺序会决定离散词的随机 SSTD code。
         if symbol not in self._codes:
@@ -137,6 +147,9 @@ class SSTDRealValueEncoder:
         self.minimum = minimum
         self.maximum = maximum
         self.column_offset = column_offset
+        # PAPER GAP: LOCAL IMPLEMENTATION
+        # Section II-C1 specifies Gaussian fields spaced by l and resolution
+        # l/2, but not Fig.9's numeric range, endpoint placement, or sigma.
         self.spacing = (maximum - minimum) / (num_columns - 1)
         self.sigma = sigma if sigma is not None else self.spacing
         if self.sigma <= 0:
@@ -149,6 +162,13 @@ class SSTDRealValueEncoder:
         self._codes_by_event: dict[tuple[int, float], tuple[SymbolCode, ...]] | None = None
 
     def encode(self, value: float) -> SymbolCode:
+        """Encode a real value with the paper Gaussian Top-K SSTD mechanism.
+
+        Inputs/outputs: scalar -> ordered ``SymbolCode``.  State mutation: none.
+        Paper uncertainty: clipping, centers, range, sigma, and tie behavior are
+        local choices where the public paper is underspecified.
+        """
+
         # DEBUG WATCH: passenger 会先被截断到 [minimum, maximum]，再按高斯响应
         # 选列。column_offset 保证 passenger 列从 88 开始，不与 weekday/time 混淆。
         clipped = min(self.maximum, max(self.minimum, float(value)))
@@ -183,13 +203,16 @@ class SSTDRealValueEncoder:
         code: SymbolCode,
         timing_tolerance: float = 0.03,
     ) -> float:
-        """Decode the most likely population code, including firing order.
+        """Decode a raw prediction through the local likelihood codebook.
 
-        DEBUG WATCH: 这里只读传入的 code，不会调用 model.observe_code()。
-        如果 raw prediction 太密，很多 likelihood code 会共享列，best_values
-        变多，最后平均值可能被无关列拉偏。
+        Inputs/outputs: predicted code -> scalar.  State mutation: lazy readout
+        caches only.  Paper uncertainty: half-spacing search, overlap priority,
+        timing tolerance, and averaging tied values are not specified.
         """
 
+        # PAPER GAP: LOCAL IMPLEMENTATION
+        # The paper says "most likely prediction" but does not publish this
+        # decoder.  DEBUG WATCH: dense raw codes create many tied best_values.
         predicted_times: dict[int, list[float]] = {}
         for event in code.events:
             if self.column_offset <= event.column < self.column_offset + self.num_columns:

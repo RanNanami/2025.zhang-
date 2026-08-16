@@ -189,7 +189,18 @@ _MODULE_STATE_BOUNDARY_PHASES = {
 
 @dataclass(frozen=True)
 class Fig9StrictConfig:
+    """Scientific defaults used by the local Fig.9 strict protocol.
+
+    ``strict`` means stable repository baseline, not proof that every public-paper
+    omission has been recovered.  Local assumptions are marked below.
+    """
+
+    # PAPER STATUS: MATCH
+    # Five half-hour steps are the published 2.5-hour prediction horizon.
     horizon: int = 5
+    # PAPER GAP: LOCAL IMPLEMENTATION
+    # Zhang et al. do not publish a 5,904-record warmup or 400-record rolling
+    # evaluation window; these choices materially define the scored population.
     warmup: int = 5904
     rolling_window: int = 400
     seed: int = 0
@@ -200,6 +211,9 @@ class Fig9StrictConfig:
     neurons_per_column: int = 32
     l_match: int = 4
     forgetting_threshold: float = 65.0
+    # PAPER GAP: LOCAL IMPLEMENTATION
+    # The paper gives 482 passenger columns and Gaussian interval l, but not the
+    # [0, 40000] range, endpoint centers, clipping, or sigma used by this encoder.
     passenger_min: float = 0.0
     passenger_max: float = 40000.0
     response_scale: float | None = None
@@ -1235,8 +1249,9 @@ def build_fig9_encoder(config: Fig9StrictConfig) -> SSTDCompositeEncoder:
     weekday: 0..29，time: 30..87，passenger: 88..569。
     """
 
-    # STRICT PROTOCOL: Fig.9 使用 30/58/482 三组 mini-column，K=10。
-    # 改这里会改变编码容量，不能和论文 strict 结果直接比较。
+    # PAPER STATUS: PARTIAL
+    # Fig.9 publishes 30/58/482 columns and K=10.  Passenger range and Gaussian
+    # geometry come from the local config and are not fully specified by Zhang.
     day_encoder = SSTDPeriodicEncoder(
         num_columns=config.weekday_columns,
         k=config.k,
@@ -1516,14 +1531,17 @@ def rollout_raw_autonomous(
     autonomous_context_provenance_tracker: object | None = None,
     native_phase_hook: Callable[[int, str], None] | None = None,
 ) -> RolloutResult:
-    """Roll out future SSTD codes using only raw predictive neurons.
+    """Roll out the Fig.9 horizon through raw predictive neurons.
 
-    中文调试提示：这里是 5-step rollout 的核心。每一步只调用
-    predict_code()，然后把 raw prediction 对应的真实预测细胞放回
-    previous_active_cells/previous_winners，绝不把解码值重新 encode 后输入。
-    finally 中 restore_transient_state() 会撤销 rollout 对临时状态和 RNG 的影响。
+    Inputs/outputs: current transient context and step count -> raw codes/readout.
+    State mutation: temporary context is restored in ``finally``; no rollout
+    learning.  Paper uncertainty: exact multistep state management is unpublished.
     """
 
+    # PAPER STATUS: PARTIAL
+    # Five-step prediction and autonomous spikes match the paper mechanism.
+    # Snapshot/restore and no decoded-value replay are local leakage-safe protocol
+    # decisions, not a fully published evaluation implementation.
     # DEBUG WATCH: 在这里下断点可观察每个 horizon step 的 raw.events、
     # raw columns 数量和 prediction_active_cells(raw) 是否突然爆炸。
     snapshot = model.snapshot_transient_state()
@@ -3201,6 +3219,9 @@ def run_strict_stream(
             temporal_context_diagnostic and index >= config.warmup
         )
         rollout_diagnostics: tuple[dict[str, object], ...] = ()
+        # PAPER GAP: LOCAL IMPLEMENTATION
+        # Scoring begins only after the unpublished warmup.  Keep this visible
+        # when comparing repository MAPE with the paper figure.
         if index >= config.warmup:
             target_record = records[index + config.horizon]
             debug_enabled = debug_record_index is not None and index == debug_record_index

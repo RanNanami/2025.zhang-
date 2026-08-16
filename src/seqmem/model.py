@@ -420,23 +420,55 @@ class MemoryParams:
     w0: float = 0.5
     delta_w: float = 0.1
     delta_w_bad: float = 0.01
+    # PAPER STATUS: MATCH
+    # Paper sets L_match=4 for taxi and 3 for the other reported experiments.
     l_match: int = 3
     dendrite_threshold: float = 1.0
+    # PAPER GAP: HIGH-IMPACT LOCAL SEMANTIC
+    # Paper gives no 0.03 event window.  This is not a floating-point epsilon:
+    # it changes prediction confirmation, burst classification, Scenario
+    # matching, and Scenario-1 contributor attribution.
     timing_tolerance: float = 0.03
     forgetting_threshold: float = 25.0
     l_age: float = 1.0
     l_weight: float = 10.0
+    # PAPER GAP: LOCAL IMPLEMENTATION
+    # Eq.(1) names tau_m/tau_s but the public paper publishes no numeric values.
     tau_m: float = 0.10
     tau_s: float = 0.02
+    # PAPER GAP: LOCAL IMPLEMENTATION
+    # Paper Eq.(1) exposes V0.  With response_scale=None, DSDynamicsParams uses
+    # kernel_scale=1/unscaled_peak, not "no scale".  Current taus imply effective
+    # V0 about 1.87 and PSP peak exactly 1; this is not paper-stated.
     response_scale: float | None = None
+    # PAPER STATUS: PARTIAL
+    # All-neuron burst is paper-explicit.  Propagating every burst neuron as the
+    # complete next-step distal context is not fully specified publicly.
     burst_context: bool = True
+    # PAPER GAP: EQUIVALENCE UNPROVEN
+    # Paper winner semantics use largest Eq.(3) soma voltage plus inhibition;
+    # strict keeps earliest firing.  Do not claim identity or inevitable error.
     intracolumn_inhibition: bool = True
     continuous_dynamics: bool = True
+    # PAPER GAP: LOCAL IMPLEMENTATION
+    # The paper specifies continuous equations, not this numerical time grid.
     integration_step: float = 0.005
+    # PAPER GAP: NUMERICAL IMPLEMENTATION PARAMETER
+    # The printed threshold inequalities do not include this numerical voltage
+    # epsilon.  Unlike timing_tolerance, it does not define event semantics.
     integration_voltage_tolerance: float = 2e-5
+    # PAPER GAP: LOCAL IMPLEMENTATION
+    # A unit cycle is a normalized code time; the paper does not publish this
+    # universal period or the resulting absolute scale of tau and tolerance.
     cycle_period: float = 1.0
+    # PAPER GAP: LOCAL IMPLEMENTATION / OPERATIONALIZATION
+    # Paper says "contributed synapses" without an executable criterion;
+    # arrival-window is the local strict rule.  Alternatives remain diagnostics.
     scenario1_contribution_mode: str = "arrival-window"
     capture_prediction_contributions: bool = False
+    # PAPER STATUS: PARTIAL
+    # current-delay is a local normalized realization of the printed delay rule;
+    # peak-aligned-delay is explicitly nonpaper diagnostic.
     synapse_delay_mode: str = "current-delay"
     capture_branch_diagnostics: bool = False
     # Opt-in identity/scope audit.  It records existing decisions only.
@@ -549,8 +581,9 @@ class SequentialMemory:
     spikes arrive half an oscillation cycle before the target soma spike, and
     the double-exponential response kernel is integrated through dendritic
     threshold crossing and phase-precessed soma firing.
-    Online segment growth, reinforcement, punishment, ageing, and pruning follow
-    the learning rules and parameterization reported in the paper.
+    Online segment growth, reinforcement, punishment, ageing, and pruning map to
+    the paper mechanisms.  Publicly underspecified numerical choices are marked
+    with PAPER STATUS/PAPER GAP comments at their decision points.
     """
 
     SPIKE_RESPONSE_CACHE_LIMIT = 500_000
@@ -657,6 +690,10 @@ class SequentialMemory:
         ) = None
         self._runtime_debug_context: dict[str, object] = {}
 
+    # ==========================================================
+    # DIAGNOSTIC / AUDIT SUPPORT
+    # ==========================================================
+
     def __getstate__(self) -> dict[str, object]:
         """Exclude the reproducible numeric cache from model checkpoints."""
 
@@ -713,6 +750,10 @@ class SequentialMemory:
             getattr(self.params, "capture_intralayer_parity_diagnostics", False)
             and getattr(self, "intralayer_parity_callback", None) is not None
         )
+
+    # ==========================================================
+    # TRANSIENT STATE
+    # ==========================================================
 
     def reset_state(self) -> None:
         # STATE MUTATION: 只清空当前序列上下文，不删除任何已学 segment/synapse。
@@ -774,11 +815,17 @@ class SequentialMemory:
         self._decode_rng.setstate(snapshot.decode_rng_state)
         self._learning_rng.setstate(snapshot.learning_rng_state)
 
+    # ==========================================================
+    # PREDICTION
+    # ==========================================================
+
     def _active_sources(self) -> dict[int, float]:
         """Return the cells that provide lateral/distal context now.
 
-        中文调试提示：burst_context=True 时，未预测列会把整列 active cells
-        送入下一步；这是 Fig.8/Fig.9 raw columns 膨胀的重要观察点。
+        PAPER STATUS: PARTIAL. All-neuron burst is explicit, but complete
+        next-context propagation is underspecified. 中文调试提示：
+        burst_context=True 会把整列 active cells 送入下一步；这是 Fig.8/Fig.9
+        raw columns 膨胀的重要观察点。
         """
 
         # The fallback keeps manually constructed tests and callers compatible.
@@ -1056,11 +1103,12 @@ class SequentialMemory:
         intracolumn_selection_policy: str = "existing",
         intracolumn_selection_trace: IntracolumnSelectionTrace | None = None,
     ) -> SymbolCode | None:
-        """Return the next symbol code predicted from previous context cells.
+        """Predict the next SSTD code from distal context.
 
-        中文调试提示：这是“神经预测”本体。它只读 previous_active_cells /
-        previous_winners 和长期 segment/synapse，写 last_prediction_candidates
-        作为本次预测候选；不学习、不 observe 外部输入。
+        Paper: distal PSP -> predictive soma spike -> intracolumn winner.
+        Inputs/outputs: transient context -> raw ``SymbolCode`` or ``None``.
+        State mutation: prediction caches only; no synaptic learning.
+        Paper uncertainty: timing grid, V_inh, and winner equivalence are local.
         """
 
         # DEBUG WATCH: after predict_code 要看的核心字段是
@@ -1545,8 +1593,10 @@ class SequentialMemory:
             self.params.intracolumn_inhibition
             and intracolumn_selection_policy == "existing"
         ):
-            # PAPER-EXPLICIT: 同一 mini-column 最终只保留最早 firing 的预测事件，
-            # 防止一个列内多个 neuron 同时代表同一个输入列。
+            # PAPER GAP: EQUIVALENCE UNPROVEN
+            # Eq.(3) includes V_inh(t), and the paper selects the largest soma
+            # membrane potential in a mini-column.  Strict currently keeps the
+            # earliest firing event.  Identity and inevitable error are unproven.
             winner_by_column: dict[int, tuple[int, float, float, Segment]] = {}
             for (column_id, _event_time), values in best_by_event.items():
                 previous = winner_by_column.get(column_id)
@@ -2116,6 +2166,10 @@ class SequentialMemory:
                     counts[symbol] = counts.get(symbol, 0) + 1
         return {symbol for symbol, count in counts.items() if count >= min_overlap}
 
+    # ==========================================================
+    # OBSERVATION AND LEARNING
+    # ==========================================================
+
     def observe(self, symbol: str, learn: bool = True) -> dict[int, float]:
         """Feed one symbol, learn online, and return current winner ids.
 
@@ -2131,10 +2185,12 @@ class SequentialMemory:
         learn: bool = True,
         observation_trace: ObservationTrace | None = None,
     ) -> dict[int, float]:
-        """Feed an already encoded SSTD item into the sequential memory.
+        """Apply one proximal SSTD observation and its learning scenario.
 
-        中文调试提示：这是外部 proximal input 入口，也是 learn=True 时唯一
-        会修改长期记忆结构/权重/age 的主路径。
+        Paper: confirm prediction, match/grow a segment, burst, then punish.
+        Inputs/outputs: observed code -> current learning winners.
+        State mutation: context always; segment/synapse state when ``learn``.
+        Paper uncertainty: timing and Scenario-1 contributor tests are local.
         """
 
         # DEBUG WATCH: actual observe。previous_active 是上一周期 lateral
@@ -2313,8 +2369,10 @@ class SequentialMemory:
                 matching_segment_eligible=matching_segment_eligible,
             )
             if matched is None:
-                # PAPER-EXPLICIT: Scenario 3。既没有预测，也没有足够匹配的
-                # segment，就在 least-used neuron 上长一个新 segment。
+                # PAPER STATUS: PARTIAL
+                # Paper Scenario 2B creates a segment when no matching segment
+                # exists.  The legacy counter calls this branch "scenario3";
+                # do not confuse that label with paper Scenario 3 punishment.
                 scenario_counts[learning_branch] += 1
                 observe_scenario = learning_branch
                 if matching_predictions:
@@ -2395,8 +2453,9 @@ class SequentialMemory:
                         scenario="scenario2",
                     )
                 else:
-                    # PAPER-EXPLICIT: Scenario 3 fallback。匹配 segment 不足
-                    # L_match，转为新建 segment。
+                    # PAPER STATUS: PARTIAL
+                    # This is paper Scenario 2B (create on no eligible match),
+                    # although the legacy accounting label is "scenario3".
                     scenario_counts["scenario3"] += 1
                     observe_scenario = "scenario3"
                     scenario_assignment_reason = (
@@ -2835,10 +2894,11 @@ class SequentialMemory:
         *,
         trace: BestMatchingTrace | None = None,
     ) -> tuple[int, Segment] | None:
-        """Find the best old segment for an unpredicted proximal event.
+        """Select the paper Scenario-2A matching segment.
 
-        DEBUG WATCH: Scenario 2/3 分界点。timed_overlap >= L_match 才能走
-        Scenario 2，否则会退到新建 segment。
+        Inputs/outputs: observed column plus prior context -> neuron/segment.
+        State mutation: none except optional trace/RNG tie-break state.
+        Paper uncertainty: "same time" is implemented with timing_tolerance.
         """
 
         if not active_sources:
@@ -2910,10 +2970,11 @@ class SequentialMemory:
         *,
         creation_scenario: str = "unknown",
     ) -> Segment | None:
-        """Create a new distal segment from current winners to a target event.
+        """Create the paper Scenario-2B distal segment from prior winners.
 
-        PAPER-EXPLICIT: Scenario 3 和部分 Scenario 2 会长新突触。新突触的
-        delay 由 source_time 与 target_time 决定，weight 从 w0 开始。
+        Inputs/outputs: target cell/event plus winners -> new ``Segment``.
+        State mutation: appends long-term segment/synapses and incoming index.
+        Paper uncertainty: numerical delay realization is local.
         """
 
         if not active_sources:
@@ -2992,10 +3053,11 @@ class SequentialMemory:
         target_time: float,
         source_time: float,
     ) -> float:
-        """Compute distal delay from source event time to target dendritic time.
+        """Map paper synaptic-delay learning onto normalized cycle time.
 
-        LOCAL CHOICE: peak-aligned-delay 只是 nonpaper diagnostic；strict 默认
-        current-delay，不能静默改成补偿 PSP peak 的公式。
+        Inputs/outputs: source/target event times -> immutable delay.
+        State mutation: none.  Paper uncertainty: current-delay is a local
+        numerical realization; peak-aligned-delay is nonpaper diagnostic.
         """
 
         delay = self.params.cycle_period / 2.0 + target_time - source_time
@@ -3557,11 +3619,11 @@ class SequentialMemory:
         active_sources: dict[int, float] | None = None,
         target_time: float | None = None,
     ) -> set[int]:
-        """Select Scenario-1 sources without recomputing a prediction.
+        """Select sources credited by paper Scenario 1 without repredicting.
 
-        STRICT PROTOCOL: 默认 arrival-window 是论文对齐规则。continuous-positive
-        和 continuous-causal 只用于 nonpaper diagnostic，且必须读取同一个
-        PredictionCandidate 保存的 crossing contributions。
+        Inputs/outputs: saved candidate -> contributing source-cell ids.
+        State mutation: none.  Paper uncertainty: strict arrival-window is a
+        local definition; continuous-positive/causal are nonpaper diagnostics.
         """
 
         selected_mode = mode or self.params.scenario1_contribution_mode
@@ -3571,8 +3633,9 @@ class SequentialMemory:
             )
         segment = candidate.segment
         if selected_mode == "arrival-window":
-            # PAPER-EXPLICIT: 当前 strict 默认，按目标 dendritic time 的
-            # timing_tolerance 窗口判断哪些 synapse contributed。
+            # PAPER GAP: LOCAL IMPLEMENTATION / OPERATIONALIZATION
+            # The paper says "contributed synapses" but gives no executable
+            # criterion; strict uses this target-time +/- tolerance window.
             if active_sources is None or target_time is None:
                 raise ValueError(
                     "arrival-window requires active_sources and target_time"
@@ -3678,11 +3741,11 @@ class SequentialMemory:
         scenario: str = "unspecified",
         prediction_candidate: PredictionCandidate | None = None,
     ) -> None:
-        """Apply learning to one chosen segment.
+        """Apply paper Scenario-1 or Scenario-2 updates to one segment.
 
-        中文调试提示：Scenario 1 会强化真实促成预测的突触并减弱非贡献突触；
-        Scenario 2 可补长缺失 winner 突触；Scenario 3 不进这里而是 grow segment。
-        forgetting/age 在后续 pruning 路径中使用。
+        Inputs/outputs: selected segment/context -> no return value.
+        State mutation: weights, ages, optional synapse growth, then pruning.
+        Paper uncertainty: Scenario-1 contributor identity follows local mode.
         """
 
         scenario1_count_before = segment.scenario1_reinforcements
@@ -3976,6 +4039,13 @@ class SequentialMemory:
         active_events: dict[int, float],
         confirmed_candidate_ids: set[int] | None = None,
     ) -> None:
+        """Apply paper Scenario-3 punishment to unconfirmed predictions.
+
+        Inputs/outputs: observed events and confirmed candidates -> no value.
+        State mutation: decreases contributing weights and may prune memory.
+        Paper uncertainty: contribution uses the local timing window.
+        """
+
         self._emit_prune_diagnostic(
             "PUNISH_WRONG_PREDICTIONS_ENTER",
             target_column=None,
@@ -4120,6 +4190,10 @@ class SequentialMemory:
             }
         )
 
+    # ==========================================================
+    # FORGETTING
+    # ==========================================================
+
     def _prune_neuron(
         self,
         neuron: Neuron,
@@ -4128,6 +4202,13 @@ class SequentialMemory:
         neuron_index: int | None = None,
         candidate_segment: Segment | None = None,
     ) -> None:
+        """Remove synapses whose paper weight/age forgetting score expires.
+
+        Inputs/outputs: one neuron -> no value.  State mutation: synapse and
+        segment deletion plus incoming-index invalidation.  Paper uncertainty:
+        experiment thresholds are published; this container update is local.
+        """
+
         self._emit_prune_diagnostic(
             "PRUNE_NEURON_ENTER",
             target_column=target_column,

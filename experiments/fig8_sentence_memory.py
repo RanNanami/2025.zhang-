@@ -75,6 +75,8 @@ def read_cbt_sentences(path: Path, num_sentences: int, seed: int) -> list[list[s
 
 
 def train_sentence(model: SequentialMemory, sentence: list[str]) -> None:
+    """Present one ten-word CBT sentence through the online learning path."""
+
     model.reset_state()
     for word in sentence:
         model.predict_code()
@@ -93,6 +95,13 @@ def recall_suffix(
     checkpoint_sentences: int = 0,
     sentence_index: int = 0,
 ) -> list[str]:
+    """Recall the suffix through paper-style autonomous neural propagation.
+
+    Inputs/outputs: proximal cue words -> decoded suffix words.  State mutation:
+    transient retrieval context only.  Paper status: strict ``neural/raw`` does
+    not replay decoder output; alternate propagation is nonpaper diagnostic.
+    """
+
     if retrieval_mode not in {"neural", "proximal-replay"}:
         raise ValueError(f"unsupported retrieval mode: {retrieval_mode}")
     if neural_propagation not in {"raw", "eventwise-inhibited"}:
@@ -349,6 +358,10 @@ def plot_capacity(path: Path, checkpoints: list[tuple[int, float]]) -> bool:
 
 
 def run(args: argparse.Namespace) -> None:
+    # PAPER STATUS: MATCH
+    # Fig.8(a) uses eligible ten-word CBT sentences, a six-word cue, four-word
+    # retrieval, 100 mini-columns x 10 neurons, K=10, L_match=3, theta_f=500.
+    # Seed/report cadence are reproducibility choices not published parameters.
     sentences = read_cbt_sentences(Path(args.data), args.num_sentences, args.seed)
 
     encoder = SSTDDiscreteEncoder(num_columns=args.num_columns, k=args.k, seed=args.seed)
