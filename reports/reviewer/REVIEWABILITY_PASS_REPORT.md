@@ -1,11 +1,11 @@
-# Phase09 Reviewability Pass Report
+# Phase09 可审阅性检查报告
 
-Baseline: `d33b02506417c1fda7bf0484ce03c68959046991`
-Scope: documentation, comments, docstrings, and visual section headers only.
+基线：`d33b02506417c1fda7bf0484ce03c68959046991`
+范围：文档、注释、docstring 和可视化分节标题；没有修改科学行为。
 
 ## 1. 师兄应该从哪个文件开始看？
 
-从根目录 `REVIEWER_GUIDE.md` 开始。它先给出完整模型主流程，再把论文概念映射到代码位置，并明确哪些 strict 行为仍是本地实现。逐项审查时使用 `reports/reviewer/PAPER_CODE_REVIEW_CHECKLIST.md`。
+从根目录的 `REVIEWER_GUIDE.md` 开始。它先给出完整模型主流程，再把论文概念映射到代码位置，并明确哪些 strict 行为仍属于本地实现。逐项审查时使用 `reports/reviewer/PAPER_CODE_REVIEW_CHECKLIST.md`。
 
 ## 2. 推荐阅读的函数顺序是什么？
 
@@ -24,9 +24,9 @@ Scope: documentation, comments, docstrings, and visual section headers only.
 
 完成核心阅读后，再看 `fig8_sentence_memory.py::recall_suffix` 和 `fig9_strict_reproduction.py::rollout_raw_autonomous` 两个协议入口。
 
-## 3. 哪些模块第一次可以忽略？
+## 3. 第一次阅读可以忽略哪些模块？
 
-第一次阅读可以忽略 diagnostic traces、runtime/native crash debug、artifact I/O、checkpoint sidecars、historical experiments、`results/`、历史 reports、oracle/teacher-forced/ablation modes，以及非默认 continuous optimization paths。它们没有被搬动或删除。
+第一次阅读可以先忽略 diagnostic traces、runtime/native crash debug、artifact I/O、checkpoint sidecars、historical experiments、`results/`、历史 reports、oracle/teacher-forced/ablation modes，以及非默认 continuous optimization paths。这些内容没有被搬动或删除。
 
 ## 4. 标出了多少 PAPER GAP？
 
@@ -49,15 +49,15 @@ Scope: documentation, comments, docstrings, and visual section headers only.
 
 ## 7. 有没有改变 strict behavior？
 
-没有。没有修改表达式、分支、调用、函数顺序或模型状态写入。`git diff --check` 通过。Six Golden EXACT 未运行，因为 production scientific executable AST diff 为零。
+没有。没有修改表达式、分支、调用、函数顺序或模型状态写入。`git diff --check` 通过。由于 production scientific executable AST diff 为零，Six Golden EXACT 没有重复运行。
 
-## 8. Validation 结果？
+## 8. Validation 结果是什么？
 
-- `python -m compileall -q src experiments tests`: **PASS**
-- Focused unit tests: **155 tests PASS**, 0 failures, 0 errors, 78.742 s
-- Test modules: paper alignment, paper inhibition audit, Fig.8 neural retrieval, Fig.8 Scenario-1 contribution, Fig.9 strict reproduction, Fig.9 evaluation metric audit, Fig.9 paper-code parity
-- Executable AST equality: **6/6 PASS**
-- `git diff --check`: **PASS**
-- New scientific experiments: **none run**
+- `python -m compileall -q src experiments tests`：**通过（PASS）**
+- focused unit tests：**155 个测试通过（PASS）**，0 failures，0 errors，耗时 78.742 s
+- 测试模块：paper alignment、paper inhibition audit、Fig.8 neural retrieval、Fig.8 Scenario-1 contribution、Fig.9 strict reproduction、Fig.9 evaluation metric audit、Fig.9 paper-code parity
+- executable AST equality：**6/6 PASS**
+- `git diff --check`：**通过（PASS）**
+- 新科学实验：**未运行（none run）**
 
-Phase09 stops here. The marked gaps are navigation and review evidence; no paper/code gap was silently fixed.
+Phase09 到此结束。标记出来的 gaps 是导航和审阅证据；没有静默修复任何论文—代码差异。
